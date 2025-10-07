@@ -41,13 +41,13 @@ Instructions for training and evaluating the models are provided below.
 
 * **To Train the model:**
     ```bash
-    python run_diffcast.py --use_diff
+    python3 run_diffcast.py --use_diff
     ```
 
 * **To Evaluate/Test the model:**
     You must provide the path to a saved model checkpoint using the `--ckpt_milestone` argument.
     ```bash
-    python run_diffcast.py --eval --use_diff --ckpt_milestone <address_of_checkpoint>
+    python3 run_diffcast.py --eval --use_diff --ckpt_milestone <address_of_checkpoint>
     ```
 
 ### AlphaPre & Other Deterministic Models
@@ -56,7 +56,7 @@ The `run_alphapre_convlstm.py` script is used to run **AlphaPre** as well as oth
 
 * **To Train the model:**
     ```bash
-    python run_alphapre_convlstm.py
+    python3 run_alphapre_convlstm.py
     ```
 
 * **To Evaluate/Test the model:**
@@ -78,6 +78,6 @@ Each run script (`run_diffcast.py`, `run_alphapre_convlstm.py`) contains various
 
 ## Pretrained models download links
 
-diffcast : https://drive.google.com/file/d/1y8BvYz3U_awm1eAYqXBy6tgbMy8t40Xr/view?usp=sharing
+Diffcast: https://drive.google.com/file/d/1y8BvYz3U_awm1eAYqXBy6tgbMy8t40Xr/view?usp=sharing
 
-alphapre: https://drive.google.com/file/d/1hzT2-biQhWuKTER8w1yoQx5Zh0nMYl80/view?usp=sharing
+Alphapre: https://drive.google.com/file/d/1hzT2-biQhWuKTER8w1yoQx5Zh0nMYl80/view?usp=sharing

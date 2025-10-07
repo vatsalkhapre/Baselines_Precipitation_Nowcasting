@@ -8,13 +8,8 @@ This repository contains the code for training and evaluating precipitation nowc
 
 To run the models, first set up the required Conda environment.
 
-1.  **Clone the repository (if applicable):**
-    ```bash
-    git clone <your-repository-url>
-    cd <repository-directory>
-    ```
 
-2.  **Create the Conda environment from the `env.yaml` file:**
+1.  **Create the Conda environment from the `env.yaml` file:**
     ```bash
     conda env create -f env.yaml
     ```
@@ -36,17 +31,7 @@ The models are trained and evaluated on several weather radar datasets. The data
 * **VIL (Vertically Integrated Liquid) Dataset:**
     `vatsal@10.24.52.210:/qdata/vatsal/Data/Datasets/VIL/VIL_scaled_0_255/full_data`
 
-* **mosdac Dataset:**
-    This is a **Reflectivity** dataset.
 
-* **vil_mosdac Dataset:**
-    This is a **VIL dataset scaled** from 0 to 255.
-
-### Important Note for VIL Dataset
-
-When running experiments with the VIL dataset, you must specify the path to the file containing the rainy day sequences. Use the `--file_rain_seq_add` argument to point to the correct file located in the `Rainy_days_file` folder.
-
----
 
 ## 🚀 Running the Models
 
@@ -79,6 +64,11 @@ The `run_alphapre_convlstm.py` script is used to run **AlphaPre** as well as oth
     ```bash
     python3 run_alphapre_convlstm.py --eval --ckpt_milestone <address_of_checkpoint>
     ```
+
+---
+### Important Note for VIL Dataset
+
+When running experiments with the VIL dataset, you must specify the path to the file containing the rainy day sequences. Use the `--file_rain_seq_add` argument to point to the correct file located in the `Rainy_days_file` folder.
 
 ---
 

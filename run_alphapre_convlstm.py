@@ -46,7 +46,7 @@ def create_parser():
     parser.add_argument("--exp_note",       type=str,   default=None,              help="additional note for experiment")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name, use 'vil_mosdac' for vil_scaled dataset and 'mosdac' for reflectivity dataset")
     parser.add_argument("--datatype",           type=str,       default=None,           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")

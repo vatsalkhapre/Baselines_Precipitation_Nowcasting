@@ -31,7 +31,7 @@ from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
 
 # Apply your own wandb api key to log online
-os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
+# os.environ["WANDB_API_KEY"] = #<Enter wandb key>
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 

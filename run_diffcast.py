@@ -39,12 +39,7 @@ from copy import deepcopy
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 
-"""
-For MOSDAC dataset dont forget to select 
-method
-preprocessing
-in argument parser.
-"""
+
 def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
@@ -60,7 +55,7 @@ def create_parser():
    
     parser.add_argument("--file_rain_seq_add",  type=str,   default=0,                  help="Rainy days file")
     parser.add_argument("--method",             type= int,  default= None,              help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--dataset",            type=str,   default='sevir',       help="dataset name")
+    parser.add_argument("--dataset",            type=str,   default='sevir',            help="dataset name, use 'vil_mosdac' for vil_scaled dataset and 'mosdac' for reflectivity dataset.")
     parser.add_argument("--img_size",           type=int,   default=128,                help="image size")
     parser.add_argument("--img_channel",        type=int,   default=1,                  help="channel of image")
     parser.add_argument("--stride",             type=int,   default=13,                 help="dataset stride")

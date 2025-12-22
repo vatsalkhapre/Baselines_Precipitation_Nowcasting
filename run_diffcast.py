@@ -39,31 +39,35 @@ from copy import deepcopy
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 
-
+"""
+For MOSDAC dataset dont forget to select 
+method
+preprocessing
+in argument parser.
+"""
 def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
-    
     parser.add_argument('--backbone',        type=str,            default='phydnet',              help='backbone model for deterministic prediction (earthformer, simvp, phydnet)')
     parser.add_argument('--use_diff',        action="store_true", default=False,                  help='Weather use diff framework, as for ablation study')
     parser.add_argument("--seed",           type=int,             default=0,                      help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,             default='sevir',           help="experiment directory")
+    parser.add_argument("--exp_dir",        type=str,             default='vil_mosdac',           help="experiment directory")
     parser.add_argument("--exp_note",       type=str,             default=None,                   help="additional note for experiment")
 
 
     # --------------- Dataset ---------------
    
-    parser.add_argument("--file_rain_seq_add",  type=str,   default=0,                  help="Rainy days file")
+    parser.add_argument("--file_rain_seq_add",  type=str,   default=0,                  help="Rainy days file full address (in.pkl format)")
     parser.add_argument("--method",             type= int,  default= None,              help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--dataset",            type=str,   default='sevir',            help="dataset name, use 'vil_mosdac' for vil_scaled dataset and 'mosdac' for reflectivity dataset.")
-    parser.add_argument("--img_size",           type=int,   default=128,                help="image size")
+    parser.add_argument("--dataset",            type=str,   default='vil_mosdac',       help="dataset name")
+    parser.add_argument("--img_size",           type=int,   default=240,                help="image size")
     parser.add_argument("--img_channel",        type=int,   default=1,                  help="channel of image")
     parser.add_argument("--stride",             type=int,   default=13,                 help="dataset stride")
-    parser.add_argument("--seq_len",            type=int,   default=25,                 help="sequence length sampled from dataset")
+    parser.add_argument("--seq_len",            type=int,   default=15,                 help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,   default=5,                  help="number of frames to input")
-    parser.add_argument("--frames_out",         type=int,   default=20,                 help="number of frames to output")    
+    parser.add_argument("--frames_out",         type=int,   default=10,                 help="number of frames to output")    
     parser.add_argument("--num_workers",        type=int,   default=4,                  help="number of workers for data loader")
-    parser.add_argument("--preprocessing",      type=int,   default=None,               help="Type to preprocess the data")
+    parser.add_argument("--preprocessing",      type=int,   default=0,               help="Type to preprocess the data")
     
     # --------------- Optimizer ---------------
     parser.add_argument("--lr",             type=float, default=1e-5,            help="learning rate")
@@ -78,7 +82,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=20,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=8,              help="number of epochs")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
     parser.add_argument("--datatype",       type=str, default=None,                   help="Indicates the datatype available (reflectivity, vil, vil_vip)")
@@ -86,14 +90,24 @@ def create_parser():
     parser.add_argument("--eval",           action="store_true",                 help="evaluation mode")
     
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",        type=str,       default="offline",          help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str,       default="Wandb Project",    help="wandb project name")
+    parser.add_argument("--wandb_state",        type=str,       default="online",          help="wandb state config")
+    parser.add_argument("--wandb_project_name", type=str,       default="Diffcast_Sevir",    help="wandb project name")
     parser.add_argument("--run_name",           type=str,       default='run_1',            help="wandb run name")
     
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs",      action="store_true",          help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
+    # --------------- Basic ---------------
+    parser.add_argument("--layers",         type=int,   default=3,               help="layers number")
+    parser.add_argument("--pha_weight",     type=float, default=0.01,            help="phase weight")
+    parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
+    parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")
+    parser.add_argument("--aw_stop_step",   type=int,   default=5000,            help="training step at which the amplitude weight decays to 0")
+    parser.add_argument("--out_weight",     type=float, default=1.0,             help="final output weight")
+    parser.add_argument("--spec_num",       type=int,   default=20,              help="spectral number")
+
+    
     args = parser.parse_args()
     return args
 
@@ -163,6 +177,7 @@ class Runner(object):
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
         
         if self.args.ckpt_milestone is not None:
+            print("Loading: ", self.args.ckpt_milestone)
             self.load(self.args.ckpt_milestone)
 
     @property
@@ -285,6 +300,24 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'alphapre':
+            from models.alphapre import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+
         elif self.args.backbone == 'phydnet':
             from models.phydnet import get_model
             kwargs = {
@@ -528,7 +561,7 @@ class Runner(object):
                             print_log("Sanity Check Failed", self.is_main)
 
             # save checkpoint and do test every epoch
-            if epoch==0 or (epoch+1)%10==0:
+            if (epoch+1)%1==0:
                 self.save()
                 self.test_samples(epoch, self.cur_step, do_test=False)  # Run validation test
                 self.model.train()  # Set back to training mode
@@ -814,7 +847,7 @@ class Runner(object):
                 fig_gt.savefig(os.path.join(gt_dir, f"GT_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
                 plt.close(fig_gt)
 
-                
+                # Plot predicted outputs
                 fig_result, axes_result = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
                 for k in range(10):
                     im = axes_result[k].pcolormesh(lon_grid, lat_grid, p_np[k], cmap=vil_cmap,norm = norm_vil, shading='auto')

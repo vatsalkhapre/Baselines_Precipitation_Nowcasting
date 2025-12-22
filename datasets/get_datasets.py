@@ -107,10 +107,10 @@ DATAPATH = {
     'cikm'     : 'path/to/cikm.h5',
     'shanghai' : 'path/to/shanghai.h5',
     'meteo'    : 'path/to/meteo_radar.h5',
-    'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
+    'sevir'    : '/home/vatsal/Dataserver/Datasets/sevir/',
     'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',
     # 'vil'      : '/home/vatsal/Dataserver2/Datasets/VIL/VIL_480_logtransformed_scaled/',
-    'vil_mosdac': '/home/vatsal/Dataserver2/Datasets/VIL/VIL_scaled_0_255/full_data/'
+    'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
 }
 
 def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stride, in_channels, out_channels, method=None, preprocess_type = None, **kwargs):
@@ -138,7 +138,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
     elif data_name == 'vil_mosdac':
             from .dataset_vil_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
             data_dir = DATAPATH[data_name]
-            train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add,img_size = img_size,  preprocessing = preprocess_type)
+            train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add, img_size = img_size,  preprocessing = preprocess_type)
 
     elif data_name == 'shanghai':
         from .dataset_shanghai import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE

@@ -540,7 +540,7 @@ class Unet(nn.Module):
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         if exists(cond):
             cond = rearrange(cond, 'b t c h w -> b (t c) h w')
-        
+        # Check if there is else
         cond = default(cond, lambda: torch.zeros_like(x))
         x = torch.cat((cond, x), dim = 1)
 
@@ -997,7 +997,10 @@ class GaussianDiffusion(nn.Module):
             pre_mu = mu
 
         diff_loss /= (T_out // T_in)
-        loss = loss_weight * diff_loss + (1 - loss_weight) * backbone_loss
+        if type(backbone_loss) == dict:
+            loss = loss_weight * diff_loss + (1 - loss_weight) * backbone_loss['total_loss']
+        else: 
+            loss = loss_weight * diff_loss + (1 - loss_weight) * backbone_loss
         if torch.isnan(loss):
             raise ValueError("Loss is NaN, check your inputs and model parameters.")
         return loss

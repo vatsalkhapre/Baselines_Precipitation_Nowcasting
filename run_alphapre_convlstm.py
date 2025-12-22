@@ -31,7 +31,7 @@ from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
 
 # Apply your own wandb api key to log online
-# os.environ["WANDB_API_KEY"] = #<Enter wandb key>
+os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 
@@ -40,34 +40,34 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='convlstm_paper',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")
+    parser.add_argument("--exp_dir",        type=str,   default='vil_mosdac',      help="experiment directory")
     parser.add_argument("--exp_note",       type=str,   default=None,              help="additional note for experiment")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name, use 'vil_mosdac' for vil_scaled dataset and 'mosdac' for reflectivity dataset")
-    parser.add_argument("--datatype",           type=str,       default=None,           help="Indicates the datatype available")
+    parser.add_argument("--dataset",            type=str,       default='vil_mosdac',   help="dataset name")
+    parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
+    parser.add_argument("--img_size",           type=int,       default=240,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
     parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
-    parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
+    parser.add_argument("--seq_len",            type=int,       default=15,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
-    parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
+    parser.add_argument("--frames_out",         type=int,       default=10,             help="number of frames to output")    
     parser.add_argument("--num_workers",        type=int,       default=4,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")
-    parser.add_argument("--lr-beta1",       type=float, default=0.90,            help="learning rate beta 1")
-    parser.add_argument("--lr-beta2",       type=float, default=0.95,            help="learning rate beta 2")
+    parser.add_argument("--lr",             type=float, default=1e-5,            help="learning rate")
+    parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
+    parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
     parser.add_argument("--ema_rate",       type=float, default=0.95,            help="exponential moving average rate")
     parser.add_argument("--scheduler",      type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
-    parser.add_argument("--warmup_steps",   type=int,   default=500,             help="warmup steps")
+    parser.add_argument("--warmup_steps",   type=int,   default=1000,             help="warmup steps")
     parser.add_argument("--mixed_precision",type=str,   default='no',            help="mixed precision training")
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
@@ -98,9 +98,9 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Wandb Project", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='run_1',        help="wandb run name")
+    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_project_name", type=str, default="Vil_mosdac_convlstm", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='vil_mosdac_decluttered_240_jjso_finetuning',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
@@ -629,7 +629,8 @@ class Runner(object):
                 break
         # test done
         if self.is_main:
-            res = eval.done(is_main_process=self.is_main)
+            
+            res = eval.done()
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
@@ -648,9 +649,6 @@ class Runner(object):
         
     def check_milestones(self, target_ckpt=None):
 
-        mils_paths = os.listdir(self.ckpt_path)
-        milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
-        print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
         
         if target_ckpt is not None:
             self.load(target_ckpt)
@@ -659,6 +657,11 @@ class Runner(object):
             print("Testing done")
             return
         
+        # In case of multiple milestones.
+        mils_paths = os.listdir(self.ckpt_path)
+        milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
+        print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
+
         for m in range(0, len(milestones), 1):
             self.load(milestones[m])
             self.test_samples(milestones[m], do_test=True)

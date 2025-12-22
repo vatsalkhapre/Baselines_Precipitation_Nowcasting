@@ -212,7 +212,7 @@ class VTimeSeriesDataset(Dataset):
         if (h != self.img_size) or (w != self.img_size):
             # add batch dim for interpolate
             t = tensor.unsqueeze(0)  # (1, 1, H, W)
-            t = F.interpolate(t, size=(self.img_size, self.img_size), mode='bilinear', align_corners=False)
+            t = F.interpolate(t, size=(self.img_size, self.img_size), mode='bilinear', align_corners=False, antialias=True)
             tensor = t.squeeze(0) # (1, Hnew, Wnew)
     
         # store in cache
@@ -220,58 +220,64 @@ class VTimeSeriesDataset(Dataset):
         
         return tensor
 
+def read_pkl(file):
+    with open(file, "rb") as f:
+        data = pickle.load(f)
+
+    return data
+
 # ============================== Class to return dataset sequences ========================================
 
 def rainy_dataset(data_dir, input_seq_length, output_seq_length, file_rain_seq_add, img_size, preprocessing):
     
     # print("inside rainy dataset class")
 
-    grouped_files = {}
-    train_dic = {}
-    val_dic = {}
-    test_dic = {}
+    # grouped_files = {}
     
+    # print("file_rain_seq_add:", file_rain_seq_add)
+    # if file_rain_seq_add==0:
+    #     raise ValueError("file_rain_seq_add cannot be None.")
+    # with open(file_rain_seq_add, 'rb') as f:
+    #     grouped_files = pickle.load(f)
 
-    with open(file_rain_seq_add, 'rb') as f:
-        grouped_files = pickle.load(f)
+   
+    # # grouped_files = dict(list(grouped_files.items()))
 
+    # # Ensure deterministic ordered keys (if pickle stored OrderedDict this keeps order)
+    # # If it's a plain dict but keys were created in sorted order, preserve order by sorting keys:
+    # if not isinstance(grouped_files, (dict, OrderedDict)):
+    #     grouped_files = dict(grouped_files)
+
+    # keys_sorted = list(grouped_files.keys())
     
-    # grouped_files = dict(list(grouped_files.items()))
-
-    # Ensure deterministic ordered keys (if pickle stored OrderedDict this keeps order)
-    # If it's a plain dict but keys were created in sorted order, preserve order by sorting keys:
-    if not isinstance(grouped_files, (dict, OrderedDict)):
-        grouped_files = dict(grouped_files)
-
-    keys_sorted = list(grouped_files.keys())
+    # # Seperating the train, test, validation files for the entire dataset
     
-    # Seperating the train, test, validation files for the entire dataset
+    # train_files = {}
+    # validation_items, test_items = [], []
+
+    # for date in keys_sorted:
+    #     dt = datetime.strptime(date, "%d%b%Y")
+    #     year = dt.year
+
+    #     # Assign based on year
+    #     if year == 2018:
+    #         test_items.append((date, grouped_files[date]))
+    #     elif year == 2024:
+    #         validation_items.append((date, grouped_files[date]))
+    #     else:
+    #         train_files[date] = grouped_files[date]
     
-    train_files = {}
-    validation_items, test_items = [], []
-
-    for date in keys_sorted:
-        dt = datetime.strptime(date, "%d%b%Y")
-        year = dt.year
-
-        # Assign based on year
-        if year == 2018:
-            test_items.append((date, grouped_files[date]))
-        elif year == 2024:
-            validation_items.append((date, grouped_files[date]))
-        else:
-            train_files[date] = grouped_files[date]
-       
-    def generate_sequences_list(items, in_len, out_len):
-        seqs = []
-        for date, files in items:
-            n = len(files)
-            total = in_len + out_len
-            if n < total:
-                continue
-            for i in range(0, n - total + 1):
-                seqs.append(files[i:i + total])
-        return seqs
+    
+    # def generate_sequences_list(items, in_len, out_len):
+    #     seqs = []
+    #     for date, files in items:
+    #         n = len(files)
+    #         total = in_len + out_len
+    #         if n < total:
+    #             continue
+    #         for i in range(0, n - total + 1):
+    #             seqs.append(files[i:i + total])
+    #     return seqs
 
     # # Uncomment when train min max needed
     # mini, maxi = compute_min_max(train_files, data_dir)
@@ -280,14 +286,19 @@ def rainy_dataset(data_dir, input_seq_length, output_seq_length, file_rain_seq_a
     # exit()
 
     if preprocessing == 0:
-        with open('Min_max_value/vil_vip_min_max.pkl', 'rb') as f:
-            stats = pickle.load(f)
-        mini, maxi = stats['min'], stats['max']
+        # with open('Min_max_value/vil_vip_min_max.pkl', 'rb') as f:
+        #     stats = pickle.load(f)
+        # mini, maxi = stats['min'], stats['max']
+        mini, maxi = 0, 255
 
-    train_seq = generate_sequences_list(list(train_files.items()), input_seq_length, output_seq_length)
-    val_seq = generate_sequences_list(validation_items, input_seq_length, output_seq_length)
-    test_seq = generate_sequences_list(test_items, input_seq_length, output_seq_length)
+    # train_seq = generate_sequences_list(list(train_files.items()), input_seq_length, output_seq_length)
+    # val_seq = generate_sequences_list(validation_items, input_seq_length, output_seq_length)
+    # test_seq = generate_sequences_list(test_items, input_seq_length, output_seq_length)
 
+    train_seq = read_pkl("./Rainy_days_file/Mosdac_vil_ttv_pkl/train.pkl")
+    val_seq = read_pkl("./Rainy_days_file/Mosdac_vil_ttv_pkl/val.pkl")
+    test_seq = read_pkl("./Rainy_days_file/Mosdac_vil_ttv_pkl/test.pkl")
+    
     train_dataset = VTimeSeriesDataset(train_seq, data_dir, img_size, mini, maxi)
     val_dataset = VTimeSeriesDataset(val_seq, data_dir, img_size, mini, maxi)
     test_dataset = VTimeSeriesDataset(test_seq, data_dir, img_size, mini, maxi)

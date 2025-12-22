@@ -18,7 +18,7 @@ from matplotlib import colors
 from matplotlib.colors import ListedColormap
 import torch.nn.functional as F
 from utils.dataselection_code import *
-
+from collections import OrderedDict
 PIXEL_SCALE = 60.0
 THRESHOLDS = [8, 16, 24, 32]
 
@@ -183,10 +183,6 @@ class RTimeSeriesDataset(Dataset):
         # Preload metadata or cache frequently used files
         self.cache = {} 
 
-        self.transform = T.Compose([
-            T.Resize((img_size, img_size), interpolation=T.InterpolationMode.BILINEAR),  # or BICUBIC
-            T.ToTensor()
-        ])
 
     def __len__(self):
         # Total samples minus the sequence lengths needed for input and output

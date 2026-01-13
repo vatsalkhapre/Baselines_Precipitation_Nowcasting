@@ -25,12 +25,11 @@ from diffusers import (
     get_cosine_schedule_with_warmup,
 )
 from tqdm import tqdm
-
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
-
+from models.autoencoder_kl import AutoencoderKL
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
@@ -43,22 +42,22 @@ def create_parser():
     
     parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='meteo',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Training",              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default='Debug',              help="additional note for experiment")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='meteo',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='sevir_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
+    parser.add_argument("--img_size",           type=int,       default=32,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
-    parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
+    parser.add_argument("--img_channel",        type=int,       default=4,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
+    parser.add_argument("--num_workers",        type=int,       default=0,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -73,8 +72,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=50,              help="number of epochs")
+    parser.add_argument("--batch_size",     type=int,   default=8,               help="batch size")
+    parser.add_argument("--epochs",         type=int,   default=56,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -93,20 +92,22 @@ def create_parser():
     parser.add_argument("--eval",           action="store_true",                 help="evaluation mode")
     parser.add_argument("--valid",          action="store_true",                 help="valid mode")
     parser.add_argument("--valid_limit",    action="store_true",                 help="valid limit mode")
-    parser.add_argument("--vlnum",          type=int,   default=30,              help="valid limit nums")
+    parser.add_argument("--vlnum",          type=int,   default=10,              help="valid limit nums")
     parser.add_argument("--visual",         action="store_true",                 help="save all test sample visualization")
     parser.add_argument("--gpu_use",        type=str,   nargs='+', default=["0",],  help="gpu(s) to use")
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Alphapre_meteonet", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Training1',        help="wandb run name")
+    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
+    parser.add_argument("--wandb_project_name", type=str, default="Alphapre_sevir", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='sevir_lr_latent_32_bs8_corrected',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
+    #------------------------- AE --------------------------------
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
 
@@ -115,6 +116,7 @@ class Runner(object):
     def __init__(self, args):
         
         self.args = args
+        self.ae_ckpt = args.ae_ckpt_path
         self._preparation()
         self.max_csi, self.best_step = 0.0, 0
         # Config DDP kwargs from accelerate
@@ -157,7 +159,6 @@ class Runner(object):
         )
         self._build_model()
         self._build_optimizer()
-        
         # distributed ema for parallel sampling
 
         self.model, self.optimizer,  self.scheduler = self.accelerator.prepare(
@@ -222,13 +223,91 @@ class Runner(object):
                 # logging.StreamHandler()
             ]
         )
+    
+    def load_autoencoder(
+        self,
+        model,
+        checkpoint_path,
+        device="cuda",
+        dtype=torch.float32
+    ):
+        """
+        model: instantiated autoencoder model (same architecture as training)
+        checkpoint_path: path to .pt / .pth checkpoint
+        """
+
+        # ---- load checkpoint to CPU first (safe) ----
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
         
+        assert "model" in ckpt, "Checkpoint does not contain 'model' key"
+
+        ckpt_model = ckpt["model"]
+        
+        # ---- find matching submodel key ----
+        model_keys = list(model.state_dict().keys())
+        
+        ckpt_keys = list(ckpt_model.keys())
+        
+        # If checkpoint saved multiple submodels, pick autoencoder
+        if isinstance(ckpt_model, dict) and all(isinstance(v, dict) for v in ckpt_model.values()):
+            # typical structure: ckpt['model']['autoencoder_kl']
+            if len(ckpt_model) == 1:
+                ckpt_state = list(ckpt_model.values())[0]
+            else:
+                # explicitly choose autoencoder
+                
+                ckpt_state = ckpt_model.get("autoencoder_kl", None)
+                if ckpt_state is None:
+                    raise KeyError("autoencoder_kl not found in checkpoint")
+                
+                    
+        else:
+            ckpt_state = ckpt_model
+
+        # ---- strip 'module.' if present ----
+        new_state_dict = OrderedDict()
+        for k, v in ckpt_state.items():
+            if k.startswith("module."):
+                k = k[7:]
+            elif k.startswith("net."):
+                k = k[4:]
+            new_state_dict[k] = v
+
+        
+        # ---- load weights ----
+        model.load_state_dict(new_state_dict, strict=True)
+
+        # ---- move to device and eval ----
+        model.to(device=device, dtype=dtype)
+        model.eval()
+
+        # ---- freeze params (important for compression) ----
+        for p in model.parameters():
+            p.requires_grad = False
+
+        print("✅ Autoencoder loaded successfully")
+        return model
+
+    @torch.no_grad()
+    def encode_stage(self, model, x, scale_factor):
+        z = model.encode(x)
+        return z.sample() * scale_factor
+
+
+    @torch.no_grad()
+    def decode_stage(self,model, z, scale_factor):
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z)
+        z = z.to(next(model.parameters()).device)
+        z = z / scale_factor
+        return model.decode(z)
+
     def _load_data(self):
         # =================================
         # Get Train/Valid/Test dataloader among datasets 
         # =================================
 
-        train_data, valid_data, test_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+        train_data, valid_data , test_data , color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
             data_name=self.args.dataset,
             # data_path=self.args.data_path,
             img_size=self.args.img_size,
@@ -242,6 +321,20 @@ class Runner(object):
             preprocess_type = self.args.preprocessing
         )
         
+        _, valid_os_data, test_os_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+            data_name="sevir",
+            # data_path=self.args.data_path,
+            img_size=128,
+            seq_len=self.args.seq_len,
+            batch_size=self.args.batch_size,
+            stride=self.args.stride,
+            file_rain_seq_add=self.args.file_rain_seq_add,
+            method = self.args.method,
+            in_channels = self.args.frames_in,
+            out_channels = self.args.frames_out,
+            preprocess_type = self.args.preprocessing
+        )
+
         self.visiual_save_fn = color_save_fn
         self.thresholds      = THRESHOLDS
         self.scale_value     = PIXEL_SCALE
@@ -253,22 +346,12 @@ class Runner(object):
             self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
-        if self.args.dataset == 'sevir':
+        if self.args.dataset == 'sevir_lr_latent_32' or self.args.dataset == 'sevir_lr_latent':
             self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            
-        else: 
-            # preload big batch data for gradient accumulation
-            self.train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.valid_loader = torch.utils.data.DataLoader(
-                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.test_loader = torch.utils.data.DataLoader(
-                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
-            )
+            self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
 
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
@@ -279,12 +362,15 @@ class Runner(object):
 
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
-
+        
     def _build_model(self):
         # =================================
         # import and create different models given model config
         # =================================
+    
         print_log("Build Model!", self.is_main)
+        self.ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
+  
         if self.args.backbone == 'simvp':
             from models.simvp import get_model
             kwargs = {
@@ -379,21 +465,7 @@ class Runner(object):
                 num_warmup_steps=warmup_steps , 
                 num_training_steps=self.global_steps,
             )
-        else:
-            raise ValueError(
-                "Invalid scheduler_type. Expected 'linear' or 'cosine', got: {}".format(
-                    self.args.scheduler
-            )
-        )
-            
-        if self.is_main:
-            print_log("============ Running training ============")
-            print_log(f"    Num examples = {len(self.train_loader)}")
-            print_log(f"    Num Epochs = {self.global_epochs}")
-            print_log(f"    Instantaneous batch size per GPU = {self.args.batch_size}")
-            print_log(f"    Total train batch size (w. parallel, distributed & accumulation) = {self.args.batch_size * self.accelerator.num_processes}")
-            print_log(f"    Total optimization steps = {self.global_steps}")
-            print_log(f"optimizer: {self.optimizer} with init lr: {self.args.lr}")
+        else:train
     
     def save(self, svname=None):
         # =================================
@@ -458,7 +530,7 @@ class Runner(object):
     def train(self):
         # set global step as traing process
         # torch.autograd.set_detect_anomaly(True)
-       
+        self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         start_epoch = self.cur_epoch
         for epoch in range(start_epoch, self.global_epochs):
 
@@ -528,7 +600,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 or epoch==0:
+                if (epoch+1)%7==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -553,13 +625,14 @@ class Runner(object):
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
-        
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     
     def _train_batch(self, batch):
-        radar_batch = self._get_seq_data(batch)
-      
+        radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
+        std_val = frames_in.std()
+        frames_in = frames_in/std_val
+        frames_out = frames_out/std_val
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):
@@ -577,7 +650,7 @@ class Runner(object):
         else:
             return {'total_loss': loss}
         
-    
+
     @torch.no_grad()
     def _sample_batch(self, batch, use_ema=False, vis_diff=False):
         # sample_fn = self.ema.ema_model.predict if use_ema else self.model.predict
@@ -586,8 +659,10 @@ class Runner(object):
         frame_in = self.args.frames_in
         radar_batch = self._get_seq_data(batch)
         radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
+        std_value = radar_input.std()
+        radar_input = radar_input/std_value
         radar_pred, *_ = sample_fn(radar_input,compute_loss=False)
-        
+        radar_pred = radar_pred*std_value
         radar_gt = self.accelerator.gather(radar_gt).detach().cpu().numpy()
         radar_pred = self.accelerator.gather(radar_pred).detach().cpu().numpy()
 
@@ -599,9 +674,14 @@ class Runner(object):
             print("Validation")
         if do_test==True:
             print("Testing")
+            self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         save_vis = True
         # init test data loader
-        data_loader = self.test_loader if do_test else self.valid_loader
+        if do_test:
+            data_loaders = zip(self.test_loader, self.test_os_loader)
+        else:
+            data_loaders = zip(self.valid_loader, self.valid_os_loader)
+
         # init sampling method
         self.model.eval()
         # init test dir config
@@ -628,14 +708,35 @@ class Runner(object):
             
         # start test loop
         valid_nums = 0
-        for batch in data_loader:
-            # sample
-            radar_ori, radar_recon= self._sample_batch(batch)
+        assert len(self.test_loader) == len(self.test_os_loader), "Mismatch in lengths of test_loader and test_os_loader (might be due to batch size)"
+        total = len(self.test_loader)
+        for (batch, os_batch) in tqdm(data_loaders, total=total):
+            
+            radar_os_batch = self._get_seq_data(os_batch)
+            radar_os_gt = radar_os_batch[:,self.args.frames_in:]
+
+            _, radar_recon = self._sample_batch(batch)
+            B, T, C, H, W = radar_recon.shape
+
+            # flatten time
+            radar_recon_flat = radar_recon.reshape(B*T, C, H, W)
+
+            # decode once
+            radar_recon_dec = self.decode_stage(self.ae, radar_recon_flat, 1.0)
+
+            # reshape back
+            radar_recon = radar_recon_dec.view(B, T, 1, 128, 128)
+
+
+            radar_ori = radar_os_gt.cpu().numpy()
+            radar_recon = radar_recon.cpu().numpy()
+
             
             # evaluate result and save
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
-                
+
+
             self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
@@ -652,24 +753,25 @@ class Runner(object):
             # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
             # but sometimes it's nice to have epoch as an explicit metric)
             log_data[f"{prefix}/epoch"] = epoch 
+            
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
                 print_log(f"Valid Results: {res}")
             print_log("="*30)
 
-            res["epoch"] = epoch
-            # Log to wandb
+            # Log the PREFIXED data
             self.accelerator.log(log_data, step=self.cur_step)
+        
+            # --- END FIX ---
 
             if self.args.valid:
-                return res['csi'] 
+                return res['csi']
         else:
             return None
 
         
     def check_milestones(self, target_ckpt=None):
-
         
         if target_ckpt is not None:
             self.load(target_ckpt)

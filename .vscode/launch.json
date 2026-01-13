@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Debuggin alphapre",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_alphapre_convlstm.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CUDA_VISIBLE_DEVICES": "1"
+            }
+        },
+
+        {
+            "name": "Debugging sevir_latent_lr",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run_alphapre_convlstm_sevir_lr_latent.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CUDA_VISIBLE_DEVICES": "1"
+            }
+        }
+    ]
+}

@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import os.path as osp
 import math
 import time
@@ -52,7 +52,7 @@ def create_parser():
     parser.add_argument('--use_diff',        action="store_true", default=False,                  help='Weather use diff framework, as for ablation study')
     parser.add_argument("--seed",           type=int,             default=0,                      help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,             default='vil_mosdac',           help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,             default=None,                   help="additional note for experiment")
+    parser.add_argument("--exp_note",       type=str,             default="Training_continue",                   help="additional note for experiment")
 
 
     # --------------- Dataset ---------------
@@ -70,7 +70,7 @@ def create_parser():
     parser.add_argument("--preprocessing",      type=int,   default=0,               help="Type to preprocess the data")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-5,            help="learning rate")
+    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")
     parser.add_argument("--lr-beta1",       type=float, default=0.90,            help="learning rate beta 1")
     parser.add_argument("--lr-beta2",       type=float, default=0.95,            help="learning rate beta 2")
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
@@ -82,7 +82,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=8,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=25,              help="number of epochs")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
     parser.add_argument("--datatype",       type=str, default=None,                   help="Indicates the datatype available (reflectivity, vil, vil_vip)")
@@ -92,7 +92,7 @@ def create_parser():
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",        type=str,       default="online",          help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str,       default="Diffcast_Sevir",    help="wandb project name")
-    parser.add_argument("--run_name",           type=str,       default='run_1',            help="wandb run name")
+    parser.add_argument("--run_name",           type=str,       default='Training_vil_mosdac_2',            help="wandb run name")
     
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs",      action="store_true",          help="Generate visualizations from checkpoint")
@@ -459,7 +459,7 @@ class Runner(object):
         else:
             data = torch.load(osp.join(self.ckpt_path, f"ckpt-{milestone}.pt"), map_location=device)
             print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
-        
+     
         model = self.accelerator.unwrap_model(self.model)
         model.load_state_dict(data['model'])
         self.model = self.accelerator.prepare(model)
@@ -470,8 +470,8 @@ class Runner(object):
         if self.is_main:
             self.ema.load_state_dict(data['ema'])
 
-        # self.cur_epoch = data['epoch']
-        # self.cur_step = data['step']
+        self.cur_epoch = data['epoch']
+        self.cur_step = data['step']
         print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
     
@@ -491,7 +491,6 @@ class Runner(object):
             self.cur_epoch = epoch
             print("Training model")
             self.model.train()
-            
             
             for i, batch in enumerate(self.train_loader):
                 # train the model with mixed_precision
@@ -563,8 +562,8 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if (epoch+1)%1==0:
                 self.save()
-                self.test_samples(epoch, self.cur_step, do_test=False)  # Run validation test
-                self.model.train()  # Set back to training mode
+                # self.test_samples(epoch, self.cur_step, do_test=False)  # Run validation test
+                # self.model.train()  # Set back to training mode
             
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
@@ -879,7 +878,6 @@ def main():
             exp.train()
             # exp.check_milestones()
         else:
-            
             exp.check_milestones(target_ckpt=args.ckpt_milestone)
 
 if __name__ == '__main__':

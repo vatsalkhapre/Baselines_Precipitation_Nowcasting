@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from moviepy.editor import ImageSequenceClip
 
 def change_layout_np(data,
-                     in_layout='NHWT', out_layout='NHWT',
+                     in_layout='NTCHW', out_layout='NCHWT',
                      ret_contiguous=False):
     # first convert to 'NHWT'
     if in_layout == 'NHWT':
@@ -33,14 +33,16 @@ def change_layout_np(data,
     elif in_layout == 'NWHT':
         data = np.transpose(data,
                             axes=(0, 2, 1, 3))
-    elif in_layout == 'NTCHW':
-        data = data[:, :, 0, :, :]
-        data = np.transpose(data,
-                            axes=(0, 2, 3, 1))
+    
     elif in_layout == 'NTHWC':
         data = data[:, :, :, :, 0]
-        data = np.transpose(data,
-                            axes=(0, 2, 3, 1))
+        data = np.transpose(data, axes=(0, 2, 3, 1))
+    elif in_layout == 'NTCHW':
+        # FIXED: Do NOT drop channel dim (data[:, :, 0, :, :])
+        # If we need NHWT, we can't really do it for Multi-channel without flattening or error
+        # But usually we just pass through to NTCHW output.
+        pass
+
     elif in_layout == 'NTWHC':
         data = data[:, :, :, :, 0]
         data = np.transpose(data,
@@ -53,14 +55,30 @@ def change_layout_np(data,
         data = np.transpose(data,
                             axes=(1, 2, 3, 0))
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Input layout {in_layout} not supported")
 
+    # Output conversion
     if out_layout == 'NHWT':
         pass
     elif out_layout == 'NTHW':
-        data = np.transpose(data,
-                            axes=(0, 3, 1, 2))
+        if in_layout == 'NTCHW':
+             # Convert NTCHW -> NTHW (only if C=1, else likely logic error in usage)
+             data = data[:, :, 0, :, :]
+             data = np.transpose(data, axes=(0, 1, 3, 2)) # NT H W
+        else:
+             data = np.transpose(data, axes=(0, 3, 1, 2))
+    elif out_layout == 'NTCHW':
+        if in_layout == 'NTCHW':
+            # FIXED: Already in NTCHW, do nothing
+            pass
+        else:
+            # Assumes NHWT input -> NTCHW output
+            data = np.transpose(data, axes=(0, 3, 1, 2))
+            data = np.expand_dims(data, axis=2)
     elif out_layout == 'NWHT':
+        data = np.transpose(data,
+                            axes=(0, 2, 1, 3))
+    elif out_layout == 'NCHWT':
         data = np.transpose(data,
                             axes=(0, 2, 1, 3))
     elif out_layout == 'NTCHW':
@@ -89,7 +107,7 @@ def change_layout_np(data,
     return data
 
 def change_layout_torch(data,
-                        in_layout='NHWT', out_layout='NHWT',
+                        in_layout='NTCHW', out_layout='NCHWT',
                         ret_contiguous=False):
     # first convert to 'NHWT'
     if in_layout == 'NHWT':
@@ -97,8 +115,8 @@ def change_layout_torch(data,
     elif in_layout == 'NTHW':
         data = data.permute(0, 2, 3, 1)
     elif in_layout == 'NTCHW':
-        data = data[:, :, 0, :, :]
-        data = data.permute(0, 2, 3, 1)
+        # FIXED: Preserve channels
+        pass
     elif in_layout == 'NTHWC':
         data = data[:, :, :, :, 0]
         data = data.permute(0, 2, 3, 1)
@@ -115,8 +133,11 @@ def change_layout_torch(data,
     elif out_layout == 'NTHW':
         data = data.permute(0, 3, 1, 2)
     elif out_layout == 'NTCHW':
-        data = data.permute(0, 3, 1, 2)
-        data = torch.unsqueeze(data, dim=2)
+        if in_layout == 'NTCHW':
+            pass
+        else:
+            data = data.permute(0, 3, 1, 2)
+            data = torch.unsqueeze(data, dim=2)
     elif out_layout == 'NTHWC':
         data = data.permute(0, 3, 1, 2)
         data = torch.unsqueeze(data, dim=-1)
@@ -133,11 +154,12 @@ def change_layout_torch(data,
 
 
 # SEVIR Dataset constants
-SEVIR_DATA_TYPES = ['vis', 'ir069', 'ir107', 'vil', 'lght']
+SEVIR_DATA_TYPES = ['vis', 'ir069', 'ir107', 'vil', 'vil_latent', 'lght']
 SEVIR_RAW_DTYPES = {'vis': np.int16,
                     'ir069': np.int16,
                     'ir107': np.int16,
                     'vil': np.int16,
+                    'vil_latent': np.float32,
                     'lght': np.int16}
 LIGHTING_FRAME_TIMES = np.arange(- 120.0, 125.0, 5) * 60
 SEVIR_DATA_SHAPE = {'lght': (48, 48), }
@@ -145,21 +167,25 @@ PREPROCESS_SCALE_SEVIR = {'vis': 1,  # Not utilized in original paper
                           'ir069': 1 / 1174.68,
                           'ir107': 1 / 2562.43,
                           'vil': 1 / 47.54,
+                          'vil_latent': 1, 
                           'lght': 1 / 0.60517}
 PREPROCESS_OFFSET_SEVIR = {'vis': 0,  # Not utilized in original paper
                            'ir069': 3683.58,
                            'ir107': 1552.80,
                            'vil': - 33.44,
+                           'vil_latent': 0,
                            'lght': - 0.02990}
 PREPROCESS_SCALE_01 = {'vis': 1,
                        'ir069': 1,
                        'ir107': 1,
-                       'vil': 1 / 255,  # currently the only one implemented
+                       'vil': 1/255,  # currently the only one implemented
+                       'vil_latent': 1,
                        'lght': 1}
 PREPROCESS_OFFSET_01 = {'vis': 0,
                         'ir069': 0,
                         'ir107': 0,
                         'vil': 0,  # currently the only one implemented
+                        'vil_latent': 0,
                         'lght': 0}
 
 
@@ -184,7 +210,7 @@ class SEVIRDataLoader:
                  sample_mode: str = 'sequent',
                  stride: int = 12,
                  batch_size: int = 1,
-                 layout: str = 'NHWT',
+                 layout: str = 'NTCHW',
                  num_shard: int = 1,
                  rank: int = 0,
                  split_mode: str = "uneven",
@@ -197,8 +223,8 @@ class SEVIRDataLoader:
                  shuffle: bool = False,
                  shuffle_seed: int = 1,
                  output_type=np.float32,
-                 preprocess: bool = True,
-                 rescale_method: str = '01',
+                 preprocess: bool = False,
+                 rescale_method: str = None,
                  downsample_dict: Dict[str, Sequence[int]] = None,
                  verbose: bool = False):
         r"""
@@ -333,6 +359,8 @@ class SEVIRDataLoader:
                 self.catalog_filter = lambda c: c.pct_missing == 0
             self.catalog = self.catalog[self.catalog_filter(self.catalog)]
 
+        self._catalog_type_map = "vil_latent"
+
         self._compute_samples()
         self._open_files(verbose=self.verbose)
         self.reset()
@@ -457,7 +485,7 @@ class SEVIRDataLoader:
         data
             Updated data. Updated shape = (tmp_batch_size + 1, height, width, raw_seq_len).
         """
-        imgtyps = np.unique([x.split('_')[0] for x in list(row.keys())])
+        imgtyps = np.unique([x.split('_')[0]+"_"+x.split('_')[1] for x in list(row.keys())])
         for t in imgtyps:
             fname = row[f'{t}_filename']
             idx = row[f'{t}_index']
@@ -466,8 +494,15 @@ class SEVIRDataLoader:
             if t == 'lght':
                 lght_data = self._hdf_files[fname][idx][:]
                 data_i = self._lght_to_grid(lght_data, t_slice)
+            elif t == 'vil_latent':
+                # FIXED: vil_latent is (N, T, C, H, W)
+                # We read [idx:idx+1, t_slice(Time), :, :, :]
+                # Resulting shape: (1, T, C, H, W) -> NTCHW
+            
+                data_i = self._hdf_files[fname][t][idx:idx + 1, t_slice, :, :, :]
             else:
                 data_i = self._hdf_files[fname][t][idx:idx + 1, :, :, t_slice]
+            
             data[t] = np.concatenate((data[t], data_i), axis=0) if (t in data) else data_i
 
         return data
@@ -602,6 +637,9 @@ class SEVIRDataLoader:
         pd_batch = self._samples.iloc[event_idx:event_idx_slice_end]
         data = {}
         for index, row in pd_batch.iterrows():
+            print(index)
+            print(row)
+            
             data = self._read_data(row, data)
         
         if pad_size > 0:
@@ -677,54 +715,26 @@ class SEVIRDataLoader:
             data_types = data_dict.keys()
         for key, data in data_dict.items():
             if key in data_types:
+                current_in_layout = 'NTCHW' if key == 'vil_latent' else 'NHWT'
                 if isinstance(data, np.ndarray):
                     data = scale_dict[key] * (
                             data.astype(np.float32) +
                             offset_dict[key])
                     data = change_layout_np(data=data,
-                                            in_layout='NHWT',
+                                            in_layout=current_in_layout,
                                             out_layout=layout)
                 elif isinstance(data, torch.Tensor):
                     data = scale_dict[key] * (
                             data.float() +
                             offset_dict[key])
+                   
                     data = change_layout_torch(data=data,
-                                               in_layout='NHWT',
+                                               in_layout=current_in_layout,
                                                out_layout=layout)
                 data_dict[key] = data
         return data_dict
 
-    @staticmethod
-    def process_data_dict_back(data_dict, data_types=None, rescale='01'):
-        """
-        Parameters
-        ----------
-        data_dict
-            each data_dict[key] is a torch.Tensor.
-        rescale
-            str:
-                'sevir': data are scaled using the offsets and scale factors in original implementation.
-                '01': data are all scaled to range 0 to 1, currently only supports 'vil'
-        Returns
-        -------
-        data_dict
-            each data_dict[key] is the data processed back in torch.Tensor.
-        """
-        if rescale == 'sevir':
-            scale_dict = PREPROCESS_SCALE_SEVIR
-            offset_dict = PREPROCESS_OFFSET_SEVIR
-        elif rescale == '01':
-            scale_dict = PREPROCESS_SCALE_01
-            offset_dict = PREPROCESS_OFFSET_01
-        else:
-            raise ValueError(f'Invalid rescale option: {rescale}.')
-        if data_types is None:
-            data_types = data_dict.keys()
-        for key in data_types:
-            data = data_dict[key]
-            data = data.float() / scale_dict[key] - offset_dict[key]
-            data_dict[key] = data
-        return data_dict
+    
 
     @staticmethod
     def data_dict_to_tensor(data_dict, data_types=None):
@@ -773,9 +783,9 @@ class SEVIRDataLoader:
                 downsampled_data_dict[key] = change_layout_torch(
                     data=downsampled_data_dict[key],
                     in_layout=layout,
-                    out_layout='NTHW')
+                    out_layout='NTCHW')
                 # downsample t dimension
-                t_slice = [slice(None, None), ] * 4
+                t_slice = [slice(None, None), ] * 5
                 t_slice[1] = slice(None, None, factors[0])
                 downsampled_data_dict[key] = downsampled_data_dict[key][tuple(t_slice)]
                 # downsample spatial dimensions
@@ -785,7 +795,7 @@ class SEVIRDataLoader:
 
                 downsampled_data_dict[key] = change_layout_torch(
                     data=downsampled_data_dict[key],
-                    in_layout='NTHW',
+                    in_layout='NTCHW',
                     out_layout=layout)
 
         return downsampled_data_dict
@@ -814,12 +824,20 @@ class SEVIRDataLoader:
             event = self._load_event_batch(event_idx=event_idx_list[num_sampled],
                                            event_batch_size=1)
             for imgt_idx, imgt in enumerate(self.data_types):
-                sampled_seq = event[imgt_idx][[0, ], :, :, seq_slice_list[num_sampled]]  # keep the dim of batch_size for concatenation
+                if imgt == 'vil_latent':
+                    # Layout is (N, T, C, H, W). Slice T (axis 1)
+                    sampled_seq = event[imgt_idx][[0, ], seq_slice_list[num_sampled], :, :, :]
+                else:
+                    # Layout is (N, H, W, T). Slice T (axis 3)
+                    sampled_seq = event[imgt_idx][[0, ], :, :, seq_slice_list[num_sampled]]
+
+                
                 if imgt in ret_dict:
                     ret_dict[imgt] = np.concatenate((ret_dict[imgt], sampled_seq),
                                                     axis=0)
                 else:
                     ret_dict.update({imgt: sampled_seq})
+            num_sampled += 1
         return ret_dict
 
     def _sequent_sample(self):
@@ -914,7 +932,12 @@ class SEVIRDataLoader:
             seq_slice = slice(sampled_idx['seq_idx'] * self.stride,
                               sampled_idx['seq_idx'] * self.stride + self.seq_len)
             for imgt_idx, imgt in enumerate(self.data_types):
-                sampled_seq = event_batch[imgt_idx][batch_slice, :, :, seq_slice]
+                if imgt == 'vil_latent':
+                    # Layout is (N, T, C, H, W). Slice T (axis 1)
+                    sampled_seq = event_batch[imgt_idx][batch_slice, seq_slice, :, :, :]
+                else:
+                    # Layout is (N, H, W, T). Slice T (axis 3)
+                    sampled_seq = event_batch[imgt_idx][batch_slice, :, :, seq_slice]
                 if imgt in ret_dict:
                     ret_dict[imgt] = np.concatenate((ret_dict[imgt], sampled_seq),
                                                     axis=0)
@@ -941,12 +964,12 @@ class SEVIRTorchDataset(TorchDataset):
     def __init__(self,
                  dataset_dir: str,
                  seq_len: int = 25,
-                 img_size: int = 384,
+                 img_size: int = 16,
                  raw_seq_len: int = 49,
                  sample_mode: str = "sequent",
                  stride: int = 20,
                  batch_size: int = 1,
-                 layout: str = "NTHW",
+                 layout: str = "NTCHW",
                  num_shard: int = 1,
                  rank: int = 0,
                  split_mode: str = "uneven",
@@ -968,7 +991,7 @@ class SEVIRTorchDataset(TorchDataset):
         self.img_size = img_size
         self.sevir_dataloader = SEVIRDataLoader(
             dataset_dir=dataset_dir,
-            data_types=["vil", ],
+            data_types=["vil_latent", ],
             seq_len=seq_len,
             raw_seq_len=raw_seq_len,
             sample_mode=sample_mode,
@@ -993,19 +1016,11 @@ class SEVIRTorchDataset(TorchDataset):
             verbose=verbose)
 
         
-        self.transform = transforms.Compose([
-                        transforms.Resize((img_size, img_size)),
-                        # transforms.ToTensor(),
-                        # trans.Lambda(lambda x: x/255.0),
-                        # transforms.Normalize(mean=[0.5], std=[0.5]),
-                        # trans.RandomCrop(data_config["img_size"]),
-
-                    ])
+        
         self.split = split
     def __getitem__(self, index):
         data_dict = self.sevir_dataloader._idx_sample(index=index)
-        data = data_dict["vil"]
-        data = self.transform(data).unsqueeze(2)
+        data = data_dict["vil_latent"]
         # print(data.shape)
         return data
 
@@ -1021,7 +1036,7 @@ class SEVIRTorchDataset(TorchDataset):
         # else:
         #     return total
         # return self.sevir_dataloader.__len__()
-        return min(total, 20)
+        # return min(total, 20)
 
     def collate_fn(self, data_dict_list):
         r"""

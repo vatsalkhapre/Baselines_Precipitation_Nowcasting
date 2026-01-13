@@ -197,8 +197,8 @@ class VTimeSeriesDataset(Dataset):
         # Apply preprocessing function (assumed to be numpy -> numpy)
         arr = preprocessing_vil(arr, self.min, self.max)
 
-        if arr.dtype != np.float32:
-            arr = arr.astype(np.float32, copy=False)
+        # if arr.dtype != np.float32:
+        #     arr = arr.astype(np.float32, copy=False)
         # convert to torch without extra copy: torch.from_numpy (arr must be contiguous)
         if not arr.flags['C_CONTIGUOUS']:
             arr = np.ascontiguousarray(arr)

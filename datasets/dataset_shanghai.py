@@ -26,11 +26,6 @@ class Shanghai(Dataset):
         else:
             self.transform = transforms.Compose([
                         transforms.Resize((img_size, img_size)),
-                        # transforms.ToTensor(),
-                        # trans.Lambda(lambda x: x/255.0),
-                        # transforms.Normalize(mean=[0.5], std=[0.5]),
-                        # trans.RandomCrop(data_config["img_size"]),
-
                     ])
                     
     def __len__(self):

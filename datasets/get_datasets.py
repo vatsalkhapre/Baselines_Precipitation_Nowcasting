@@ -105,8 +105,8 @@ def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
 # Specify the location of the dataset. 
 DATAPATH = {
     'cikm'     : 'path/to/cikm.h5',
-    'shanghai' : 'path/to/shanghai.h5',
-    'meteo'    : '/home/vatsal/Dataserver2/Datasets/Meteonet/meteo_radar.h5',
+    'shanghai' : '/home/vatsal/NWM/Dataset/Shanghai_Radar/shanghai.h5',
+    'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
     'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
     'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
     'sevir_lr_latent_32' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent_32_resize_normalize',

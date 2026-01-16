@@ -221,6 +221,7 @@ class AlphaPre(nn.Module):
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
+        xas = torch.sigmoid(xas)
         xps, x_phas_t, x_amps = self.phasenet(x)
         xt = self.alphamixer(xas, xps, x_phas_t)
 

@@ -20,7 +20,7 @@ class CIKM(Dataset):
         super().__init__()
         self.data_path = data_path
         assert type in ['train', 'test', 'valid']
-        self.type = type
+        self.type = type if type != 'valid' else 'test'
         self.transform = transforms.Compose([
             transforms.CenterCrop((img_size, img_size)),        # padding if img_size > 101
             # transforms.ToTensor(),
@@ -31,7 +31,10 @@ class CIKM(Dataset):
         ])
         with h5py.File(data_path,'r') as f:
             # print(list(f.keys()))
-            self.len = f[type+'_len'][()]
+            if type=='valid':
+                self.len = 1000
+            else:
+                self.len = f[type+'_len'][()]
             print("{} dataset num:{}".format(type,self.len))
         
     def __len__(self):
@@ -51,7 +54,7 @@ class CIKM(Dataset):
    
         return frames
     
-PIXEL_SCALE = 90.0
+PIXEL_SCALE = 80.0
 # SHIFT = -10.0
 
 COLOR_MAP = np.array([
@@ -84,7 +87,7 @@ HMF_COLORS = np.array([
 ]) / 255
 
 
-def gray2color(image, ***args, **kwargs):
+def gray2color(image, **kwargs):
 
     # 定义颜色映射和边界
     cmap = colors.ListedColormap(COLOR_MAP )
@@ -105,4 +108,3 @@ if __name__ == '__main__':
     sample = dataset.__getitem__(39)
 
     sample2 = dataset.__getitem__(599)
-

@@ -66,7 +66,7 @@ def create_parser():
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
     parser.add_argument("--ema_rate",       type=float, default=0.95,            help="exponential moving average rate")
     parser.add_argument("--scheduler",      type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
-    parser.add_argument("--warmup_steps",   type=int,   default=1000,             help="warmup steps")
+    parser.add_argument("--warmup_steps",   type=int,   default=1000,            help="warmup steps")
     parser.add_argument("--mixed_precision",type=str,   default='no',            help="mixed precision training")
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
@@ -175,6 +175,13 @@ class Runner(object):
         if self.args.ckpt_milestone is not None:
             self.load(self.args.ckpt_milestone)
 
+        if self.args.dataset == 'cikm':
+            self.args.frames_in = 5
+            self.args.frames_out = 10
+        else:
+            self.args.frames_in = 5
+            self.args.frames_out = 20
+
     @property
     def is_main(self):
         return self.accelerator.is_main_process
@@ -190,7 +197,7 @@ class Runner(object):
 
         set_seed(self.args.seed)
         self.model_name = self.args.backbone
-        self.exp_name   = f"{self.model_name}_{self.args.dataset}_{self.args.exp_note}"
+        self.exp_name   = f"{self.args.exp_note}"
         
         cur_dir         = os.path.dirname(os.path.abspath(__file__))
         
@@ -272,7 +279,7 @@ class Runner(object):
                   self.is_main)
         
         for sample in self.train_loader:
-            print(sample.shape)
+            print("Sample shape", sample.shape)
             break
 
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
@@ -362,6 +369,59 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+
+        
+        elif self.args.backbone == 'afnoamplinet_mseonly':
+            from models.alphapre_AFNOamplinet_MSE_only import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'alphapre_amplinet_amp_loss':
+            from models.alphapre_amplinet_amp_loss import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+
+        elif self.args.backbone == 'alphapre_phase_net':
+            from models.alphapre_phasenet import get_model 
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
 
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
@@ -494,7 +554,9 @@ class Runner(object):
             except:
                 print_log(f"No optimizer", self.is_main)
             try:
+                print("Loading epochs")
                 self.cur_epoch = data['epoch'] + 1 
+                print("Current epoch", self.cur_epoch)
             except:
                 print_log(f"No record epoch", self.is_main)
 
@@ -525,7 +587,7 @@ class Runner(object):
 
                     loss_dict = self._train_batch(batch)
                     self.accelerator.backward(loss_dict['total_loss'])
-                    
+
                     if self.cur_step == 0:
                         # training process check
                         for name, param in self.model.named_parameters():
@@ -569,6 +631,7 @@ class Runner(object):
                             print_log(f" ========= Running Sanity Check ==========", self.is_main)
                             radar_ori, radar_recon= self._sample_batch(batch)
                             os.makedirs(self.sanity_path)
+                            print("Datashape: ",batch.shape)
                             # if self.is_main:
                             #     for i in range(radar_ori.shape[0]):
                             #         self.visiual_save_fn(radar_recon[i], radar_ori[i], osp.join(self.sanity_path, f"{i}/vil"),data_type='vil')
@@ -610,8 +673,9 @@ class Runner(object):
     
     def _train_batch(self, batch):
         radar_batch = self._get_seq_data(batch)
-      
+        
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
+        
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):
@@ -680,7 +744,7 @@ class Runner(object):
             
         # start test loop
         valid_nums = 0
-        for batch in data_loader:
+        for batch in tqdm(data_loader, total=len(data_loader)):
             # sample
             radar_ori, radar_recon= self._sample_batch(batch)
             
@@ -688,7 +752,7 @@ class Runner(object):
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
                 
-            self.accelerator.wait_for_everyone()
+            # self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
                 break
@@ -731,6 +795,7 @@ class Runner(object):
             return
         
         # In case of multiple milestones.
+       
         mils_paths = os.listdir(self.ckpt_path)
         milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
         print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
@@ -738,7 +803,7 @@ class Runner(object):
         for m in range(0, len(milestones), 1):
             self.load(milestones[m])
             self.test_samples(milestones[m], do_test=True)
-            break
+            
     
     
     

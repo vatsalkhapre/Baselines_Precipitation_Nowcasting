@@ -12,4 +12,14 @@ __pycache__/
 *.pyc
 */__pycache__/
 */*/__pycache__/
+*/*/*/__pycache__/wandb
+z_check.py
+
+check_corrupted.py
+check_corrupted_thorough.py
+Convert_dataset_code/
+__pycache__/
+*.pyc
+*/__pycache__/
+*/*/__pycache__/
 */*/*/__pycache__/

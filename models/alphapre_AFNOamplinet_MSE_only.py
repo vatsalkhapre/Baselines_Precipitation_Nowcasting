@@ -1,0 +1,278 @@
+import torch
+from torch import nn
+import torch.nn.functional as F
+import math
+from einops import rearrange
+from einops.layers.torch import Rearrange
+
+class AFNO2D(nn.Module):
+    """
+    hidden_size: channel dimension size
+    num_blocks: how many blocks to use in the block diagonal weight matrices (higher => less complexity but less parameters)
+    sparsity_threshold: lambda for softshrink
+    hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
+    """
+    def __init__(self, hidden_size, num_blocks=8, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
+        super().__init__()
+        assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
+
+        self.hidden_size = hidden_size
+        self.sparsity_threshold = sparsity_threshold
+        self.num_blocks = num_blocks
+        self.block_size = self.hidden_size // self.num_blocks
+        self.hard_thresholding_fraction = hard_thresholding_fraction
+        self.hidden_size_factor = hidden_size_factor
+        self.scale = 0.02
+
+        self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
+        self.b1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor))
+        self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
+        self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
+
+    def forward(self, x, spatial_size=None):
+
+        dtype = x.dtype
+        x = x.float()
+        B, N, C = x.shape
+
+        if spatial_size == None:
+            H = W = int(math.sqrt(N))
+        else:
+            H, W = spatial_size
+
+        x = x.reshape(B, H, W, C)
+        x = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
+        x = x.reshape(B, x.shape[1], x.shape[2], self.num_blocks, self.block_size)
+
+        o1_real = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o1_imag = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o2_real = torch.zeros(x.shape, device=x.device)
+        o2_imag = torch.zeros(x.shape, device=x.device)
+
+        total_modes = x.shape[2]
+        kept_modes = int(total_modes * self.hard_thresholding_fraction)
+
+        o1_real[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) - \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) + \
+            self.b1[0]
+        )
+
+        o1_imag[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) + \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) + \
+            self.b1[1]
+        )
+
+        o2_real[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) - \
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[0]
+        )
+
+        o2_imag[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) + \
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[1]
+        )
+
+        x = torch.stack([o2_real, o2_imag], dim=-1)
+        x = F.softshrink(x, lambd=self.sparsity_threshold)
+        x = torch.view_as_complex(x)
+        x = x.reshape(B, x.shape[1], x.shape[2], C)
+        x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
+
+        x = x.type(dtype)
+
+        return x 
+
+class AFNOTimeCell(nn.Module):
+    def __init__(self, t_in, t_out,hidden_dim, size_factor=1, num_blocks=8):
+        super().__init__()
+        self.t_in, self.t_out = t_in, t_out
+        self.tmlp = nn.Sequential(
+            nn.Linear(t_in, int(t_out*size_factor)),
+            nn.SELU(True),
+            nn.Linear(int(t_out*size_factor), t_out),
+        )
+        self.afno = AFNO2D(hidden_dim, num_blocks, 0.0, 1.0, 1)
+    
+    def forward(self, x):
+        B,T,C,H,W = x.shape
+        x = x.permute(0,2,3,4,1)
+        bias = self.tmlp(x)
+        x=bias
+        
+        x = x.permute(0,4,2,3,1)        # (B,T,H,W,C)
+
+        x = x.reshape(B*self.t_out, H*W, C)
+        x = self.afno(x, (H, W))
+        x = x.view(B, self.t_out, H, W, C)
+        x = x.permute(0,1,4,2,3)        # (B,T,C,H,W)
+        x = x + bias.permute(0,4,1,2,3)
+        return x
+    
+class AmpCell(nn.Module):
+    def __init__(self, t_in, t_out, dim, size_factor=1.0):
+        super().__init__()
+        self.t_in, self.t_out = t_in, t_out
+        self.tmlp = nn.Sequential(
+            nn.Linear(t_in, int(t_out*size_factor)),
+            nn.SELU(True),
+            nn.Linear(int(t_out*size_factor), t_out),
+        )
+        self.amptime =  AFNOTimeCell(t_in, t_out, dim)
+        self.conv = nn.Sequential(nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),
+                                  nn.GroupNorm(4, dim*t_out),
+                                  nn.SiLU(),
+                                  nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),)
+
+    def forward(self, x):
+
+        
+        residual = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
+        x = self.amptime(x)
+
+        x = x + residual
+        
+        residual = x
+        x = rearrange(x, 'b t c h w -> b (t c) h w')
+        x = self.conv(x)
+        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = x + residual
+        return x
+    
+class AmpliNet(nn.Module):
+    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, n_layers=3, mlp_ratio=2):
+        super().__init__()
+        self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
+        self.dim, self.hidden_dim = dim, hidden_dim
+        self.tmlp = nn.Sequential(
+            nn.Linear(pre_seq_length, int(aft_seq_length*mlp_ratio)),
+            nn.SELU(True),
+            nn.Linear(int(aft_seq_length*mlp_ratio), aft_seq_length),
+        )
+        self.convin = nn.Sequential(ResnetBlock(dim, hidden_dim),
+                                    ResnetBlock(hidden_dim, hidden_dim),
+                                    nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1))
+        self.amplist = nn.ModuleList([
+            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim) for i in range(n_layers)
+        ])
+        self.convout = nn.Sequential(ResnetBlock(hidden_dim, hidden_dim),
+                                     ResnetBlock(hidden_dim, hidden_dim),
+                                     nn.Conv2d(hidden_dim, dim, kernel_size=1))
+
+    def forward(self, x):
+        x = rearrange(x, 'b t c h w -> (b t) c h w')
+        x = self.convin(x)
+        x = rearrange(x, '(b t) c h w -> b t c h w', t=self.pre_seq_length)
+        x_ = x.permute(0,2,3,4,1)
+        xr = self.tmlp(x_)
+        xr = rearrange(xr, 'b c h w t -> (b t) c h w')
+        for ampcell in self.amplist:
+            x = ampcell(x)
+        x = xr + rearrange(x, 'b t c h w -> (b t) c h w')
+        x = self.convout(x)
+        x = rearrange(x, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
+
+        return x
+    
+class AlphaPre_Amplinet(nn.Module):
+    def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+                 hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
+                 pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
+        super(AlphaPre_Amplinet, self).__init__()
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
+        self.input_shape, self.input_dim = input_shape, input_dim
+        self.hidden_dim = hidden_dim
+        self.spec_num = spec_num
+        self.pha_weight = pha_weight
+        self.anet_weight = anet_weight
+        self.amp_weight = amp_weight
+        self.pre_seq_length = pre_seq_length
+        self.aft_seq_length = aft_seq_length
+        self.criterion = nn.MSELoss()
+        self.itr = 0
+        self.aweight_stop_steps = aweight_stop_steps
+        self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
+
+        h, w = input_shape
+        
+    def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
+        self.itr += 1
+        xas = self.amplinet(x)
+        xas = torch.sigmoid(xas)
+        return xas
+
+    def predict(self, frames_in, frames_gt=None, compute_loss=False):
+        
+        xas = self(frames_in, frames_gt, compute_loss)
+        if compute_loss:
+            
+            loss = 0.
+            
+
+            anet_loss = self.criterion(xas, frames_gt)
+            loss = {'total_loss': anet_loss}
+            return xas, loss
+        else:
+            return xas, None
+
+class Block(nn.Module):
+    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
+        super(Block, self).__init__()
+        self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size, padding = kernel_size//2, padding_mode=padding_mode)
+        self.norm = nn.GroupNorm(groups, dim_out) if groupnorm else nn.BatchNorm2d(dim_out)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.proj(x)
+        x = self.norm(x)
+        x = self.act(x)
+        return x
+
+class ResnetBlock(nn.Module):
+    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
+        super().__init__()
+        self.block1 = Block(dim, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block2 = Block(dim_out, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
+
+    def forward(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        return h + self.res_conv(x)
+
+
+def Upsample(dim, dim_out):
+    return nn.Sequential(
+        nn.Upsample(scale_factor = 2, mode = 'nearest'),
+        nn.Conv2d(dim, dim_out, 3, padding = 1)
+    )
+
+def Downsample(dim, dim_out):
+    return nn.Sequential(
+        Rearrange('b c (h p1) (w p2) -> b (c p1 p2) h w', p1 = 2, p2 = 2),
+        nn.Conv2d(dim * 4, dim_out, 1)
+    )
+
+def get_model(
+    img_channels=1,
+    dim = 64,
+    T_in = 5, 
+    T_out = 20,
+    input_shape = (128,128),
+    n_layers = 3,
+    spec_num = 20,
+    pha_weight=0.01, 
+    anet_weight=0.1,
+    amp_weight=0.01,
+    aweight_stop_steps=10000,
+    **kwargs
+):
+    model = AlphaPre_Amplinet(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+                     hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
+                     pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
+                     )
+    
+    return model

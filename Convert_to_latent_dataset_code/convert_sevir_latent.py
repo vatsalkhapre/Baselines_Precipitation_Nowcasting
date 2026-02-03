@@ -8,9 +8,9 @@ from collections import OrderedDict
 from models.autoencoder_kl import AutoencoderKL
 # ---------------- CONFIG ---------------- #
 
-SRC_ROOT = "/home/vatsal/Dataserver2/Datasets/sevir/data/vil/"          # contains 2017/2018/2019
-DST_ROOT = "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent_32_resize_normalize/"         # new repo
-AE_CKPT  = "./Pretrained_ae_checkpoints/autoencoder_checkpoint_32.pth"
+SRC_ROOT = "/home/vatsal/Dataserver/Datasets/sevir/data/vil/"          # contains 2017/2018/2019
+DST_ROOT = "/home/vatsal/Nowcasting/Baselines/Precip_nowcast_code/sevir_lr_latent_32_resize_normalize/data/vil_latent/"         # new repo
+AE_CKPT  = "/home/vatsal/Nowcasting/CasCast/experiments/autoencoder_kl_gan/world_size1-Train_4_32_32/checkpoint_best.pth"
 
 DEVICE = "cuda:0"
 LATENT_C = 4

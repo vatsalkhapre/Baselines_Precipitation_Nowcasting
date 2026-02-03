@@ -58,6 +58,7 @@ def create_parser():
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -72,6 +73,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
     parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
@@ -175,6 +178,9 @@ class Runner(object):
             
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
         
+        print_log(f"Input shape : {self.args.img_size}xself.args.img_size")
+
+
         if self.args.ckpt_milestone is not None:
             self.load(self.args.ckpt_milestone)
 
@@ -334,7 +340,7 @@ class Runner(object):
             out_channels = self.args.frames_out,
             preprocess_type = self.args.preprocessing
         )
-
+        
         self.visiual_save_fn = color_save_fn
         self.thresholds      = THRESHOLDS
         self.scale_value     = PIXEL_SCALE
@@ -352,6 +358,23 @@ class Runner(object):
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+        
+        if self.args.dataset == 'shanghai_lr_latent_32':
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+            self.valid_os_loader = torch.utils.data.DataLoader(
+                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_os_loader = torch.utils.data.DataLoader(
+                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
         
         if self.args.dataset == 'shanghai_lr_latent_32':
             self.train_loader = torch.utils.data.DataLoader(
@@ -399,7 +422,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'alphapre':
-            from models.alphapre import get_model
+            from models.alphapre_latent import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -465,6 +488,31 @@ class Runner(object):
                 'aweight_stop_steps': self.args.aw_stop_step,
             }
             model = get_model(**kwargs)
+
+        
+        elif self.args.backbone == 'amplinet_latent_falfcl_mse_hybrid':
+            from models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "lambda_mse": 0.5, 
+                "lambda_fal_fcl": 0.5,
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+            print_log(f"model parameters : {kwargs}", self.is_main)
 
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
@@ -669,7 +717,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%4==0 or epoch==0:
+                if (epoch+1)%5==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -699,7 +747,7 @@ class Runner(object):
     def _train_batch(self, batch):
         radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
-        std_val = frames_in.std()
+        std_val = 1/0.6786020398139954
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
         
@@ -729,7 +777,7 @@ class Runner(object):
         frame_in = self.args.frames_in
         radar_batch = self._get_seq_data(batch)
         radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
-        std_value = radar_input.std()
+        std_value = 1/0.6786020398139954
         radar_input = radar_input/std_value
         radar_pred, *_ = sample_fn(radar_input,compute_loss=False)
         radar_pred = radar_pred*std_value

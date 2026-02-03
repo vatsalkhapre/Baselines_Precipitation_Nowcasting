@@ -15,7 +15,7 @@ class Shanghai(Dataset):
         self.pixel_scale = PIXEL_SCALE
         
         self.data_path = data_path
-        self.img_size = img_size
+        self.img_size = 32
 
         assert type in ['train', 'test', 'val']
         self.type = type if type!='val' else 'test'
@@ -40,10 +40,8 @@ class Shanghai(Dataset):
 
         with h5py.File(self.data_path,'r') as f:
             imgs = f[self.type][str(index)][()]   # numpy array: (25, 565, 784), dtype=uint8, range(0,70)
-            frames = torch.from_numpy(imgs).float().squeeze() 
-            frames = frames / 255.0
-            frames = self.transform(frames)     
-        return frames.unsqueeze(1) # (25,1,128,128)
+            frames = torch.from_numpy(imgs).float()
+        return frames # (25,1,128,128)
  
 
 

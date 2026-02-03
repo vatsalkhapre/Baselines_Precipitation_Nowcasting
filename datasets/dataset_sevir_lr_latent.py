@@ -637,8 +637,7 @@ class SEVIRDataLoader:
         pd_batch = self._samples.iloc[event_idx:event_idx_slice_end]
         data = {}
         for index, row in pd_batch.iterrows():
-            print(index)
-            print(row)
+
             
             data = self._read_data(row, data)
         

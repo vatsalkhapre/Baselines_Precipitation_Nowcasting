@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from collections import OrderedDict
+
 from einops import rearrange
 from einops.layers.torch import Rearrange
-from models.autoencoder_kl import AutoencoderKL
+
 
 class AmpTimeCell(nn.Module):
     def __init__(self, t_in, t_out, size_factor=1):
@@ -190,81 +190,6 @@ class AlphaMixer(nn.Module):
         return xt
 
 
-def load_autoencoder(
-    model,
-    checkpoint_path,
-    device="cuda",
-    dtype=torch.float32
-):
-    """
-    model: instantiated autoencoder model (same architecture as training)
-    checkpoint_path: path to .pt / .pth checkpoint
-    """
-
-    # ---- load checkpoint to CPU first (safe) ----
-    ckpt = torch.load(checkpoint_path, map_location="cpu")
-    
-    assert "model" in ckpt, "Checkpoint does not contain 'model' key"
-
-    ckpt_model = ckpt["model"]
-    
-    # ---- find matching submodel key ----
-    model_keys = list(model.state_dict().keys())
-    
-    ckpt_keys = list(ckpt_model.keys())
-    
-    # If checkpoint saved multiple submodels, pick autoencoder
-    if isinstance(ckpt_model, dict) and all(isinstance(v, dict) for v in ckpt_model.values()):
-        # typical structure: ckpt['model']['autoencoder_kl']
-        if len(ckpt_model) == 1:
-            ckpt_state = list(ckpt_model.values())[0]
-        else:
-            # explicitly choose autoencoder
-            
-            ckpt_state = ckpt_model.get("autoencoder_kl", None)
-            if ckpt_state is None:
-                raise KeyError("autoencoder_kl not found in checkpoint")
-            else:
-                print("Hari bol")
-                
-    else:
-        ckpt_state = ckpt_model
-
-    # ---- strip 'module.' if present ----
-    new_state_dict = OrderedDict()
-    for k, v in ckpt_state.items():
-        if k.startswith("module."):
-            k = k[7:]
-        elif k.startswith("net."):
-            k = k[4:]
-        new_state_dict[k] = v
-
-    
-    # ---- load weights ----
-    model.load_state_dict(new_state_dict, strict=True)
-
-    # ---- move to device and eval ----
-    model.to(device=device, dtype=dtype)
-    model.eval()
-
-    # ---- freeze params (important for compression) ----
-    for p in model.parameters():
-        p.requires_grad = False
-
-    print("✅ Autoencoder loaded for compression")
-    return model
-
-@torch.no_grad()
-def encode_stage(model, x, scale_factor):
-    z = model.encode(x)
-    return z.sample() * scale_factor
-
-
-@torch.no_grad()
-def decode_stage(model, z, scale_factor):
-    z = z / scale_factor
-    return model.decode(z)
-
 class AlphaPre(nn.Module):
     def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
@@ -293,14 +218,10 @@ class AlphaPre(nn.Module):
         spec_mask[...,-spec_num:,:spec_num] = 1.
         self.register_buffer('spec_mask', spec_mask)
 
-        ae_ckpt = "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/checkpoints/autoencoder_checkpoint.pth"
-        ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
-        self.ae = load_autoencoder(ae_model,ae_ckpt,"cuda")
-
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
-       
+
         xps, x_phas_t, x_amps = self.phasenet(x)
         xt = self.alphamixer(xas, xps, x_phas_t)
 
@@ -309,20 +230,14 @@ class AlphaPre(nn.Module):
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
         B = frames_in.shape[0]
         xt, xps, xas, x_phas_t, x_amps = self(frames_in, frames_gt, compute_loss)
-        B,T,C,H,W = xt.shape
-        pred = xt.view(B*T, C, H, W)
-        pred = encode_stage(self.ae, pred, 1.0)
-        frames_gt_encoded = encode_stage(self.ae, frames_gt.view(B*T, C, H, W), 1.0)
-        _std = frames_gt_encoded.std().detach() + 1e-6
-        pred = pred/_std
-        frames_gt_encoded = frames_gt_encoded/_std
+        pred = xt
         if compute_loss:
             if self.itr < self.aweight_stop_steps:
                 self.amp_weight -= self.sampling_changing_rate
             else:
                 self.amp_weight  = 0.
             loss = 0.
-            loss += self.criterion(pred, frames_gt_encoded)
+            loss += self.criterion(pred, frames_gt)
             frames_fft = torch.fft.rfft2(frames_gt)
             frames_pha = torch.angle(frames_fft)
             frames_abs = torch.abs(frames_fft)

@@ -6,6 +6,7 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 
+
 class AmpTimeCell(nn.Module):
     def __init__(self, t_in, t_out, size_factor=1):
         super().__init__()
@@ -43,10 +44,9 @@ class AmpTimeCell(nn.Module):
 
         x2 = torch.view_as_complex(torch.stack([x2_real, x2_imag], dim=-1))
         x = torch.fft.irfft2(x2, dim=[2,3], norm="ortho")
-        x = x + bias  #Residual 
+        x = x + bias
         return x.permute(0,4,1,2,3)
-
-
+    
 class AmpCell(nn.Module):
     def __init__(self, t_in, t_out, dim, size_factor=1.0,
         ):
@@ -74,8 +74,7 @@ class AmpCell(nn.Module):
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
         x = x + residual
         return x
-
-
+    
 class AmpliNet(nn.Module):
     def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, n_layers=3, mlp_ratio=2):
         super().__init__()
@@ -110,95 +109,13 @@ class AmpliNet(nn.Module):
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
 
         return x
-
-
-class PhaseNet(nn.Module):
-    def __init__(self, input_shape, pre_seq_length, aft_seq_length, input_dim, hidden_dim, 
-                 n_layers, kernel_size, bias=1):
-        super().__init__()
-        h, w = input_shape
-        # input_dim is channel here.
-        input_shape = (h, w//2+1)
-        self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
-        self.pha_conv0 = nn.Conv2d(2+input_dim*pre_seq_length, input_dim*aft_seq_length, 1)
-        self.phase_0 = nn.Sequential(ResnetBlock(2+input_dim*pre_seq_length, hidden_dim, kernel_size=1),
-                                     ResnetBlock(hidden_dim, hidden_dim, kernel_size=1),
-                                     nn.Conv2d(hidden_dim, input_dim*aft_seq_length, kernel_size=1))
-        self.phase_1 = nn.Sequential(ResnetBlock(2+input_dim*pre_seq_length, hidden_dim, kernel_size=1),
-                                     ResnetBlock(hidden_dim, hidden_dim, kernel_size=1),
-                                     nn.Conv2d(hidden_dim, input_dim*aft_seq_length, kernel_size=1))
-        self.phase_2 = nn.Sequential(ResnetBlock(2+input_dim*pre_seq_length, hidden_dim, kernel_size=3,padding_mode='circular'),
-                                     ResnetBlock(hidden_dim, hidden_dim, kernel_size=3,padding_mode='circular'),
-                                     nn.Conv2d(hidden_dim, input_dim*aft_seq_length, kernel_size=1))
-        
-        self.pha_conv1 = nn.Conv2d(4*input_dim*aft_seq_length, input_dim*aft_seq_length, 1)
-        u = torch.fft.fftfreq(h)
-        v = torch.fft.rfftfreq(w)
-        u, v = torch.meshgrid(u, v)
-        uv = torch.stack((u,v),dim=0)
-        self.register_buffer('uv', uv)
-
-    def forward(self, x): # x:[b,t,c,h,w]
-        B,T,C,H,W = x.shape
-        x_fft = torch.fft.rfft2(x)
-        x_amps, x_phas = torch.abs(x_fft), torch.angle(x_fft) 
-        x_phas = self.pha_norm(x_phas)
-        x_phas_ = rearrange(x_phas, 'b t c h w -> b (t c) h w')
-        x_puv = torch.cat((x_phas_, self.uv.repeat(B,1,1,1)), dim=1)
-        x_phast = self.pha_conv0(x_puv)
-        x_phas0 = x_phast + self.phase_0(x_puv)
-        x_phas1 = x_phast * self.phase_1(x_puv)
-        x_phas2 = x_phast * self.phase_2(x_puv)
-        x_phas_t = torch.cat((x_phast, x_phas0, x_phas1, x_phas2), dim=1)
-        x_phas_t = self.pha_conv1(x_phas_t)
-        x_phas_t = rearrange(x_phas_t, 'b (t c) h w -> b t c h w', t=self.aft_seq_length)
-        x_phas_t = x_phas[:,-1:] + x_phas_t  #This is residual connection so that the context is not lost
-        x_phas_t = self.pha_unnorm(x_phas_t)
-        xt_fft = x_amps[:,-1:] * torch.exp(torch.tensor(1j) * x_phas_t)
-        xt = torch.fft.irfft2(xt_fft)  #Last phase and amplitude will be most useful for finding the next sequence.
-        return xt, x_phas_t, x_amps
-
-    def pha_norm(self, x):
-        return x / torch.pi
-
-    def pha_unnorm(self, x):
-        return x * torch.pi
     
-class AlphaMixer(nn.Module):
-    def __init__(self, input_shape, spec_num, input_dim, hidden_dim, aft_seq_length) -> None:
-        super().__init__()
-        h, w = input_shape
-        self.aft_seq_length = aft_seq_length
-        self.spec_num = spec_num
-        spec_mask = torch.zeros(h, w//2+1)
-        spec_mask[...,:spec_num,:spec_num] = 1.
-        spec_mask[...,-spec_num:,:spec_num] = 1.
-        self.register_buffer('spec_mask', spec_mask)
-        self.out_mixer = nn.Sequential(ResnetBlock(3*input_dim, hidden_dim),
-                                       ResnetBlock(hidden_dim, hidden_dim),
-                                       nn.Conv2d(hidden_dim, input_dim, kernel_size=1))
-
-    def forward(self, xas, xps, phas):
-        xas_fft = torch.fft.rfft2(xas)
-        amps = torch.abs(xas_fft)
-        alpha_fft = amps * self.spec_mask * torch.exp(torch.tensor(1j) * phas)
-        alpha = torch.fft.irfft2(alpha_fft)
-        xap = torch.cat([xas, xps, alpha],dim=2)
-        xap = rearrange(xap, 'b t c h w -> (b t) c h w')
-        xt = self.out_mixer(xap)
-        xt = rearrange(xt, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
-        return xt
-
-
-class AlphaPre(nn.Module):
+class AlphaPre_Amplinet(nn.Module):
     def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
-        super(AlphaPre, self).__init__()
-
+        super(AlphaPre_Amplinet, self).__init__()
         self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
-        self.phasenet = PhaseNet(input_shape, pre_seq_length, aft_seq_length, input_dim, hidden_dim, n_layers, kernel_size, bias)
-        self.alphamixer = AlphaMixer(input_shape, spec_num, input_dim, hidden_dim, aft_seq_length)
         self.input_shape, self.input_dim = input_shape, input_dim
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num
@@ -217,44 +134,35 @@ class AlphaPre(nn.Module):
         spec_mask[...,:spec_num,:spec_num] = 1.
         spec_mask[...,-spec_num:,:spec_num] = 1.
         self.register_buffer('spec_mask', spec_mask)
-
+        
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
         xas = torch.sigmoid(xas)
-        xps, x_phas_t, x_amps = self.phasenet(x)
-        xt = self.alphamixer(xas, xps, x_phas_t)
-
-        return xt, xps, xas, x_phas_t, x_amps
+        return xas
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
-        B = frames_in.shape[0]
-        xt, xps, xas, x_phas_t, x_amps = self(frames_in, frames_gt, compute_loss)
-        pred = xt
+        
+        xas = self(frames_in, frames_gt, compute_loss)
         if compute_loss:
             if self.itr < self.aweight_stop_steps:
                 self.amp_weight -= self.sampling_changing_rate
             else:
                 self.amp_weight  = 0.
+
             loss = 0.
-            loss += self.criterion(pred, frames_gt)
+            
             frames_fft = torch.fft.rfft2(frames_gt)
-            frames_pha = torch.angle(frames_fft)
             frames_abs = torch.abs(frames_fft)
-            pha_loss = (1 - torch.cos(frames_pha * self.spec_mask - x_phas_t * self.spec_mask)).sum() / (self.spec_mask.sum()*B*self.aft_seq_length*self.input_dim)
-            loss += self.pha_weight*pha_loss
             xas_fft = torch.fft.rfft2(xas)
             xas_abs = torch.abs(xas_fft)
             amp_loss = self.criterion(xas_abs, frames_abs)
-            loss += self.amp_weight*amp_loss
-            anet_loss = self.criterion(xas, frames_gt)
-            loss += self.anet_weight*anet_loss
-            loss = {'total_loss': loss, 'phase_loss': self.pha_weight*pha_loss,
-                    'ampli_loss': self.amp_weight*amp_loss, 'anet_loss': self.anet_weight*anet_loss}
-            return pred, loss
+            loss = self.amp_weight*amp_loss
+            # anet_loss = self.criterion(xas, frames_gt)
+            loss = {'total_loss': loss}
+            return xas, loss
         else:
-            return pred, None
-
+            return xas, None
 
 class Block(nn.Module):
     def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
@@ -294,7 +202,6 @@ def Downsample(dim, dim_out):
         nn.Conv2d(dim * 4, dim_out, 1)
     )
 
-
 def get_model(
     img_channels=1,
     dim = 64,
@@ -309,7 +216,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

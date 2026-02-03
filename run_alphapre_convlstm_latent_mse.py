@@ -25,6 +25,7 @@ from diffusers import (
     get_cosine_schedule_with_warmup,
 )
 
+
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
@@ -40,13 +41,13 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='alphapre_amp_loss',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Latent_mse_alphare",              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_amplinet_amplossonly",              help="additional note for experiment")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
@@ -73,7 +74,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=18,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=50,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -99,8 +100,8 @@ def create_parser():
 
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Alphapre_sevir", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='try1',        help="wandb run name")
+    parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='Training_alpha_amplinet_amploss_only',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
@@ -172,7 +173,9 @@ class Runner(object):
             # print_log(show_img_info(sample), self.is_main)
             
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
-        
+        print_log(f"Input shape : {self.args.img_size}x{self.args.img_size}")
+
+
         if self.args.ckpt_milestone is not None:
             self.load(self.args.ckpt_milestone)
 
@@ -299,6 +302,40 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'alphapre_amp_loss':
+            from models.alphapre_amplinet_amp_loss import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'alphapre_AFNOAmplinet_mse_loss':
+            from models.alphapre_amplinet_amp_loss import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster

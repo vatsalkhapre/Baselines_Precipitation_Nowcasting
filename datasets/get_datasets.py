@@ -104,12 +104,13 @@ def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
     
 # Specify the location of the dataset. 
 DATAPATH = {
-    'cikm'     : 'path/to/cikm.h5',
-    'shanghai' : 'path/to/shanghai.h5',
-    'meteo'    : '/home/vatsal/Dataserver2/Datasets/Meteonet/meteo_radar.h5',
-    'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
+    'cikm'     : '/home/vatsal/Nowcasting/Datasets/CIKM/cikm.h5',
+    'shanghai' : '/home/vatsal/Nowcasting/Datasets/Shanghai_Radar/shanghai.h5',
+    'shanghai_lr_latent_32' : '/home/vatsal/Nowcasting/Datasets/shanghai_latent_32/shanghai_latent_data.h5',
+    'meteo'    : '/home/vatsal/Dataserver/Datasets/Meteonet/meteo_radar.h5',
+    'sevir'    : '/home/vatsal/Dataserver/Datasets/sevir/',
     'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
-    'sevir_lr_latent_32' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent_32_resize_normalize',
+    'sevir_lr_latent_32' : '/home/vatsal/Nowcasting/Datasets/sevir_lr_latent_32_normalize_resize',
     'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',
     # 'vil'      : '/home/vatsal/Dataserver2/Datasets/VIL/VIL_480_logtransformed_scaled/',
     'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
@@ -148,6 +149,13 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
         test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
     
+    elif data_name == 'shanghai_lr_latent_32':
+        print("Shanghai latent dataset")
+        from .dataset_shanghai_latent_32 import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
+
     elif data_name == 'meteo':
         from .dataset_meteonet import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)

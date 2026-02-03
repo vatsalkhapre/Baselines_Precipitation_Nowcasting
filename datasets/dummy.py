@@ -1,887 +1,298 @@
-"""Code is adapted from https://github.com/MIT-AI-Accelerator/neurips-2020-sevir. Their license is MIT License."""
-
-import os
-import os.path as osp
-from typing import List, Union, Dict, Sequence
-from math import ceil
-import numpy as np
-import numpy.random as nprand
-import datetime
-import pandas as pd
-import h5py 
-
 
 import torch
-from torch.utils.data import Dataset as TorchDataset, DataLoader
-from torch.nn.functional import avg_pool2d
-from torchvision import transforms 
-
+import os
+import numpy as np
+import os.path as osp
+import datetime
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from functools import partial
 from matplotlib import colors
-from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
-
-def change_layout_np(data,
-                     in_layout='NHWT', out_layout='NHWT',
-                     ret_contiguous=False):
-    # first convert to 'NHWT' (or 'NTCHW' if source is latent)
-    if in_layout == 'NHWT':
-        pass
-    elif in_layout == 'NTHW':
-        data = np.transpose(data, axes=(0, 2, 3, 1))
-    elif in_layout == 'NWHT':
-        data = np.transpose(data, axes=(0, 2, 1, 3))
-    elif in_layout == 'NTCHW':
-        # FIXED: Do NOT drop channel dim (data[:, :, 0, :, :])
-        # If we need NHWT, we can't really do it for Multi-channel without flattening or error
-        # But usually we just pass through to NTCHW output.
-        pass 
-    elif in_layout == 'NTHWC':
-        data = data[:, :, :, :, 0]
-        data = np.transpose(data, axes=(0, 2, 3, 1))
-    elif in_layout == 'NTWHC':
-        data = data[:, :, :, :, 0]
-        data = np.transpose(data, axes=(0, 3, 2, 1))
-    elif in_layout == 'TNHW':
-        data = np.transpose(data, axes=(1, 2, 3, 0))
-    elif in_layout == 'TNCHW':
-        data = data[:, :, 0, :, :]
-        data = np.transpose(data, axes=(1, 2, 3, 0))
-    else:
-        raise NotImplementedError(f"Input layout {in_layout} not supported")
-
-    # Output conversion
-    if out_layout == 'NHWT':
-        pass
-    elif out_layout == 'NTHW':
-        if in_layout == 'NTCHW':
-             # Convert NTCHW -> NTHW (only if C=1, else likely logic error in usage)
-             data = data[:, :, 0, :, :]
-             data = np.transpose(data, axes=(0, 1, 3, 2)) # NT H W
-        else:
-             data = np.transpose(data, axes=(0, 3, 1, 2))
-    elif out_layout == 'NWHT':
-        data = np.transpose(data, axes=(0, 2, 1, 3))
-    elif out_layout == 'NCHWT':
-        data = np.transpose(data, axes=(0, 2, 1, 3))
-    elif out_layout == 'NTCHW':
-        if in_layout == 'NTCHW':
-            # FIXED: Already in NTCHW, do nothing
-            pass
-        else:
-            # Assumes NHWT input -> NTCHW output
-            data = np.transpose(data, axes=(0, 3, 1, 2))
-            data = np.expand_dims(data, axis=2)
-    elif out_layout == 'NTHWC':
-        data = np.transpose(data, axes=(0, 3, 1, 2))
-        data = np.expand_dims(data, axis=-1)
-    elif out_layout == 'NTWHC':
-        data = np.transpose(data, axes=(0, 3, 2, 1))
-        data = np.expand_dims(data, axis=-1)
-    elif out_layout == 'TNHW':
-        data = np.transpose(data, axes=(3, 0, 1, 2))
-    elif out_layout == 'TNCHW':
-        data = np.transpose(data, axes=(3, 0, 1, 2))
-        data = np.expand_dims(data, axis=2)
-    else:
-        raise NotImplementedError
-        
-    if ret_contiguous:
-        data = np.ascontiguousarray(data)
-    return data
-
-def change_layout_torch(data,
-                        in_layout='NHWT', out_layout='NHWT',
-                        ret_contiguous=False):
-    # first convert to 'NHWT'
-    if in_layout == 'NHWT':
-        pass
-    elif in_layout == 'NTHW':
-        data = data.permute(0, 2, 3, 1)
-    elif in_layout == 'NTCHW':
-        # FIXED: Preserve channels
-        pass
-    elif in_layout == 'NTHWC':
-        data = data[:, :, :, :, 0]
-        data = data.permute(0, 2, 3, 1)
-    elif in_layout == 'TNHW':
-        data = data.permute(1, 2, 3, 0)
-    elif in_layout == 'TNCHW':
-        data = data[:, :, 0, :, :]
-        data = data.permute(1, 2, 3, 0)
-    else:
-        raise NotImplementedError
-
-    if out_layout == 'NHWT':
-        pass
-    elif out_layout == 'NTHW':
-        data = data.permute(0, 3, 1, 2)
-    elif out_layout == 'NTCHW':
-        if in_layout == 'NTCHW':
-            pass
-        else:
-            data = data.permute(0, 3, 1, 2)
-            data = torch.unsqueeze(data, dim=2)
-    elif out_layout == 'NTHWC':
-        data = data.permute(0, 3, 1, 2)
-        data = torch.unsqueeze(data, dim=-1)
-    elif out_layout == 'TNHW':
-        data = data.permute(3, 0, 1, 2)
-    elif out_layout == 'TNCHW':
-        data = data.permute(3, 0, 1, 2)
-        data = torch.unsqueeze(data, dim=2)
-    else:
-        raise NotImplementedError
-    if ret_contiguous:
-        data = data.contiguous()
-    return data
-
-
-# SEVIR Dataset constants
-# FIXED: Added vil_latent
-SEVIR_DATA_TYPES = ['vis', 'ir069', 'ir107', 'vil', 'vil_latent', 'lght']
-SEVIR_RAW_DTYPES = {'vis': np.int16,
-                    'ir069': np.int16,
-                    'ir107': np.int16,
-                    'vil': np.int16,
-                    'vil_latent': np.float32, # or np.float16 depending on your file
-                    'lght': np.int16}
-LIGHTING_FRAME_TIMES = np.arange(- 120.0, 125.0, 5) * 60
-SEVIR_DATA_SHAPE = {'lght': (48, 48), }
-PREPROCESS_SCALE_SEVIR = {'vis': 1,  # Not utilized in original paper
-                          'ir069': 1 / 1174.68,
-                          'ir107': 1 / 2562.43,
-                          'vil': 1 / 47.54,
-                          'vil_latent': 1, 
-                          'lght': 1 / 0.60517}
-PREPROCESS_OFFSET_SEVIR = {'vis': 0,  # Not utilized in original paper
-                           'ir069': 3683.58,
-                           'ir107': 1552.80,
-                           'vil': - 33.44,
-                           'vil_latent': 0,
-                           'lght': - 0.02990}
-PREPROCESS_SCALE_01 = {'vis': 1,
-                       'ir069': 1,
-                       'ir107': 1,
-                       'vil': 1 / 255,  
-                       'vil_latent': 1,
-                       'lght': 1}
-PREPROCESS_OFFSET_01 = {'vis': 0,
-                        'ir069': 0,
-                        'ir107': 0,
-                        'vil': 0, 
-                        'vil_latent': 0,
-                        'lght': 0}
-
-
-
-class SEVIRDataLoader:
-    r"""
-    DataLoader that loads SEVIR sequences, and spilts each event
-    into segments according to specified sequence length.
-    """
-    def __init__(self,
-                 dataset_dir: str,
-                 data_types: Sequence[str] = None,
-                 seq_len: int = 49,
-                 raw_seq_len: int = 49,
-                 sample_mode: str = 'sequent',
-                 stride: int = 12,
-                 batch_size: int = 1,
-                 layout: str = 'NTCHW',
-                 num_shard: int = 1,
-                 rank: int = 0,
-                 split_mode: str = "uneven",
-                 sevir_catalog: Union[str, pd.DataFrame] = None,
-                 sevir_data_dir: str = None,
-                 start_date: datetime.datetime = None,
-                 end_date: datetime.datetime = None,
-                 datetime_filter=None,
-                 catalog_filter='default',
-                 shuffle: bool = False,
-                 shuffle_seed: int = 1,
-                 output_type=np.float32,
-                 preprocess: bool = True,
-                 rescale_method: str = '01',
-                 downsample_dict: Dict[str, Sequence[int]] = None,
-                 verbose: bool = False):
-        
-        super(SEVIRDataLoader, self).__init__()
-
-        if data_types is None:
-            data_types = SEVIR_DATA_TYPES
-        else:
-            assert set(data_types).issubset(SEVIR_DATA_TYPES)
-        
-        self.dataset_dir = dataset_dir
-        sevir_catalog = os.path.join(dataset_dir, "CATALOG.csv")
-
-        sevir_data_dir = os.path.join(dataset_dir, "data")
-
-
-        # configs which should not be modified
-        self._dtypes = SEVIR_RAW_DTYPES
-        self.lght_frame_times = LIGHTING_FRAME_TIMES
-        self.data_shape = SEVIR_DATA_SHAPE
-
-        self.raw_seq_len = raw_seq_len
-        assert seq_len <= self.raw_seq_len, f'seq_len must not be larger than raw_seq_len = {raw_seq_len}, got {seq_len}.'
-        self.seq_len = seq_len
-        assert sample_mode in ['random', 'sequent'], f'Invalid sample_mode = {sample_mode}, must be \'random\' or \'sequent\'.'
-        self.sample_mode = sample_mode
-        self.stride = stride
-        self.batch_size = batch_size
-        valid_layout = ('NHWT', 'NTHW', 'NTCHW', 'NTHWC', 'TNHW', 'TNCHW')
-        if layout not in valid_layout:
-            raise ValueError(f'Invalid layout = {layout}! Must be one of {valid_layout}.')
-        self.layout = layout
-        self.num_shard = num_shard
-        self.rank = rank
-        valid_split_mode = ('ceil', 'floor', 'uneven')
-        if split_mode not in valid_split_mode:
-            raise ValueError(f'Invalid split_mode: {split_mode}! Must be one of {valid_split_mode}.')
-        self.split_mode = split_mode
-        self._samples = None
-        self._hdf_files = {}
-        self.data_types = data_types
-        if isinstance(sevir_catalog, str):
-            self.catalog = pd.read_csv(sevir_catalog, parse_dates=['time_utc'], low_memory=False)
-        else:
-            self.catalog = sevir_catalog
-        self.sevir_data_dir = sevir_data_dir
-        self.datetime_filter = datetime_filter
-        self.catalog_filter = catalog_filter
-        self.start_date = start_date
-        self.end_date = end_date
-        self.shuffle = shuffle
-        self.shuffle_seed = int(shuffle_seed)
-        self.output_type = output_type
-        self.preprocess = preprocess
-        self.downsample_dict = downsample_dict
-        self.rescale_method = rescale_method
-        self.verbose = verbose
-
-        if self.start_date is not None:
-            self.catalog = self.catalog[self.catalog.time_utc > self.start_date]
-        if self.end_date is not None:
-            self.catalog = self.catalog[self.catalog.time_utc <= self.end_date]
-        if self.datetime_filter:
-            self.catalog = self.catalog[self.datetime_filter(self.catalog.time_utc)]
-
-        if self.catalog_filter is not None:
-            if self.catalog_filter == 'default':
-                self.catalog_filter = lambda c: c.pct_missing == 0
-            self.catalog = self.catalog[self.catalog_filter(self.catalog)]
-
-        self._compute_samples()
-        self._open_files(verbose=self.verbose)
-        self.reset()
-
-    def _compute_samples(self):
-        """
-        Computes the list of samples in catalog to be used. This sets self._samples
-        """
-        # locate all events containing colocated data_types
-        imgt = self.data_types
-        imgts = set(imgt)
-        filtcat = self.catalog[ np.logical_or.reduce([self.catalog.img_type==i for i in imgt]) ]
-        # remove rows missing one or more requested img_types
-        filtcat = filtcat.groupby('id').filter(lambda x: imgts.issubset(set(x['img_type'])))
-        # If there are repeated IDs, remove them (this is a bug in SEVIR)
-        filtcat = filtcat.groupby('id').filter(lambda x: x.shape[0]==len(imgt))
-        self._samples = filtcat.groupby('id').apply(lambda df: self._df_to_series(df,imgt) )
-        if self.shuffle:
-            self.shuffle_samples()
-
-    def shuffle_samples(self):
-        self._samples = self._samples.sample(frac=1, random_state=self.shuffle_seed)
-
-    def _df_to_series(self, df, imgt):
-        d = {}
-        df = df.set_index('img_type')
-        for i in imgt:
-            s = df.loc[i]
-            idx = s.file_index if i != 'lght' else s.id
-            d.update({f'{i}_filename': [s.file_name],
-                      f'{i}_index': [idx]})
-
-        return pd.DataFrame(d)
-
-    def _open_files(self, verbose=True):
-        """
-        Opens HDF files
-        """
-        imgt = self.data_types
-        hdf_filenames = []
-        for t in imgt:
-            hdf_filenames += list(np.unique( self._samples[f'{t}_filename'].values ))
-        self._hdf_files = {}
-        for f in hdf_filenames:
-            if verbose:
-                print('Opening HDF5 file for reading', f)
-            self._hdf_files[f] = h5py.File(self.sevir_data_dir + '/' + f, 'r')
-
-    def close(self):
-        """
-        Closes all open file handles
-        """
-        for f in self._hdf_files:
-            self._hdf_files[f].close()
-        self._hdf_files = {}
-
-    @property
-    def num_seq_per_event(self):
-        return 1 + (self.raw_seq_len - self.seq_len) // self.stride
-
-    @property
-    def total_num_seq(self):
-        return int(self.num_seq_per_event * self.num_event)
-
-    @property
-    def total_num_event(self):
-        return int(self._samples.shape[0])
-
-    @property
-    def start_event_idx(self):
-        return self.total_num_event // self.num_shard * self.rank
-
-    @property
-    def end_event_idx(self):
-        if self.split_mode == 'ceil':
-            _last_start_event_idx = self.total_num_event // self.num_shard * (self.num_shard - 1)
-            _num_event = self.total_num_event - _last_start_event_idx
-            return self.start_event_idx + _num_event
-        elif self.split_mode == 'floor':
-            return self.total_num_event // self.num_shard * (self.rank + 1)
-        else:  # self.split_mode == 'uneven':
-            if self.rank == self.num_shard - 1:  # the last process
-                return self.total_num_event
-            else:
-                return self.total_num_event // self.num_shard * (self.rank + 1)
-
-    @property
-    def num_event(self):
-        return self.end_event_idx - self.start_event_idx
-
-    def _read_data(self, row, data):
-        """
-        Iteratively read data into data dict. 
-        """
-        imgtyps = np.unique([x.split('_')[0] if 'vil_latent' not in x else 'vil_latent' for x in list(row.keys())])
-        for t in imgtyps:
-            fname = row[f'{t}_filename']
-            idx = row[f'{t}_index']
-            t_slice = slice(0, None)
-            
-            if t == 'lght':
-                lght_data = self._hdf_files[fname][idx][:]
-                data_i = self._lght_to_grid(lght_data, t_slice)
-            elif t == 'vil_latent':
-                # FIXED: vil_latent is (N, T, C, H, W)
-                # We read [idx:idx+1, t_slice(Time), :, :, :]
-                # Resulting shape: (1, T, C, H, W) -> NTCHW
-                data_i = self._hdf_files[fname][t][idx:idx + 1, t_slice, :, :, :]
-            else:
-                # Original types are (N, H, W, T)
-                # Resulting shape: (1, H, W, T) -> NHWT
-                data_i = self._hdf_files[fname][t][idx:idx + 1, :, :, t_slice]
-            
-            data[t] = np.concatenate((data[t], data_i), axis=0) if (t in data) else data_i
-
-        return data
-
-    def _lght_to_grid(self, data, t_slice=slice(0, None)):
-        """
-        Converts Nx5 lightning data matrix into a 2D grid of pixel counts
-        """
-        out_size = (*self.data_shape['lght'], len(self.lght_frame_times)) if t_slice.stop is None else (*self.data_shape['lght'], 1)
-        if data.shape[0] == 0:
-            return np.zeros((1,) + out_size, dtype=np.float32)
-
-        x, y = data[:, 3], data[:, 4]
-        m = np.logical_and.reduce([x >= 0, x < out_size[0], y >= 0, y < out_size[1]])
-        data = data[m, :]
-        if data.shape[0] == 0:
-            return np.zeros((1,) + out_size, dtype=np.float32)
-
-        t = data[:, 0]
-        if t_slice.stop is not None:
-            if t_slice.stop > 0:
-                if t_slice.stop < len(self.lght_frame_times):
-                    tm = np.logical_and(t >= self.lght_frame_times[t_slice.stop - 1],
-                                        t < self.lght_frame_times[t_slice.stop])
-                else:
-                    tm = t >= self.lght_frame_times[-1]
-            else:
-                tm = np.logical_and(t >= self.lght_frame_times[0], t < self.lght_frame_times[1])
-            
-            data = data[tm, :]
-            z = np.zeros(data.shape[0], dtype=np.int64)
-        else:
-            z = np.digitize(t, self.lght_frame_times) - 1
-            z[z == -1] = 0
-
-        x = data[:, 3].astype(np.int64)
-        y = data[:, 4].astype(np.int64)
-
-        k = np.ravel_multi_index(np.array([y, x, z]), out_size)
-        n = np.bincount(k, minlength=np.prod(out_size))
-        return np.reshape(n, out_size).astype(np.int16)[np.newaxis, :]
-
-
-    @property
-    def sample_count(self):
-        return self._sample_count
-
-    def inc_sample_count(self):
-        self._sample_count += 1
-
-    @property
-    def curr_event_idx(self):
-        return self._curr_event_idx
-
-    @property
-    def curr_seq_idx(self):
-        return self._curr_seq_idx
-
-    def set_curr_event_idx(self, val):
-        self._curr_event_idx = val
-
-    def set_curr_seq_idx(self, val):
-        self._curr_seq_idx = val
-
-    def reset(self, shuffle: bool = None):
-        self.set_curr_event_idx(val=self.start_event_idx)
-        self.set_curr_seq_idx(0)
-        self._sample_count = 0
-        if shuffle is None:
-            shuffle = self.shuffle
-        if shuffle:
-            self.shuffle_samples()
-
-    def __len__(self):
-        return self.total_num_seq // self.batch_size
-
-    @property
-    def use_up(self):
-        if self.sample_mode == 'random':
-            return False
-        else:   # self.sample_mode == 'sequent'
-            curr_event_remain_seq = self.num_seq_per_event - self.curr_seq_idx
-            all_remain_seq = curr_event_remain_seq + (
-                        self.end_event_idx - self.curr_event_idx - 1) * self.num_seq_per_event
-            if self.split_mode == "floor":
-                return all_remain_seq < self.batch_size
-            else:
-                return all_remain_seq <= 0
-
-    def _load_event_batch(self, event_idx, event_batch_size):
-        event_idx_slice_end = event_idx + event_batch_size
-        pad_size = 0
-        if event_idx_slice_end > self.end_event_idx:
-            pad_size = event_idx_slice_end - self.end_event_idx
-            event_idx_slice_end = self.end_event_idx
-        pd_batch = self._samples.iloc[event_idx:event_idx_slice_end]
-        data = {}
-        for index, row in pd_batch.iterrows():
-            data = self._read_data(row, data)
-        
-        if pad_size > 0:
-            event_batch = []
-            for t in self.data_types:
-                pad_shape = [pad_size, ] + list(data[t].shape[1:])
-                data_pad = np.concatenate((data[t].astype(self.output_type),
-                                           np.zeros(pad_shape, dtype=self.output_type)),
-                                          axis=0)
-                event_batch.append(data_pad)
-        else:
-            event_batch = [data[t].astype(self.output_type) for t in self.data_types]
-        return event_batch
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.sample_mode == 'random':
-            self.inc_sample_count()
-            ret_dict = self._random_sample()
-        else:
-            if self.use_up:
-                raise StopIteration
-            else:
-                self.inc_sample_count()
-                ret_dict = self._sequent_sample()
-        ret_dict = self.data_dict_to_tensor(data_dict=ret_dict,
-                                            data_types=self.data_types)
-        if self.preprocess:
-            ret_dict = self.preprocess_data_dict(data_dict=ret_dict,
-                                                 data_types=self.data_types,
-                                                 layout=self.layout,
-                                                 rescale=self.rescale_method)
-        if self.downsample_dict is not None:
-            ret_dict = self.downsample_data_dict(data_dict=ret_dict,
-                                                 data_types=self.data_types,
-                                                 factors_dict=self.downsample_dict,
-                                                 layout=self.layout)
-        return ret_dict
-
-    def __getitem__(self, index):
-        data_dict = self._idx_sample(index=index)
-        return data_dict
-
-    @staticmethod
-    def preprocess_data_dict(data_dict, data_types=None, layout='NTCHW', rescale='01'):
-        if rescale == 'sevir':
-            scale_dict = PREPROCESS_SCALE_SEVIR
-            offset_dict = PREPROCESS_OFFSET_SEVIR
-        elif rescale == '01':
-            scale_dict = PREPROCESS_SCALE_01
-            offset_dict = PREPROCESS_OFFSET_01
-        else:
-            raise ValueError(f'Invalid rescale option: {rescale}.')
-        if data_types is None:
-            data_types = data_dict.keys()
-        for key, data in data_dict.items():
-            if key in data_types:
-                # FIXED: Determine input layout based on key
-                # vil_latent is read as NTCHW
-                # others are read as NHWT
-                current_in_layout = 'NTCHW' if key == 'vil_latent' else 'NHWT'
-                
-                if isinstance(data, np.ndarray):
-                    data = scale_dict[key] * (
-                            data.astype(np.float32) +
-                            offset_dict[key])
-                    data = change_layout_np(data=data,
-                                            in_layout=current_in_layout,
-                                            out_layout=layout)
-                elif isinstance(data, torch.Tensor):
-                    data = scale_dict[key] * (
-                            data.float() +
-                            offset_dict[key])
-                    data = change_layout_torch(data=data,
-                                               in_layout=current_in_layout,
-                                               out_layout=layout)
-                data_dict[key] = data
-        return data_dict
-
-    @staticmethod
-    def data_dict_to_tensor(data_dict, data_types=None):
-        ret_dict = {}
-        if data_types is None:
-            data_types = data_dict.keys()
-        for key, data in data_dict.items():
-            if key in data_types:
-                if isinstance(data, torch.Tensor):
-                    ret_dict[key] = data.detach().clone()
-                elif isinstance(data, np.ndarray):
-                    ret_dict[key] = torch.from_numpy(data)
-                else:
-                    raise ValueError(f"Invalid data type: {type(data)}. Should be torch.Tensor or np.ndarray")
-            else:   # key == "mask"
-                ret_dict[key] = data
-        return ret_dict
-
-    @staticmethod
-    def downsample_data_dict(data_dict, data_types=None, factors_dict=None, layout='NHWT'):
-        if factors_dict is None:
-            factors_dict = {}
-        if data_types is None:
-            data_types = data_dict.keys()
-        downsampled_data_dict = SEVIRDataLoader.data_dict_to_tensor(
-            data_dict=data_dict,
-            data_types=data_types)    # make a copy
-        for key, data in data_dict.items():
-            factors = factors_dict.get(key, None)
-            if factors is not None:
-                downsampled_data_dict[key] = change_layout_torch(
-                    data=downsampled_data_dict[key],
-                    in_layout=layout,
-                    out_layout='NTCHW')
-                # downsample t dimension
-                t_slice = [slice(None, None), ] * 5 # 5 for NTCHW
-                t_slice[1] = slice(None, None, factors[0])
-                downsampled_data_dict[key] = downsampled_data_dict[key][tuple(t_slice)]
-                # downsample spatial dimensions
-                downsampled_data_dict[key] = avg_pool2d(
-                    input=downsampled_data_dict[key],
-                    kernel_size=(factors[1], factors[2]))
-
-                downsampled_data_dict[key] = change_layout_torch(
-                    data=downsampled_data_dict[key],
-                    in_layout='NTCHW',
-                    out_layout=layout)
-
-        return downsampled_data_dict
-
-    def _random_sample(self):
-        num_sampled = 0
-        event_idx_list = nprand.randint(low=self.start_event_idx,
-                                        high=self.end_event_idx,
-                                        size=self.batch_size)
-        seq_idx_list = nprand.randint(low=0,
-                                      high=self.num_seq_per_event,
-                                      size=self.batch_size)
-        seq_slice_list = [slice(seq_idx * self.stride,
-                                seq_idx * self.stride + self.seq_len)
-                          for seq_idx in seq_idx_list]
-        ret_dict = {}
-        while num_sampled < self.batch_size:
-            event = self._load_event_batch(event_idx=event_idx_list[num_sampled],
-                                           event_batch_size=1)
-            for imgt_idx, imgt in enumerate(self.data_types):
-                # FIXED: Logic for slicing different layouts
-                if imgt == 'vil_latent':
-                    # Layout is (N, T, C, H, W). Slice T (axis 1)
-                    sampled_seq = event[imgt_idx][[0, ], seq_slice_list[num_sampled], :, :, :]
-                else:
-                    # Layout is (N, H, W, T). Slice T (axis 3)
-                    sampled_seq = event[imgt_idx][[0, ], :, :, seq_slice_list[num_sampled]]
-                    
-                if imgt in ret_dict:
-                    ret_dict[imgt] = np.concatenate((ret_dict[imgt], sampled_seq),
-                                                    axis=0)
-                else:
-                    ret_dict.update({imgt: sampled_seq})
-            num_sampled += 1 # Added to ensure loop termination if logic was missing
-        return ret_dict
-
-    def _sequent_sample(self):
-        assert not self.use_up, 'Data loader used up! Reset it to reuse.'
-        event_idx = self.curr_event_idx
-        seq_idx = self.curr_seq_idx
-        num_sampled = 0
-        sampled_idx_list = []   # list of (event_idx, seq_idx) records
-        while num_sampled < self.batch_size:
-            sampled_idx_list.append({'event_idx': event_idx,
-                                     'seq_idx': seq_idx})
-            seq_idx += 1
-            if seq_idx >= self.num_seq_per_event:
-                event_idx += 1
-                seq_idx = 0
-            num_sampled += 1
-
-        start_event_idx = sampled_idx_list[0]['event_idx']
-        event_batch_size = sampled_idx_list[-1]['event_idx'] - start_event_idx + 1
-
-        event_batch = self._load_event_batch(event_idx=start_event_idx,
-                                             event_batch_size=event_batch_size)
-        ret_dict = {"mask": []}
-        all_no_pad_flag = True
-        for sampled_idx in sampled_idx_list:
-            batch_slice = [sampled_idx['event_idx'] - start_event_idx, ]  # use [] to keepdim
-            seq_slice = slice(sampled_idx['seq_idx'] * self.stride,
-                              sampled_idx['seq_idx'] * self.stride + self.seq_len)
-            for imgt_idx, imgt in enumerate(self.data_types):
-                # FIXED: Logic for slicing different layouts
-                if imgt == 'vil_latent':
-                    # Layout is (N, T, C, H, W). Slice T (axis 1)
-                    sampled_seq = event_batch[imgt_idx][batch_slice, seq_slice, :, :, :]
-                else:
-                    # Layout is (N, H, W, T). Slice T (axis 3)
-                    sampled_seq = event_batch[imgt_idx][batch_slice, :, :, seq_slice]
-                    
-                if imgt in ret_dict:
-                    ret_dict[imgt] = np.concatenate((ret_dict[imgt], sampled_seq),
-                                                    axis=0)
-                else:
-                    ret_dict.update({imgt: sampled_seq})
-            # add mask
-            no_pad_flag = sampled_idx['event_idx'] < self.end_event_idx
-            if not no_pad_flag:
-                all_no_pad_flag = False
-            ret_dict["mask"].append(no_pad_flag)
-        if all_no_pad_flag:
-            ret_dict["mask"] = None
-        # update current idx
-        self.set_curr_event_idx(event_idx)
-        self.set_curr_seq_idx(seq_idx)
-        return ret_dict
-
-    def _idx_sample(self, index):
-        event_idx = (index * self.batch_size) // self.num_seq_per_event
-        seq_idx = (index * self.batch_size) % self.num_seq_per_event
-        num_sampled = 0
-        sampled_idx_list = []  # list of (event_idx, seq_idx) records
-        while num_sampled < self.batch_size:
-            sampled_idx_list.append({'event_idx': event_idx,
-                                     'seq_idx': seq_idx})
-            seq_idx += 1
-            if seq_idx >= self.num_seq_per_event:
-                event_idx += 1
-                seq_idx = 0
-            num_sampled += 1
-
-        start_event_idx = sampled_idx_list[0]['event_idx']
-        event_batch_size = sampled_idx_list[-1]['event_idx'] - start_event_idx + 1
-
-        event_batch = self._load_event_batch(event_idx=start_event_idx,
-                                             event_batch_size=event_batch_size)
-        ret_dict = {}
-        for sampled_idx in sampled_idx_list:
-            batch_slice = [sampled_idx['event_idx'] - start_event_idx, ]  # use [] to keepdim
-            seq_slice = slice(sampled_idx['seq_idx'] * self.stride,
-                              sampled_idx['seq_idx'] * self.stride + self.seq_len)
-            for imgt_idx, imgt in enumerate(self.data_types):
-                # FIXED: Logic for slicing different layouts
-                if imgt == 'vil_latent':
-                    # Layout is (N, T, C, H, W). Slice T (axis 1)
-                    sampled_seq = event_batch[imgt_idx][batch_slice, seq_slice, :, :, :]
-                else:
-                    # Layout is (N, H, W, T). Slice T (axis 3)
-                    sampled_seq = event_batch[imgt_idx][batch_slice, :, :, seq_slice]
-                    
-                if imgt in ret_dict:
-                    ret_dict[imgt] = np.concatenate((ret_dict[imgt], sampled_seq),
-                                                    axis=0)
-                else:
-                    ret_dict.update({imgt: sampled_seq})
-
-        ret_dict = self.data_dict_to_tensor(data_dict=ret_dict,
-                                            data_types=self.data_types)
-        if self.preprocess:
-            ret_dict = self.preprocess_data_dict(data_dict=ret_dict,
-                                                 data_types=self.data_types,
-                                                 layout=self.layout,
-                                                 rescale=self.rescale_method)
-
-        if self.downsample_dict is not None:
-            ret_dict = self.downsample_data_dict(data_dict=ret_dict,
-                                                 data_types=self.data_types,
-                                                 factors_dict=self.downsample_dict,
-                                                 layout=self.layout)
-        return ret_dict
-
-class SEVIRTorchDataset(TorchDataset):
-
-    def __init__(self,
-                 dataset_dir: str,
-                 seq_len: int = 25,
-                 img_size: int = 16, # Adjusted default
-                 raw_seq_len: int = 49,
-                 sample_mode: str = "sequent",
-                 stride: int = 20,
-                 batch_size: int = 1,
-                 layout: str = "NTCHW", # Default for Latent
-                 num_shard: int = 1,
-                 rank: int = 0,
-                 split_mode: str = "uneven",
-                 sevir_catalog: Union[str, pd.DataFrame] = None,
-                 sevir_data_dir: str = None,
-                 start_date: datetime.datetime = None,
-                 end_date: datetime.datetime = None,
-                 datetime_filter = None,
-                 catalog_filter = "default",
-                 shuffle: bool = False,
-                 shuffle_seed: int = 1,
-                 output_type = np.float32,
-                 preprocess: bool = True,
-                 rescale_method: str = "01",
-                 verbose: bool = False,
-                 split = None):
-        super(SEVIRTorchDataset, self).__init__()
-        self.layout = layout
-        self.img_size = img_size
-        self.sevir_dataloader = SEVIRDataLoader(
-            dataset_dir=dataset_dir,
-            data_types=["vil_latent", ],
-            seq_len=seq_len,
-            raw_seq_len=raw_seq_len,
-            sample_mode=sample_mode,
-            stride=stride,
-            batch_size=batch_size,
-            layout=layout,
-            num_shard=num_shard,
-            rank=rank,
-            split_mode=split_mode,
-            sevir_catalog=sevir_catalog,
-            sevir_data_dir=sevir_data_dir,
-            start_date=start_date,
-            end_date=end_date,
-            datetime_filter=datetime_filter,
-            catalog_filter=catalog_filter,
-            shuffle=shuffle,
-            shuffle_seed=shuffle_seed,
-            output_type=output_type,
-            preprocess=preprocess,
-            rescale_method=rescale_method,
-            downsample_dict=None,
-            verbose=verbose)
-
-        self.split = split
-        
-    def __getitem__(self, index):
-        data_dict = self.sevir_dataloader._idx_sample(index=index)
-        data = data_dict["vil_latent"]
-        # Expected shape: [1, T, C, H, W] if batch_size=1
-        return data
-
-    def __len__(self):
-        total = self.sevir_dataloader.__len__()
-        return total 
-
-    def collate_fn(self, data_dict_list):
-        batch_dim = self.layout.find('N')
-        data_list_dict = {
-            key: [data_dict[key]
-                  for data_dict in data_dict_list]
-            for key in data_dict_list[0]}
-        data_list_dict.pop("mask", None)
-        merged_dict = {
-            key: torch.cat(data_list,
-                           dim=batch_dim)
-            for key, data_list in data_list_dict.items()}
-        merged_dict["mask"] = None
-        return merged_dict
-
-    def get_torch_dataloader(self,
-                             outer_batch_size=1,
-                             collate_fn=None,
-                             num_workers=1):
-        if outer_batch_size == 1:
-            collate_fn = lambda x:x[0]
-        else:
-            if collate_fn is None:
-                collate_fn = self.collate_fn
-        dataloader = DataLoader(
-            dataset=self,
-            batch_size=outer_batch_size,
-            collate_fn=collate_fn,
-            pin_memory=False,
-            num_workers=num_workers)
-        return dataloader
-
-COLOR_MAP = [[0, 0, 0],
-              [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
-              [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
-              [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
-              [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
-              [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
-              [0.9607843137254902, 0.9607843137254902, 0.0],
-              [0.9294117647058824, 0.6745098039215687, 0.0],
-              [0.9411764705882353, 0.43137254901960786, 0.0],
-              [0.6274509803921569, 0.0, 0.0],
-              [0.9058823529411765, 0.0, 1.0]]
-
+from moviepy.editor import ImageSequenceClip
+from matplotlib.colors import ListedColormap, TwoSlopeNorm, Normalize, LinearSegmentedColormap
+from copy import deepcopy
 HMF_COLORS = np.array([
     [82, 82, 82],
     [252, 141, 89],
     [255, 255, 191],
     [145, 191, 219]
 ]) / 255
-PIXEL_SCALE = 255.0
-BOUNDS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, PIXEL_SCALE]
-THRESHOLDS = (16, 74, 133, 160, 181, 219)
 
-def gray2color(image, **kwargs):
-    # 定义颜色映射和边界
-    cmap = colors.ListedColormap(COLOR_MAP )
-    bounds = BOUNDS
-    norm = colors.BoundaryNorm(bounds, cmap.N)
-    # 将图像进行染色
-    colored_image = cmap(norm(image))
-    return colored_image
+def image_statistics(img):
+    print(f"Min: {img.min():.4f}")
+    print(f"Max: {img.max():.4f}")
+    print(f"Mean: {img.mean():.4f}")
 
-if __name__=='__main__':
-    data = torch.randn(1, 256,256) * 255
-    data = data.numpy()
-    color = gray2color(data)
+def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
+            save_grays=False, do_hmf=False, save_colored=False,save_gif=False,
+            pixel_scale = None, thresholds = None, gray2color = None
+            ):
+    # pred_seq: ndarray, [T, C, H, W], value range: [0, 1] float
+    if isinstance(pred_seq, torch.Tensor) or isinstance(gt_seq, torch.Tensor):
+        pred_seq = pred_seq.detach().cpu().numpy()
+        gt_seq = gt_seq.detach().cpu().numpy()
+    pred_seq = pred_seq.squeeze()
+    gt_seq = gt_seq.squeeze()
+    os.makedirs(save_path, exist_ok=True)
+
+    if save_grays:
+        os.makedirs(osp.join(save_path, 'pred'), exist_ok=True)
+        os.makedirs(osp.join(save_path, 'targets'), exist_ok=True)
+        for i, (pred, gt) in enumerate(zip(pred_seq, gt_seq)):
+            
+            # cv2.imwrite(osp.join(save_path, 'pred', f'{i}.png'), (pred * PIXEL_SCALE).astype(np.uint8))
+            # cv2.imwrite(osp.join(save_path, 'targets', f'{i}.png'), (gt * PIXEL_SCALE).astype(np.uint8))
+            
+            plt.imsave(osp.join(save_path, 'pred', f'{i}.png'), pred, cmap='gray', vmax=1.0, vmin=0.0)
+            plt.imsave(osp.join(save_path, 'targets', f'{i}.png'), gt, cmap='gray', vmax=1.0, vmin=0.0)
+
+
+    if data_type=='vil':
+        pred_seq = pred_seq * pixel_scale
+        pred_seq = pred_seq.astype(np.uint8)
+        gt_seq = gt_seq * pixel_scale
+        gt_seq = gt_seq.astype(np.uint8)
+    
+    colored_pred = np.array([gray2color(pred_seq[i], data_type=data_type) for i in range(len(pred_seq))], dtype=np.float64)
+    colored_gt =  np.array([gray2color(gt_seq[i], data_type=data_type) for i in range(len(gt_seq))],dtype=np.float64)
+
+    if save_colored:
+        os.makedirs(osp.join(save_path, 'pred_colored'), exist_ok=True)
+        os.makedirs(osp.join(save_path, 'targets_colored'), exist_ok=True)
+        for i, (pred, gt) in enumerate(zip(colored_pred, colored_gt)):
+            plt.imsave(osp.join(save_path, 'pred_colored', f'{i}.png'), pred)
+            plt.imsave(osp.join(save_path, 'targets_colored', f'{i}.png'), gt)
+
+
+    grid_pred = np.concatenate([
+        np.concatenate([i for i in colored_pred], axis=-2),
+    ], axis=-3)
+    grid_gt = np.concatenate([
+        np.concatenate([i for i in colored_gt], axis=-2,),
+    ], axis=-3)
+    
+    grid_concat = np.concatenate([grid_pred, grid_gt], axis=-3,)
+    plt.imsave(osp.join(save_path, 'all.png'), grid_concat)
+    
+    if save_gif:
+        clip = ImageSequenceClip(list(colored_pred * 255), fps=4)
+        clip.write_gif(osp.join(save_path, 'pred.gif'), fps=4, verbose=False)
+        clip = ImageSequenceClip(list(colored_gt * 255), fps=4)
+        clip.write_gif(osp.join(save_path, 'targets.gif'), fps=4, verbose=False)
+    
+    if do_hmf:
+        def hit_miss_fa(y_true, y_pred, thres):
+            mask = np.zeros_like(y_true)
+            mask[np.logical_and(y_true >= thres, y_pred >= thres)] = 4
+            mask[np.logical_and(y_true >= thres, y_pred < thres)] = 3
+            mask[np.logical_and(y_true < thres, y_pred >= thres)] = 2
+            mask[np.logical_and(y_true < thres, y_pred < thres)] = 1
+            return mask
+            
+        grid_pred = np.concatenate([
+            np.concatenate([i for i in pred_seq], axis=-1),
+        ], axis=-2)
+        grid_gt = np.concatenate([
+            np.concatenate([i for i in gt_seq], axis=-1),
+        ], axis=-2)
+
+        hmf_mask = hit_miss_fa(grid_pred, grid_gt, thres=thresholds[2])
+        plt.axis('off')
+        plt.imsave(osp.join(save_path, 'hmf.png'), hmf_mask, cmap=colors.ListedColormap(HMF_COLORS))
+    
+    
+# Specify the location of the dataset. 
+DATAPATH = {
+    'cikm'     : 'path/to/cikm.h5',
+    'shanghai' : '/home/vatsal/NWM/Dataset/Shanghai_Radar/shanghai.h5',
+    'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
+    'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
+    'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
+    'sevir_lr_latent_32' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent_32_resize_normalize',
+    'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',
+    # 'vil'      : '/home/vatsal/Dataserver2/Datasets/VIL/VIL_480_logtransformed_scaled/',
+    'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
+}
+
+def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stride, in_channels, out_channels, method=None, preprocess_type = None, **kwargs):
+    dataset_name = data_name.lower()
+    train = val = test = None
+
+    if dataset_name == 'cikm':
+        from .dataset_cikm import CIKM, gray2color, PIXEL_SCALE, THRESHOLDS
+        
+        train = CIKM(DATAPATH[data_name], 'train', img_size)
+        val = CIKM(DATAPATH[data_name], 'valid', img_size)
+        test = CIKM(DATAPATH[data_name], 'test', img_size)
+    
+    # elif data_name == 'vil':
+        
+    #     from .dataset_VIL import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
+    #     data_dir = DATAPATH[data_name]
+    #     train, val, test  = rainy_dataset(data_dir,in_channels ,out_channels, img_size = img_size, method = method, preprocessing = preprocess_type)
+
+    elif data_name == 'mosdac':
+        from .dataset_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
+        data_dir = DATAPATH[data_name]
+        train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add,img_size = img_size,  preprocessing = preprocess_type)
+    
+    elif data_name == 'vil_mosdac':
+            from .dataset_vil_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
+            data_dir = DATAPATH[data_name]
+            train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add, img_size = img_size,  preprocessing = preprocess_type)
+
+    elif data_name == 'shanghai':
+        from .dataset_shanghai import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
+    
+    elif data_name == 'meteo':
+        from .dataset_meteonet import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Meteo(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Meteo(DATAPATH[data_name], type='test', img_size=img_size)
+        
+    elif dataset_name == 'sevir':
+        print("Sevir dataset")
+        from .dataset_sevir import SEVIRTorchDataset, gray2color, PIXEL_SCALE, THRESHOLDS
+        
+        train_valid_split = (2019, 1, 1)
+        valid_test_split = (2019, 6, 1)#(2019, 6, 1)
+        test_end_date = (2019, 12, 31)
+        batch_size = batch_size
+        stride = stride
+        
+        train = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=True,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size,
+            num_shard=1,
+            rank=0,
+            start_date=None, # datetime.datetime(*(2018, 6, 1)), 
+            end_date=datetime.datetime(*train_valid_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        val = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=False,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*train_valid_split),
+            end_date=datetime.datetime(*valid_test_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        test = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            shuffle=False,
+            img_size=img_size,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*valid_test_split),
+            end_date=datetime.datetime(*test_end_date),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+    elif dataset_name == 'sevir_lr_latent' or dataset_name == 'sevir_lr_latent_32':
+        print("Sevir lr latent dataset")
+        from .dataset_sevir_lr_latent import SEVIRTorchDataset, gray2color, PIXEL_SCALE, THRESHOLDS
+        
+        train_valid_split = (2019, 1, 1)
+        valid_test_split = (2019, 6, 1)#(2019, 6, 1)
+        test_end_date = (2019, 12, 31)
+        batch_size = batch_size
+        stride = stride
+        
+        train = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=True,
+            seq_len=seq_len,
+            stride=stride,      
+            sample_mode='sequent',
+            batch_size=batch_size,
+            num_shard=1,
+            rank=0,
+            start_date=None, # datetime.datetime(*(2018, 6, 1)), 
+            end_date=datetime.datetime(*train_valid_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        val = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=False,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*train_valid_split),
+            end_date=datetime.datetime(*valid_test_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        test = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            shuffle=False,
+            img_size=img_size,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*valid_test_split),
+            end_date=datetime.datetime(*test_end_date),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+
+    
+
+    color_fn = partial(vis_res, 
+                    pixel_scale = PIXEL_SCALE, 
+                    thresholds = THRESHOLDS, 
+                    gray2color = gray2color)
+    
+    return train, val, test, color_fn, PIXEL_SCALE, THRESHOLDS

@@ -40,10 +40,10 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='alphapre_latent',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='Debug',              help="additional note for experiment")
+    parser.add_argument("--exp_note",       type=str,   default='sevir_latent_32x32x4_normalized_resized',              help="additional note for experiment")
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='sevir_lr_latent_32',   help="dataset name")
@@ -57,7 +57,7 @@ def create_parser():
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=0,              help="number of workers for data loader")
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -72,8 +72,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
-    parser.add_argument("--batch_size",     type=int,   default=8,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=56,              help="number of epochs")
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -98,16 +98,16 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Alphapre_sevir", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='sevir_lr_latent_32_bs8_corrected',        help="wandb run name")
+    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='sevir_lr_latent_32_normalized_resized',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
     #------------------------- AE --------------------------------
-    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32.pth", help="ae ckpt path")
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
 
@@ -352,6 +352,23 @@ class Runner(object):
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+        
+        if self.args.dataset == 'shanghai_lr_latent_32':
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+            self.valid_os_loader = torch.utils.data.DataLoader(
+                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_os_loader = torch.utils.data.DataLoader(
+                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
 
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
@@ -359,7 +376,8 @@ class Runner(object):
         for sample in self.train_loader:
             print(sample.shape)
             break
-
+        
+        
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
         
@@ -397,6 +415,57 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'alphapre_latent':
+            from models.alphapre_latent import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'alphapre_latent_amplinet_mseonly':
+            from models.alphapre_amplinet_MSE_only_latent import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'amplinet':
+            from models.alphapre_amplinet import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster
@@ -542,7 +611,7 @@ class Runner(object):
             for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
                 with self.accelerator.autocast(self.model):
-
+               
                     loss_dict = self._train_batch(batch)
                     self.accelerator.backward(loss_dict['total_loss'])
                     
@@ -600,7 +669,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%7==0 or epoch==0:
+                if (epoch+1)%4==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -633,6 +702,7 @@ class Runner(object):
         std_val = frames_in.std()
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
+        
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):

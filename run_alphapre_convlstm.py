@@ -24,8 +24,6 @@ from diffusers import (
     get_linear_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
 )
-from tqdm import tqdm
-
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
@@ -41,13 +39,13 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Training_150epochs",              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
@@ -62,7 +60,7 @@ def create_parser():
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")
+    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
     parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
@@ -73,8 +71,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=146,              help="number of epochs")
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -99,9 +97,9 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")           #Check
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Training_shanghai_88',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='Training_alpha_fnoamplinet_mseonly',        help="wandb run name")            #Check
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
@@ -280,6 +278,8 @@ class Runner(object):
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
 
+        print_log(f"Shape of input to the mode: {self.args.img_size}x{self.args.img_size}",
+                  self.is_main)
     def _build_model(self):
         # =================================
         # import and create different models given model config
@@ -311,6 +311,58 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'amplinet':
+            from models.alphapre_amplinet import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'amplinet_mseonly':
+            from models.alphapre_amplinet_MSE_only import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'fnoamplinet_mseonly':
+            from models.alphapre_fnoamplinet_MSE_only import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster
@@ -528,7 +580,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%8==0 or epoch==0:
+                if (epoch+1)%5==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

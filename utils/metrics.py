@@ -45,8 +45,6 @@ def max_pool(arr, pool_size):
 def cal_ssim(pred, true, data_range = 255):
     C1 = (0.01 * data_range)**2
     C2 = (0.03 * data_range)**2
-    print("pred", pred.shape)
-    print("true", true.shape)
     img1 = pred.astype(np.float64)
     img2 = true.astype(np.float64)
     kernel = cv2.getGaussianKernel(11, 1.5)
@@ -143,7 +141,7 @@ class Evaluator(object):
             true_batch = true_batch.detach().cpu().numpy()
         
         if not (true_batch.max() <= 1.0 and true_batch.min() >= 0.0):
-            print_log(f"WARNING:: data max: {true_batch.max()}, min: {true_batch.min()}")
+            print_log(f"WARNING:: GT data max: {true_batch.max()}, min: {true_batch.min()}")
         
         pred_batch = pred_batch.clip(0.0, 1.0)
         true_batch = true_batch.clip(0.0, 1.0)

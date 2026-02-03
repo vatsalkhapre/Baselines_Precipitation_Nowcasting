@@ -1005,6 +1005,7 @@ class SEVIRTorchDataset(TorchDataset):
     def __getitem__(self, index):
         data_dict = self.sevir_dataloader._idx_sample(index=index)
         data = data_dict["vil"]
+        
         data = self.transform(data).unsqueeze(2)
         # print(data.shape)
         return data

@@ -106,10 +106,11 @@ def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
 DATAPATH = {
     'cikm'     : 'path/to/cikm.h5',
     'shanghai' : '/home/vatsal/NWM/Dataset/Shanghai_Radar/shanghai.h5',
+    'shanghai_lr_latent_32' : '/home/vatsal/NWM/Dataset/shanghai_latent_32/shanghai_latent_data.h5',
     'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
     'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
     'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
-    'sevir_lr_latent_32' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent_32_resize_normalize',
+    'sevir_lr_latent_32' : '/home/vatsal/NWM/Dataset/sevir_lr_latent_32_normalize_resize/',
     'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',
     # 'vil'      : '/home/vatsal/Dataserver2/Datasets/VIL/VIL_480_logtransformed_scaled/',
     'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
@@ -144,6 +145,13 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
 
     elif data_name == 'shanghai':
         from .dataset_shanghai import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
+
+    elif data_name == 'shanghai_lr_latent_32':
+        print("Shanghai latent dataset")
+        from .dataset_shanghai_latent_32 import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
         val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
         test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)

@@ -603,6 +603,7 @@ class SEVIRDataLoader:
         data = {}
         for index, row in pd_batch.iterrows():
             data = self._read_data(row, data)
+        
         if pad_size > 0:
             event_batch = []
             for t in self.data_types:
@@ -1011,16 +1012,16 @@ class SEVIRTorchDataset(TorchDataset):
     def __len__(self):
         total = self.sevir_dataloader.__len__()
         return total 
-        # if self.split == "train":
-        #     return total
-        # elif self.split == "valid":
-        #     return min(total, 20)
-        # elif self.split == "test":
-        #     return min(total, 20)
+        if self.split == "train":
+            return total
+        elif self.split == "valid":
+            return min(total, 20)
+        elif self.split == "test":
+            return min(total, 20)
         # else:
         #     return total
         # return self.sevir_dataloader.__len__()
-        # return min(total, 20)
+        return min(total, 20)
 
     def collate_fn(self, data_dict_list):
         r"""

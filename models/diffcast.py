@@ -976,6 +976,7 @@ class GaussianDiffusion(nn.Module):
         frames_gt = self.normalize(frames_gt)
         backbone_output = self.normalize(backbone_out)
         residual = frames_gt - backbone_output
+        
         global_ctx, local_ctx = self.ctx_net.scan_ctx(torch.cat((frames_in, backbone_output), dim=1))
         
         pre_frag = frames_in
@@ -1009,7 +1010,7 @@ class GaussianDiffusion(nn.Module):
         noise = default(noise, lambda: torch.randn_like(x_start))
         x_t = self.q_sample(x_start=x_start, t=t, noise=noise)
         model_out = self.model(x_t, t, cond=cond, ctx=ctx, idx=idx)
-
+       
         if self.objective == 'pred_noise':
             target = noise
         elif self.objective == 'pred_x0':

@@ -45,7 +45,6 @@ def max_pool(arr, pool_size):
 def cal_ssim(pred, true, data_range = 255):
     C1 = (0.01 * data_range)**2
     C2 = (0.03 * data_range)**2
-
     img1 = pred.astype(np.float64)
     img2 = true.astype(np.float64)
     kernel = cv2.getGaussianKernel(11, 1.5)

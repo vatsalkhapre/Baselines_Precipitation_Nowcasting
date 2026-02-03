@@ -24,7 +24,6 @@ from diffusers import (
     get_linear_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
 )
-
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
@@ -40,28 +39,28 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='convlstm_paper',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='vil_mosdac',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default=None,              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='vil_mosdac',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=240,            help="image size")
+    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
     parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
-    parser.add_argument("--seq_len",            type=int,       default=15,             help="sequence length sampled from dataset")
+    parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
-    parser.add_argument("--frames_out",         type=int,       default=10,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=4,              help="number of workers for data loader")
+    parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-5,            help="learning rate")
+    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
     parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
@@ -72,8 +71,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=10,              help="number of epochs")
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -98,9 +97,9 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Vil_mosdac_convlstm", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='vil_mosdac_decluttered_240_jjso_finetuning',        help="wandb run name")
+    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")           #Check
+    parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='Training_alpha_fnoamplinet_mseonly',        help="wandb run name")            #Check
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
@@ -257,7 +256,18 @@ class Runner(object):
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
             
-            
+        else: 
+            # preload big batch data for gradient accumulation
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
         
@@ -267,7 +277,7 @@ class Runner(object):
 
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
-        
+
     def _build_model(self):
         # =================================
         # import and create different models given model config
@@ -299,6 +309,58 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'amplinet':
+            from models.alphapre_amplinet import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'amplinet_mseonly':
+            from models.alphapre_amplinet_MSE_only import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'fnoamplinet_mseonly':
+            from models.alphapre_fnoamplinet_MSE_only import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster
@@ -381,8 +443,7 @@ class Runner(object):
             print_log(f"    Instantaneous batch size per GPU = {self.args.batch_size}")
             print_log(f"    Total train batch size (w. parallel, distributed & accumulation) = {self.args.batch_size * self.accelerator.num_processes}")
             print_log(f"    Total optimization steps = {self.global_steps}")
-            print_log(f"    Optimizer: {self.optimizer} with init lr: {self.args.lr}")
-        
+            print_log(f"optimizer: {self.optimizer} with init lr: {self.args.lr}")
     
     def save(self, svname=None):
         # =================================
@@ -456,7 +517,7 @@ class Runner(object):
             self.cur_epoch = epoch
             self.model.train()
             
-            for i, batch in enumerate(self.train_loader):
+            for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
                 with self.accelerator.autocast(self.model):
 
@@ -542,10 +603,12 @@ class Runner(object):
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
+        
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     
     def _train_batch(self, batch):
         radar_batch = self._get_seq_data(batch)
+      
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
@@ -625,12 +688,20 @@ class Runner(object):
                 
             self.accelerator.wait_for_everyone()
             valid_nums += 1
-            if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
+            if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:                 # Breaks if the number of samples go above vlnum
                 break
         # test done
         if self.is_main:
             
             res = eval.done()
+            prefix = "test" if do_test else "val"
+            
+            # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
+            log_data = {f"{prefix}/{k}": v for k, v in res.items()}
+            
+            # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
+            # but sometimes it's nice to have epoch as an explicit metric)
+            log_data[f"{prefix}/epoch"] = epoch 
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
@@ -639,7 +710,7 @@ class Runner(object):
 
             res["epoch"] = epoch
             # Log to wandb
-            self.accelerator.log(res, step=self.cur_step)
+            self.accelerator.log(log_data, step=self.cur_step)
 
             if self.args.valid:
                 return res['csi'] 

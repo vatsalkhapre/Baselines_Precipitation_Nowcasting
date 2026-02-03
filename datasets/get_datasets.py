@@ -105,9 +105,12 @@ def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
 # Specify the location of the dataset. 
 DATAPATH = {
     'cikm'     : 'path/to/cikm.h5',
-    'shanghai' : 'path/to/shanghai.h5',
-    'meteo'    : 'path/to/meteo_radar.h5',
-    'sevir'    : '/home/vatsal/Dataserver/Datasets/sevir/',
+    'shanghai' : '/home/vatsal/NWM/Dataset/Shanghai_Radar/shanghai.h5',
+    'shanghai_lr_latent_32' : '/home/vatsal/NWM/Dataset/shanghai_latent_32/shanghai_latent_data.h5',
+    'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
+    'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
+    'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
+    'sevir_lr_latent_32' : '/home/vatsal/NWM/Dataset/sevir_lr_latent_32_normalize_resize/',
     'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',
     # 'vil'      : '/home/vatsal/Dataserver2/Datasets/VIL/VIL_480_logtransformed_scaled/',
     'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
@@ -145,6 +148,13 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
         val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
         test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
+
+    elif data_name == 'shanghai_lr_latent_32':
+        print("Shanghai latent dataset")
+        from .dataset_shanghai_latent_32 import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
     
     elif data_name == 'meteo':
         from .dataset_meteonet import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
@@ -159,8 +169,8 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         train_valid_split = (2019, 1, 1)
         valid_test_split = (2019, 6, 1)#(2019, 6, 1)
         test_end_date = (2019, 12, 31)
-        batch_size = kwargs.get('batch_size', 1)
-        stride = kwargs.get('stride', stride)
+        batch_size = batch_size
+        stride = stride
         
         train = SEVIRTorchDataset(
             dataset_dir=DATAPATH[data_name],
@@ -219,6 +229,74 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             verbose=False
         )
         
+    elif dataset_name == 'sevir_lr_latent' or dataset_name == 'sevir_lr_latent_32':
+        print("Sevir lr latent dataset")
+        from .dataset_sevir_lr_latent import SEVIRTorchDataset, gray2color, PIXEL_SCALE, THRESHOLDS
+        
+        train_valid_split = (2019, 1, 1)
+        valid_test_split = (2019, 6, 1)#(2019, 6, 1)
+        test_end_date = (2019, 12, 31)
+        batch_size = batch_size
+        stride = stride
+        
+        train = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=True,
+            seq_len=seq_len,
+            stride=stride,      
+            sample_mode='sequent',
+            batch_size=batch_size,
+            num_shard=1,
+            rank=0,
+            start_date=None, # datetime.datetime(*(2018, 6, 1)), 
+            end_date=datetime.datetime(*train_valid_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        val = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            img_size=img_size,
+            shuffle=False,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*train_valid_split),
+            end_date=datetime.datetime(*valid_test_split),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+        
+        test = SEVIRTorchDataset(
+            dataset_dir=DATAPATH[data_name],
+            split_mode='uneven',
+            shuffle=False,
+            img_size=img_size,
+            seq_len=seq_len,
+            stride=stride,      # ?
+            sample_mode='sequent',
+            batch_size=batch_size * 2,
+            num_shard=1,
+            rank=0,
+            start_date=datetime.datetime(*valid_test_split),
+            end_date=datetime.datetime(*test_end_date),
+            output_type=np.float32,
+            preprocess=True,
+            rescale_method='01',
+            verbose=False
+        )
+
+    
 
     color_fn = partial(vis_res, 
                     pixel_scale = PIXEL_SCALE, 

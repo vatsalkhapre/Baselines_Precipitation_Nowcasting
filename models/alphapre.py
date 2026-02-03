@@ -117,6 +117,7 @@ class PhaseNet(nn.Module):
                  n_layers, kernel_size, bias=1):
         super().__init__()
         h, w = input_shape
+        # input_dim is channel here.
         input_shape = (h, w//2+1)
         self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
         self.pha_conv0 = nn.Conv2d(2+input_dim*pre_seq_length, input_dim*aft_seq_length, 1)
@@ -151,10 +152,10 @@ class PhaseNet(nn.Module):
         x_phas_t = torch.cat((x_phast, x_phas0, x_phas1, x_phas2), dim=1)
         x_phas_t = self.pha_conv1(x_phas_t)
         x_phas_t = rearrange(x_phas_t, 'b (t c) h w -> b t c h w', t=self.aft_seq_length)
-        x_phas_t = x_phas[:,-1:] + x_phas_t
+        x_phas_t = x_phas[:,-1:] + x_phas_t  #This is residual connection so that the context is not lost
         x_phas_t = self.pha_unnorm(x_phas_t)
         xt_fft = x_amps[:,-1:] * torch.exp(torch.tensor(1j) * x_phas_t)
-        xt = torch.fft.irfft2(xt_fft)
+        xt = torch.fft.irfft2(xt_fft)  #Last phase and amplitude will be most useful for finding the next sequence.
         return xt, x_phas_t, x_amps
 
     def pha_norm(self, x):

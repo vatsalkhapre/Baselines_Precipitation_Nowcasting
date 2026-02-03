@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
+from utils.utilspp import RandomScheduling
 
 class AmpTimeCell(nn.Module):
     def __init__(self, t_in, t_out, size_factor=1):
@@ -109,7 +110,7 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
@@ -122,7 +123,7 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.criterion = nn.MSELoss()
+        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
@@ -136,7 +137,7 @@ class AlphaPre_Amplinet(nn.Module):
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
-        xas = torch.sigmoid(xas)
+        # xas = torch.sigmoid(xas)
         return xas
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
@@ -150,15 +151,14 @@ class AlphaPre_Amplinet(nn.Module):
 
             loss = 0.
             
-            frames_fft = torch.fft.rfft2(frames_gt)
-            frames_abs = torch.abs(frames_fft)
-            xas_fft = torch.fft.rfft2(xas)
-            xas_abs = torch.abs(xas_fft)
-            amp_loss = self.criterion(xas_abs, frames_abs)
-            loss += self.amp_weight*amp_loss
+            # frames_fft = torch.fft.rfft2(frames_gt)
+            # frames_abs = torch.abs(frames_fft)
+            # xas_fft = torch.fft.rfft2(xas)
+            # xas_abs = torch.abs(xas_fft)
+            # amp_loss = self.criterion(xas_abs, frames_abs)
+            # loss += self.amp_weight*amp_loss
             anet_loss = self.criterion(xas, frames_gt)
-            loss += self.anet_weight*anet_loss
-            loss = {'total_loss': loss, 'ampli_loss': self.amp_weight*amp_loss, 'anet_loss': self.anet_weight*anet_loss}
+            loss = {'total_loss': anet_loss}
             return xas, loss
         else:
             return xas, None
@@ -194,7 +194,7 @@ def Upsample(dim, dim_out):
         nn.Upsample(scale_factor = 2, mode = 'nearest'),
         nn.Conv2d(dim, dim_out, 3, padding = 1)
     )
-xas
+
 def Downsample(dim, dim_out):
     return nn.Sequential(
         Rearrange('b c (h p1) (w p2) -> b (c p1 p2) h w', p1 = 2, p2 = 2),
@@ -202,6 +202,8 @@ def Downsample(dim, dim_out):
     )
 
 def get_model(
+    total_steps,
+    const_ratio,
     img_channels=1,
     dim = 64,
     T_in = 5, 
@@ -215,7 +217,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

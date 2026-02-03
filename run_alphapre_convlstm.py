@@ -40,26 +40,35 @@ def create_parser():
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
     parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
+    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
+    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
     parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
     parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
+    parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
+    parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
+    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
     parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
@@ -71,6 +80,8 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
     parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
@@ -263,6 +274,18 @@ class Runner(object):
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
             
+        else: 
+            # preload big batch data for gradient accumulation
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+
         else: 
             # preload big batch data for gradient accumulation
             self.train_loader = torch.utils.data.DataLoader(
@@ -506,6 +529,7 @@ class Runner(object):
             print_log(f"    Total train batch size (w. parallel, distributed & accumulation) = {self.args.batch_size * self.accelerator.num_processes}")
             print_log(f"    Total optimization steps = {self.global_steps}")
             print_log(f"optimizer: {self.optimizer} with init lr: {self.args.lr}")
+            print_log(f"optimizer: {self.optimizer} with init lr: {self.args.lr}")
     
     def save(self, svname=None):
         # =================================
@@ -581,6 +605,7 @@ class Runner(object):
             self.cur_epoch = epoch
             self.model.train()
             
+            for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
             for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
                 with self.accelerator.autocast(self.model):
@@ -669,6 +694,7 @@ class Runner(object):
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
         
+        
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     
     def _train_batch(self, batch):
@@ -754,12 +780,20 @@ class Runner(object):
                 
             # self.accelerator.wait_for_everyone()
             valid_nums += 1
-            if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
+            if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:                 # Breaks if the number of samples go above vlnum
                 break
         # test done
         if self.is_main:
             
             res = eval.done()
+            prefix = "test" if do_test else "val"
+            
+            # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
+            log_data = {f"{prefix}/{k}": v for k, v in res.items()}
+            
+            # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
+            # but sometimes it's nice to have epoch as an explicit metric)
+            log_data[f"{prefix}/epoch"] = epoch 
             prefix = "test" if do_test else "val"
             
             # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
@@ -776,6 +810,7 @@ class Runner(object):
 
             res["epoch"] = epoch
             # Log to wandb
+            self.accelerator.log(log_data, step=self.cur_step)
             self.accelerator.log(log_data, step=self.cur_step)
 
             if self.args.valid:

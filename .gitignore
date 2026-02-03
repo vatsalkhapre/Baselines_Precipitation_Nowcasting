@@ -23,3 +23,14 @@ __pycache__/
 */__pycache__/
 */*/__pycache__/
 */*/*/__pycache__/
+sevir_lr_latent
+sevir_lr_latent_32_resize_normalize
+Exps
+Pretrained_ae_checkpoints
+wandb
+z_check.py
+__pycache__/
+*.pyc
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/

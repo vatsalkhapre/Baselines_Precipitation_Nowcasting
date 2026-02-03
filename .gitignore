@@ -8,5 +8,8 @@ Exps
 Pretrained_ae_checkpoints
 wandb
 z_check.py
+__pycache__/
+*.pyc
 */__pycache__/
-datasets/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/

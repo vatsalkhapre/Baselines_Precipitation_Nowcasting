@@ -40,9 +40,9 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre_latent',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl_mse_hybrid',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_dir",        type=str,   default='amplinet_latent32_falfclloss_only',      help="experiment directory")
     parser.add_argument("--exp_note",       type=str,   default='sevir_latent_32x32x4_normalized_resized',              help="additional note for experiment")
 
     # --------------- Dataset ---------------
@@ -57,7 +57,6 @@ def create_parser():
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
@@ -74,9 +73,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=50,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -103,7 +100,7 @@ def create_parser():
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='sevir_lr_latent_32_normalized_resized',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='amplinet_latent32_falfclloss_only',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
@@ -494,8 +491,8 @@ class Runner(object):
             from models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
             total_steps = self.args.epochs*len(self.train_loader)
             kwargs = {
-                "lambda_mse": 0.5, 
-                "lambda_fal_fcl": 0.5,
+                "lambda_mse": 0, 
+                "lambda_fal_fcl": 1,
                 "total_steps": total_steps,
                 "const_ratio": 0.1, 
                 "input_shape": (self.args.img_size, self.args.img_size),

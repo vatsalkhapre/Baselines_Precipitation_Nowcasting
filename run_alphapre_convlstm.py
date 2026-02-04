@@ -39,36 +39,26 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
-    parser.add_argument('--backbone',       type=str,   default='fnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
-    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
-    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
-    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_fnoamplinet_mseonly",              help="additional note for experiment")      #Check
-
+    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="Training time",              help="additional note for experiment")      #Check
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
-    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
+    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
     parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
     parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
-    parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
-    parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
     parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
     parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
@@ -81,9 +71,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
-    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
-    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=1,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -286,17 +274,6 @@ class Runner(object):
                 test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
             )
 
-        else: 
-            # preload big batch data for gradient accumulation
-            self.train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.valid_loader = torch.utils.data.DataLoader(
-                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.test_loader = torch.utils.data.DataLoader(
-                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
-            )
 
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
@@ -606,7 +583,6 @@ class Runner(object):
             self.model.train()
             
             for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
-            for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
                 with self.accelerator.autocast(self.model):
 
@@ -668,7 +644,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 or epoch==0:
+                if (epoch+1)%5==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

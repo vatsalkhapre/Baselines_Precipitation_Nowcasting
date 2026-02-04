@@ -30,6 +30,7 @@
 **Why:** For spatial refinement
 **Result:** 
 **Next:** ## 2026-01-19 | Changed the model alphapre latent in the latent file
+
 **Goal:** To use correct model for latent
 **Change:** switched latent model name
 **Why:** So that sigmoid doesnt act on -1,1
@@ -49,3 +50,10 @@
 **Why:** 
 **Result:** 
 **Next:** 
+
+## 2026-02-04 | Here we have created a new variant for fno.
+**Goal:** To improve the spatial refining through afno
+**Change:** Had some small changes have a seperate file for (alphapre_fnoamplinet_MSE_only_another_variant.py). 
+**Why:** 
+**Result:** 
+**Next:** To see if the results improve

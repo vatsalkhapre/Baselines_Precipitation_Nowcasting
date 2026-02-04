@@ -40,9 +40,9 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre_latent',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32_falfcl_only',      help="experiment directory")
     parser.add_argument("--exp_note",       type=str,   default='sevir_latent_32x32x4_normalized_resized',              help="additional note for experiment")
 
     # --------------- Dataset ---------------
@@ -489,7 +489,26 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        
+        elif self.args.backbone == 'amplinet_latent_falfcl':
+            from models.alpha_amplinet_latent_FAL_FCL import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'amplinet_latent_falfcl_mse_hybrid':
             from models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
             total_steps = self.args.epochs*len(self.train_loader)

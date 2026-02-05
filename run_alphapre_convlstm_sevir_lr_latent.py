@@ -376,22 +376,6 @@ class Runner(object):
                 test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
             )
         
-        if self.args.dataset == 'shanghai_lr_latent_32':
-            self.train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
-                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.test_loader = torch.utils.data.DataLoader(
-                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
-            )
-            self.valid_os_loader = torch.utils.data.DataLoader(
-                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
-            )
-            self.test_os_loader = torch.utils.data.DataLoader(
-                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
-            )
 
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)

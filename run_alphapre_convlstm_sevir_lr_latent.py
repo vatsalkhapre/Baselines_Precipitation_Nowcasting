@@ -57,8 +57,7 @@ def create_parser():
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
+     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -73,8 +72,7 @@ def create_parser():
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
-    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
+   
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
     parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
@@ -750,7 +748,7 @@ class Runner(object):
     def _train_batch(self, batch):
         radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
-        std_val = 1/0.6786020398139954
+        std_val = frames_in.std()
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
         
@@ -780,7 +778,7 @@ class Runner(object):
         frame_in = self.args.frames_in
         radar_batch = self._get_seq_data(batch)
         radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
-        std_value = 1/0.6786020398139954
+        std_value = radar_input.std()
         radar_input = radar_input/std_value
         radar_pred, *_ = sample_fn(radar_input,compute_loss=False)
         radar_pred = radar_pred*std_value

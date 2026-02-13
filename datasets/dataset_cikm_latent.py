@@ -46,11 +46,7 @@ class CIKM(Dataset):
 
         frames = []
         with h5py.File(self.data_path,'r') as f:
-            imgs = f[self.type][key_str][()]
-            seqs = torch.from_numpy(imgs).type(torch.float32)
-            frames = self.transform(seqs)
-            frames  = frames / 255.0
-            frames = frames.unsqueeze(1)    # [T, 1, W, H]
+            frames = f[self.type][key_str][()]
    
         return frames
     

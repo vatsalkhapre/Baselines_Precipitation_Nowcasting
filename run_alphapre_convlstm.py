@@ -28,6 +28,7 @@ from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
+from pytorch_wavelets import DWTForward
 
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
@@ -41,10 +42,10 @@ def create_parser():
     
     parser.add_argument('--backbone',       type=str,   default='alphapre',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="Training time",              help="additional note for experiment")      #Check
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")              #Check
+    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
@@ -71,7 +72,7 @@ def create_parser():
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
-    parser.add_argument("--epochs",         type=int,   default=1,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=50,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -226,7 +227,7 @@ class Runner(object):
                 # logging.StreamHandler()
             ]
         )
-        
+
     def _load_data(self):
         # =================================
         # Get Train/Valid/Test dataloader among datasets 
@@ -407,7 +408,7 @@ class Runner(object):
 
 
         elif self.args.backbone == 'alphapre_phase_net':
-            from models.alphapre_phasenet import get_model 
+            from models.Other_models.alphapre_phasenet import get_model 
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -424,7 +425,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'convlstm_paper':
-            from models.convlstm import PaperModel
+            from models.Other_models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster
             # Paper config: 2 layers, 64 hidden each, kernel 3x3, J=5, K=15, BCE loss, RMSProp lr=1e-3, alpha=0.9
             hidden_dims = [64, 64]

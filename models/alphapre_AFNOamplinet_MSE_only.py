@@ -211,7 +211,6 @@ class AlphaPre_Amplinet(nn.Module):
             
             loss = 0.
             
-
             anet_loss = self.criterion(xas, frames_gt)
             loss = {'total_loss': anet_loss}
             return xas, loss

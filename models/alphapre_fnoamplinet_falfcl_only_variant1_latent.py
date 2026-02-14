@@ -42,6 +42,7 @@ class FNOAmpTimeCell(nn.Module):
         # b c h w i : Batch, Channel, Height(mode), Width(mode), Time_In
         # i o h w   : Time_In, Time_Out, Height(mode), Width(mode)
         # -> b c h w o
+        
         return torch.einsum("bchwi, iohw -> bchwo", input, weights)
 
     def forward(self, x):
@@ -181,10 +182,7 @@ class AlphaPre_Amplinet(nn.Module):
         
         xas = self(frames_in, frames_gt, compute_loss)
         if compute_loss:
-            if self.itr < self.aweight_stop_steps:
-                self.amp_weight -= self.sampling_changing_rate
-            else:
-                self.amp_weight  = 0.
+            
             
             loss = 0.
             

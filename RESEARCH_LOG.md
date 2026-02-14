@@ -57,3 +57,10 @@
 **Why:** 
 **Result:** 
 **Next:** To see if the results improve
+
+## 2026-02-08 | Made pipelines for wavelet LL, wavelet High and wavelet full
+**Goal:**  Learn precipitation nowcasting in wavelet space. 
+**Change:**  Whole new 3 pipelines
+**Why:** Novelity
+**Result:** okisshhhhh
+**Next:** Change model and try.

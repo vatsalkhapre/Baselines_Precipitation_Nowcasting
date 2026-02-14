@@ -30,6 +30,7 @@ from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
 from models.autoencoder_kl import AutoencoderKL
+
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
@@ -40,13 +41,17 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl_mse_hybrid',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32_falfcl_only',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='sevir_latent_32x32x4_normalized_resized',              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='Speed testing',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default='Speed testing',              help="additional note for experiment")
+
+    # --------------- Loss weights ---------------
+    parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
+    parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='sevir_lr_latent_32',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
@@ -57,7 +62,7 @@ def create_parser():
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-     parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -99,16 +104,16 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='sevir_lr_latent_32_normalized_resized',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='Amplinet_falfcl_only_meteonet_latent_32',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
     #------------------------- AE --------------------------------
-    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth", help="ae ckpt path")
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEO.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
 
@@ -155,9 +160,8 @@ class Runner(object):
         print_log(self.accelerator.state, self.is_main)
         
         self._load_data()
-        self.train_loader, self.valid_loader, self.test_loader = self.accelerator.prepare(
-            self.train_loader, self.valid_loader, self.test_loader
-        )
+        self.train_loader, self.valid_loader, self.test_loader, self.valid_os_loader, self.test_os_loader = self.accelerator.prepare(
+        self.train_loader, self.valid_loader, self.test_loader, self.valid_os_loader, self.test_os_loader)
         self._build_model()
         self._build_optimizer()
         # distributed ema for parallel sampling
@@ -176,7 +180,7 @@ class Runner(object):
             
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
         
-        print_log(f"Input shape : {self.args.img_size}xself.args.img_size")
+        print_log(f"Input shape: {self.args.img_size}x{self.args.img_size}")
 
 
         if self.args.ckpt_milestone is not None:
@@ -324,9 +328,17 @@ class Runner(object):
             out_channels = self.args.frames_out,
             preprocess_type = self.args.preprocessing
         )
-        
+        if self.args.dataset == "sevir_lr_latent_32":
+            data_name = "sevir"
+        elif self.args.dataset == "shanghai_lr_latent_32":
+            data_name = "shanghai"
+        elif self.args.dataset == "meteo_lr_latent_32":
+            data_name = "meteo"
+        elif self.args.dataset == "cikm_latent_32":
+            data_name = "cikm"
+
         _, valid_os_data, test_os_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
-            data_name="sevir",
+            data_name=data_name,
             # data_path=self.args.data_path,
             img_size=128,
             seq_len=self.args.seq_len,
@@ -357,7 +369,7 @@ class Runner(object):
             self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
         
-        if self.args.dataset == 'shanghai_lr_latent_32':
+        if self.args.dataset == 'shanghai_lr_latent_32' or self.args.dataset == 'meteo_lr_latent_32' or self.args.dataset == 'cikm_latent_32':
             self.train_loader = torch.utils.data.DataLoader(
                 train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
             )
@@ -394,16 +406,8 @@ class Runner(object):
         print_log("Build Model!", self.is_main)
         self.ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
   
-        if self.args.backbone == 'simvp':
-            from models.simvp import get_model
-            kwargs = {
-                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-            }
-            model = get_model(**kwargs)
 
-        elif self.args.backbone == 'alphapre':
+        if self.args.backbone == 'alphapre':
             from models.alphapre_latent import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
@@ -495,8 +499,8 @@ class Runner(object):
             from models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
             total_steps = self.args.epochs*len(self.train_loader)
             kwargs = {
-                "lambda_mse": 0.5, 
-                "lambda_fal_fcl": 0.5,
+                "lambda_mse": self.args.mse_weight, 
+                "lambda_fal_fcl": self.args.falfcl_weight,
                 "total_steps": total_steps,
                 "const_ratio": 0.1, 
                 "input_shape": (self.args.img_size, self.args.img_size),
@@ -513,18 +517,72 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-            print_log(f"model parameters : {kwargs}", self.is_main)
+        elif self.args.backbone == 'alpha_fnoamplinet_latent_falfcl_var1':
+            from models.alphapre_fnoamplinet_falfcl_only_variant1_latent import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
 
-        elif self.args.backbone == 'convlstm_paper':
-            from models.convlstm import PaperModel
-            # Build the paper's ConvLSTM encoder-forecaster
-            # Paper config: 2 layers, 64 hidden each, kernel 3x3, J=5, K=15, BCE loss, RMSProp lr=1e-3, alpha=0.9
-            hidden_dims = [64, 64]
-            model = PaperModel(frames_in=self.args.frames_in, frames_out=self.args.frames_out,
-            input_channels=self.args.img_channel, hidden_dims=hidden_dims, kernel_size=(3,3))
+        elif self.args.backbone == 'alpha_fnoamplinet_latent_falfcl':
+            from models.alphapre_fnoamplinet_falfcl_only_latent import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'alpha_afnoamplinet_latent_falfcl':
+            from models.alphapre_AFNOamplinet_falfcl_only_latent import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
         else:
             raise NotImplementedError
-            
+
+        ############Print logs############
+        print_log(f"model parameters : {kwargs}", self.is_main)
+    
         self.model = model
         print_log("begin ema", self.is_main)
         self.ema = EMA(self.model, beta=self.args.ema_rate, update_every=20).to(self.device)          #EMA is a trick for optimizing training.
@@ -552,20 +610,13 @@ class Runner(object):
 
         # Schedulers takes from diffusers.
         trainable_params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        if self.args.backbone == 'convlstm_paper':
-            self.optimizer = torch.optim.RMSprop(
+       
+        self.optimizer = torch.optim.AdamW(
             trainable_params,
-            lr=self.args.lr if self.args.lr is not None else 1e-3,
-            alpha=self.args.lr_beta1,
+            lr=self.args.lr,
+            betas=(self.args.lr_beta1, self.args.lr_beta2),
             weight_decay=self.args.l2_norm
-            )
-        else:
-            self.optimizer = torch.optim.AdamW(
-                trainable_params,
-                lr=self.args.lr,
-                betas=(self.args.lr_beta1, self.args.lr_beta2),
-                weight_decay=self.args.l2_norm
-            )
+        )
         if self.args.scheduler == 'constant':
             self.scheduler = get_constant_schedule_with_warmup(
                 self.optimizer,
@@ -685,7 +736,11 @@ class Runner(object):
                 log_dict = dict()
                 log_dict['lr'] = lr
                 for k,v in loss_dict.items():
-                    log_dict[k] = v.item()
+                    if type(v) == float:
+                        log_dict[k] = v
+                    else:
+                        log_dict[k] = v.item()
+          
                 self.accelerator.log(log_dict, step=self.cur_step)
              
                 state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
@@ -760,6 +815,20 @@ class Runner(object):
             _, loss = self.model.predict(frames_in=frames_in, frames_gt=frames_out, compute_loss=True)
         if loss is None:
             raise ValueError("Loss is None, please check the model predict function")
+        # falfcl_loss = loss['falfcl_loss']
+        # mse_loss = loss['mse_loss']
+
+        # falfcl_grads = torch.autograd.grad(falfcl_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+        # falfcl_norm = torch.norm(
+        #     torch.stack([torch.norm(g, 2) for g in falfcl_grads if g is not None]), 2
+        # ).item()
+        # mse_grads = torch.autograd.grad(mse_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+        # mse_norm = torch.norm(
+        #     torch.stack([torch.norm(g, 2) for g in mse_grads if g is not None]), 2
+        # ).item()
+        # inflence_ratio = falfcl_norm/mse_norm
+
+        # loss['inflence_ratio'] = inflence_ratio
         
         if isinstance(loss, dict):
             if 'total_loss' in loss:
@@ -794,6 +863,7 @@ class Runner(object):
         if do_test==True:
             print("Testing")
             self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
+       
         save_vis = True
         # init test data loader
         if do_test:

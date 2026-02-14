@@ -27,8 +27,8 @@ class CIKM(Dataset):
             # transforms.Lambda(lambda x: x/40.0-1),
             # transforms.Normalize(mean=[0.5], std=[0.5]),
             # transforms.RandomCrop((img_size, img_size)),
+
         ])
-        
         with h5py.File(data_path,'r') as f:
             # print(list(f.keys()))
             if type=='valid':
@@ -47,11 +47,7 @@ class CIKM(Dataset):
         frames = []
         with h5py.File(self.data_path,'r') as f:
             imgs = f[self.type][key_str][()]
-            seqs = torch.from_numpy(imgs).type(torch.float32)
-            frames = self.transform(seqs)
-            frames  = frames / 255.0
-            frames = frames.unsqueeze(1)    # [T, 1, W, H]
-   
+            frames = imgs
         return frames
     
 PIXEL_SCALE = 80.0

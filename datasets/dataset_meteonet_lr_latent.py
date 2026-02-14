@@ -64,11 +64,11 @@ class Meteo(Dataset):
         with h5py.File(self.data_path,'r') as f:
             imgs = f[self.type][str(index)][()]   # numpy array: (25, 565, 784), dtype=uint8, range(0,70)
 
-            frames = torch.from_numpy(imgs).float().squeeze() 
-            frames = frames / self.pixel_scale
-            frames = self.transform(frames)     
-        return frames.unsqueeze(1) # (25,1,128,128)
+            frames = imgs
 
+ 
+        return frames# (25,1,128,128)
+ 
     
 # def gray2color(img):
 #     cmap = colors.ListedColormap(COLOR_MAP)

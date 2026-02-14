@@ -15,6 +15,7 @@ from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
 import matplotlib.colors as mcolors
 import numpy as np
 import torch
+import torch.nn as nn
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from accelerate.utils import ProjectConfiguration, DistributedDataParallelKwargs, InitProcessGroupKwargs
@@ -24,13 +25,14 @@ from diffusers import (
     get_linear_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
 )
-
-
+from tqdm import tqdm
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
-
+from models.autoencoder_kl import AutoencoderKL
+from pytorch_wavelets import DWTForward
+from pytorch_wavelets import DWTInverse
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
@@ -41,24 +43,26 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre_amp_loss',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone_L',       type=str,   default='alphapre_latent_amplinet_mseonly',        help='backbone model for deterministic LL wavelet prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone_H',       type=str,   default='alphapre_latent_amplinet_mseonly',        help='backbone model for deterministic High frequency wavelet prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_amplinet_amplossonly",              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='shanghai_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default="Debug",              help="additional note for experiment")
 
     # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")
+    parser.add_argument("--dataset",            type=str,       default='shanghai_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
+    parser.add_argument("--img_size",           type=int,       default=16,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
-    parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
+    parser.add_argument("--img_channel_L",        type=int,       default=4,              help="channel of image for LL")
+    parser.add_argument("--img_channel_H",        type=int,       default=12,              help="channel of image for HF")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
-    parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
+    parser.add_argument("--frames_in",          type=int,       default=5,              help="number of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=4,              help="number of workers for data loader")
+    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -68,13 +72,15 @@ def create_parser():
     parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
     parser.add_argument("--ema_rate",       type=float, default=0.95,            help="exponential moving average rate")
     parser.add_argument("--scheduler",      type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
-    parser.add_argument("--warmup_steps",   type=int,   default=1000,             help="warmup steps")
+    parser.add_argument("--warmup_steps_L",   type=int,   default=1000,            help="warmup steps for LL model")
+    parser.add_argument("--warmup_steps_H",   type=int,   default=1000,            help="warmup steps for HF model")
     parser.add_argument("--mixed_precision",type=str,   default='no',            help="mixed precision training")
     parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
+   
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
-    parser.add_argument("--epochs",         type=int,   default=50,              help="number of epochs")
+    parser.add_argument("--epochs",         type=int,   default=100,              help="number of epochs")
     parser.add_argument("--training_steps", type=int,   default=1,               help="number of training steps")
     parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
@@ -100,21 +106,91 @@ def create_parser():
 
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
-    parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Training_alpha_amplinet_amploss_only',        help="wandb run name")
-
+    parser.add_argument("--wandb_project_name", type=str, default="Amplinet_latent_wavelet", help="wandb project name")
+    parser.add_argument("--run_name",       type=str,   default='Training_wavelet_ampli_L_ampli_H',        help="wandb run name")
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
+    #------------------------- AE --------------------------------
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
+
+class WaveletFeatureExtractor(nn.Module):
+    def __init__(self, wave='haar'):
+        super().__init__()
+        self.dwt = DWTForward(J=1, wave=wave, mode='zero')
+
+    def forward(self, x): 
+        """
+        x: (B, T, C, H, W)
+        Returns:
+            yl: (B*T, C, H/2, W/2) - Low-Low component
+            yh_cat: (B*T, 3*C, H/2, W/2) - Concatenated LH, HL, HH components
+        """
+        B, T, C, H, W = x.shape
+        x_collapsed = x.reshape(B * T, C, H, W)
+        
+        device = x.device
+        yl, yh = self.dwt(x_collapsed.cpu())
+        
+        # yh is list: [tensor(B*T, C, 3, H/2, W/2)]
+        # The '3' dimension contains [LH, HL, HH]
+        # yh_tensor = yh[0]  # (B*T, C, 3, H/2, W/2)
+        
+        # # Reshape to (B*T, 3*C, H/2, W/2)
+        # BT, C_dim, three, Hh, Wh = yh_tensor.shape
+        # yh_cat = yh_tensor.permute(0, 2, 1, 3, 4).reshape(BT, three * C_dim, Hh, Wh)
+        
+        return yl.to(device), yh[0].to(device)
+
+
+
+def unnormalize_LL(dataset_name, value):
+    """Reverse the normalization applied during training"""
+    if dataset_name == 'shanghai_unnormalize':
+        value = value * 510  # Reverse the /510 normalization
+        return value
+    return value
+
+class WaveletDualModel(nn.Module):
+    """Container with separate optimization paths"""
+    def __init__(self, model_ll, model_hf):
+        super().__init__()
+        self.model_ll = model_ll
+        self.model_hf = model_hf
+    
+    def predict(self, frames_in_ll, frames_in_hf, frames_gt_ll=None, frames_gt_hf=None, compute_loss=False):
+        pred_ll, loss_ll = self.model_ll.predict(
+            frames_in=frames_in_ll,
+            frames_gt=frames_gt_ll,
+            compute_loss=compute_loss
+        )
+        
+        pred_hf, loss_hf = self.model_hf.predict(
+            frames_in=frames_in_hf,
+            frames_gt=frames_gt_hf,
+            compute_loss=compute_loss
+        )
+        
+        if compute_loss:
+            total_loss = {
+                'total_loss': loss_ll['total_loss'] + loss_hf['total_loss'],
+                'll_loss_dict': loss_ll,
+                'hf_loss_dict': loss_hf,
+            }
+            return (pred_ll, pred_hf), total_loss
+        else:
+            return (pred_ll, pred_hf), None
+
 
 class Runner(object):
     
     def __init__(self, args):
         
         self.args = args
+        self.ae_ckpt = args.ae_ckpt_path
         self._preparation()
         self.max_csi, self.best_step = 0.0, 0
         # Config DDP kwargs from accelerate
@@ -155,16 +231,34 @@ class Runner(object):
         self.train_loader, self.valid_loader, self.test_loader = self.accelerator.prepare(
             self.train_loader, self.valid_loader, self.test_loader
         )
+        # ✅ STEP 1: Build models FIRST
         self._build_model()
-        self._build_optimizer()
         
-        # distributed ema for parallel sampling
-
-        self.model, self.optimizer,  self.scheduler = self.accelerator.prepare(
-            self.model, 
-            self.optimizer, self.scheduler
+        # ✅ STEP 2: Create wrapper (models now exist!)
+        self.wavelet_dual_model = WaveletDualModel(
+            self.model["model_ll"],
+            self.model["model_hf"]
         )
         
+        # ✅ STEP 3: Build optimizers
+        self._build_optimizer()
+        
+        # ✅ STEP 4: Prepare everything
+        self.wavelet_dual_model = self.accelerator.prepare(self.wavelet_dual_model)
+        self.optimizer_ll = self.accelerator.prepare(self.optimizer_ll)
+        self.optimizer_hf = self.accelerator.prepare(self.optimizer_hf)
+        self.scheduler_ll = self.accelerator.prepare(self.scheduler_ll)
+        self.scheduler_hf = self.accelerator.prepare(self.scheduler_hf)
+        
+        # ✅ STEP 5: Create EMA (after prepare)
+        self.ema = EMA(self.wavelet_dual_model, beta=self.args.ema_rate, update_every=20).to(self.device)
+        
+        # ✅ STEP 6: Setup wavelets
+        self.dwt = WaveletFeatureExtractor()
+        self.idwt = DWTInverse(wave='haar',mode='zero')
+        # distributed ema for parallel sampling
+
+    
         self.train_dl_cycle = cycle(self.train_loader)
         if self.is_main:
             start = time.time()
@@ -173,7 +267,8 @@ class Runner(object):
             # print_log(show_img_info(sample), self.is_main)
             
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
-        print_log(f"Input shape : {self.args.img_size}x{self.args.img_size}")
+        
+        print_log(f"Input shape: {self.args.img_size}x{self.args.img_size}")
 
 
         if self.args.ckpt_milestone is not None:
@@ -193,8 +288,8 @@ class Runner(object):
         # =================================
 
         set_seed(self.args.seed)
-        self.model_name = self.args.backbone
-        self.exp_name   = f"{self.model_name}_{self.args.dataset}_{self.args.exp_note}"
+        
+        self.exp_name   = f"L{self.args.backbone_L}_H{self.args.backbone_H}_{self.args.dataset}_{self.args.exp_note}"
         
         cur_dir         = os.path.dirname(os.path.abspath(__file__))
         
@@ -224,16 +319,108 @@ class Runner(object):
                 # logging.StreamHandler()
             ]
         )
+    
+    def load_autoencoder(
+        self,
+        model,
+        checkpoint_path,
+        device="cuda",
+        dtype=torch.float32
+    ):
+        """
+        model: instantiated autoencoder model (same architecture as training)
+        checkpoint_path: path to .pt / .pth checkpoint
+        """
+
+        # ---- load checkpoint to CPU first (safe) ----
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
         
+        assert "model" in ckpt, "Checkpoint does not contain 'model' key"
+
+        ckpt_model = ckpt["model"]
+        
+        # ---- find matching submodel key ----
+        model_keys = list(model.state_dict().keys())
+        
+        ckpt_keys = list(ckpt_model.keys())
+        
+        # If checkpoint saved multiple submodels, pick autoencoder
+        if isinstance(ckpt_model, dict) and all(isinstance(v, dict) for v in ckpt_model.values()):
+            # typical structure: ckpt['model']['autoencoder_kl']
+            if len(ckpt_model) == 1:
+                ckpt_state = list(ckpt_model.values())[0]
+            else:
+                # explicitly choose autoencoder
+                
+                ckpt_state = ckpt_model.get("autoencoder_kl", None)
+                if ckpt_state is None:
+                    raise KeyError("autoencoder_kl not found in checkpoint")
+                
+                    
+        else:
+            ckpt_state = ckpt_model
+
+        # ---- strip 'module.' if present ----
+        new_state_dict = OrderedDict()
+        for k, v in ckpt_state.items():
+            if k.startswith("module."):
+                k = k[7:]
+            elif k.startswith("net."):
+                k = k[4:]
+            new_state_dict[k] = v
+
+        
+        # ---- load weights ----
+        model.load_state_dict(new_state_dict, strict=True)
+
+        # ---- move to device and eval ----
+        model.to(device=device, dtype=dtype)
+        model.eval()
+
+        # ---- freeze params (important for compression) ----
+        for p in model.parameters():
+            p.requires_grad = False
+
+        print("✅ Autoencoder loaded successfully")
+        return model
+
+    @torch.no_grad()
+    def encode_stage(self, model, x, scale_factor):
+        z = model.encode(x)
+        return z.sample() * scale_factor
+
+
+    @torch.no_grad()
+    def decode_stage(self,model, z, scale_factor):
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z)
+        z = z.to(next(model.parameters()).device)
+        z = z / scale_factor
+        return model.decode(z)
+
     def _load_data(self):
         # =================================
         # Get Train/Valid/Test dataloader among datasets 
         # =================================
 
-        train_data, valid_data, test_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+        train_data, valid_data , test_data , color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
             data_name=self.args.dataset,
             # data_path=self.args.data_path,
-            img_size=self.args.img_size,
+            img_size=self.args.img_size*2,
+            seq_len=self.args.seq_len,
+            batch_size=self.args.batch_size,
+            stride=self.args.stride,
+            file_rain_seq_add=self.args.file_rain_seq_add,
+            method = self.args.method,
+            in_channels = self.args.frames_in,
+            out_channels = self.args.frames_out,
+            preprocess_type = self.args.preprocessing
+        )
+        
+        _, valid_os_data, test_os_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+            data_name="shanghai",
+            # data_path=self.args.data_path,
+            img_size=128,
             seq_len=self.args.seq_len,
             batch_size=self.args.batch_size,
             stride=self.args.stride,
@@ -255,156 +442,301 @@ class Runner(object):
             self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
-        if self.args.dataset == 'sevir':
+        if self.args.dataset == 'sevir_lr_latent_32' or self.args.dataset == 'sevir_lr_latent':
             self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            
-            
+            self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+        
+        if self.args.dataset == 'shanghai_lr_latent_32':
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+            self.valid_os_loader = torch.utils.data.DataLoader(
+                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_os_loader = torch.utils.data.DataLoader(
+                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+        
+
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
         
         for sample in self.train_loader:
-            print(sample.shape)
+            print("Sample shape", sample.shape)
             break
-
-        print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
-                  self.is_main)
         
+        
+        print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}", self.is_main)
+        print_log(f"Shape of input to the model: {self.args.img_size}x{self.args.img_size}", self.is_main)
+
+
     def _build_model(self):
         # =================================
         # import and create different models given model config
         # =================================
+    
         print_log("Build Model!", self.is_main)
-        if self.args.backbone == 'simvp':
-            from models.simvp import get_model
-            kwargs = {
-                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alphapre':
-            from models.alphapre_latent_loss import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
+        self.ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
+        self.model = nn.ModuleDict()
+                
+        backbones = [self.args.backbone_L, self.args.backbone_H]
+        models = ["model_ll", "model_hf"]
+        channels = [self.args.img_channel_L, self.args.img_channel_H]
         
-        elif self.args.backbone == 'alphapre_amp_loss':
-            from models.alphapre_amplinet_amp_loss import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alphapre_AFNOAmplinet_mse_loss':
-            from models.alphapre_amplinet_amp_loss import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'convlstm_paper':
-            from models.convlstm import PaperModel
-            # Build the paper's ConvLSTM encoder-forecaster
-            # Paper config: 2 layers, 64 hidden each, kernel 3x3, J=5, K=15, BCE loss, RMSProp lr=1e-3, alpha=0.9
-            hidden_dims = [64, 64]
-            model = PaperModel(frames_in=self.args.frames_in, frames_out=self.args.frames_out,
-            input_channels=self.args.img_channel, hidden_dims=hidden_dims, kernel_size=(3,3))
-        else:
-            raise NotImplementedError
+        for i, backbone in enumerate(backbones):
+            img_channel = channels[i]
             
-        self.model = model
-        print_log("begin ema", self.is_main)
-        self.ema = EMA(self.model, beta=self.args.ema_rate, update_every=20).to(self.device)          #EMA is a trick for optimizing training.
-        print_log("end device", self.is_main)
+            if backbone == 'simvp':
+                from models.simvp import get_model
+                kwargs = {
+                    "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'alphapre':
+                from models.alphapre_latent import get_model
+                kwargs = {
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+            
+            elif backbone == 'alphapre_latent':
+                from models.alphapre_latent import get_model
+                kwargs = {
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'alphapre_latent_amplinet_mseonly':
+                from models.alphapre_amplinet_MSE_only_latent import get_model
+                kwargs = {
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'amplinet':
+                from models.alphapre_amplinet import get_model
+                kwargs = {
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'amplinet_latent_falfcl':
+                from models.alpha_amplinet_latent_FAL_FCL import get_model
+                total_steps = self.args.epochs*len(self.train_loader)
+                kwargs = {
+                    "total_steps": total_steps,
+                    "const_ratio": 0.1, 
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'amplinet_latent_falfcl_mse_hybrid':
+                from models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
+                total_steps = self.args.epochs*len(self.train_loader)
+                kwargs = {
+                    "lambda_mse": 0.5, 
+                    "lambda_fal_fcl": 0.5,
+                    "total_steps": total_steps,
+                    "const_ratio": 0.1, 
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'alpha_fnoamplinet_latent_falfcl_var1':
+                from models.alphapre_fnoamplinet_falfcl_only_variant1_latent import get_model
+                total_steps = self.args.epochs*len(self.train_loader)
+                kwargs = {
+                    "total_steps": total_steps,
+                    "const_ratio": 0.1, 
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'alpha_fnoamplinet_latent_falfcl':
+                from models.alphapre_fnoamplinet_falfcl_only_latent import get_model
+                total_steps = self.args.epochs*len(self.train_loader)
+                kwargs = {
+                    "total_steps": total_steps,
+                    "const_ratio": 0.1, 
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'alpha_afnoamplinet_latent_falfcl':
+                from models.alphapre_AFNOamplinet_falfcl_only_latent import get_model
+                total_steps = self.args.epochs*len(self.train_loader)
+                kwargs = {
+                    "total_steps": total_steps,
+                    "const_ratio": 0.1, 
+                    "input_shape": (self.args.img_size, self.args.img_size),
+                    "T_in": self.args.frames_in,
+                    "T_out": self.args.frames_out,
+                    'img_channels' : img_channel,
+                    'dim' : 64,
+                    'n_layers': self.args.layers,
+                    'pha_weight': self.args.pha_weight,
+                    'anet_weight': self.args.anet_weight,
+                    'amp_weight': self.args.amp_weight,
+                    'spec_num': self.args.spec_num,
+                    'aweight_stop_steps': self.args.aw_stop_step,
+                }
+                model = get_model(**kwargs)
+
+            elif backbone == 'convlstm_paper':
+                from models.Other_models.convlstm import PaperModel
+                # Build the paper's ConvLSTM encoder-forecaster
+                # Paper config: 2 layers, 64 hidden each, kernel 3x3, J=5, K=15, BCE loss, RMSProp lr=1e-3, alpha=0.9
+                hidden_dims = [64, 64]
+                model = PaperModel(frames_in=self.args.frames_in, frames_out=self.args.frames_out,
+                input_channels=self.args.img_channel, hidden_dims=hidden_dims, kernel_size=(3,3))
+            else:
+                raise NotImplementedError
+
+            
+            self.model[models[i]] = model
         
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total/1e6), self.is_main)
 
     def _build_optimizer(self):
-        # =================================
-        # Calcutate training nums and config optimizer and learning schedule
-        # =================================
         num_steps_per_epoch = len(self.train_loader)
-        # num_epoch = math.ceil(self.args.training_steps / num_steps_per_epoch)
-        
-        # self.global_epochs = max(num_epoch, self.args.epochs)
         self.global_epochs = self.args.epochs
         self.global_steps = self.global_epochs * num_steps_per_epoch
         self.steps_per_epoch = num_steps_per_epoch
         
         self.cur_step, self.cur_epoch = 0, 0
 
-        warmup_steps = self.args.warmup_steps
+        warmup_steps_L = self.args.warmup_steps_L
+        warmup_steps_H = self.args.warmup_steps_H
 
-        # Schedulers takes from diffusers.
-        trainable_params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
-        if self.args.backbone == 'convlstm_paper':
-            self.optimizer = torch.optim.RMSprop(
-            trainable_params,
-            lr=self.args.lr if self.args.lr is not None else 1e-3,
-            alpha=self.args.lr_beta1,
-            weight_decay=self.args.l2_norm
-            )
-        else:
-            self.optimizer = torch.optim.AdamW(
-                trainable_params,
-                lr=self.args.lr,
-                betas=(self.args.lr_beta1, self.args.lr_beta2),
-                weight_decay=self.args.l2_norm
-            )
-        if self.args.scheduler == 'constant':
-            self.scheduler = get_constant_schedule_with_warmup(
-                self.optimizer,
-                num_warmup_steps=warmup_steps,
-            )
-        elif self.args.scheduler == 'linear':
-            self.scheduler = get_linear_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=warmup_steps, 
-                num_training_steps=self.global_steps,
-            )
-        elif self.args.scheduler == 'cosine':
-            self.scheduler = get_cosine_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=warmup_steps , 
-                num_training_steps=self.global_steps,
-            )
-        else:train
+        self.optimizer_ll = torch.optim.AdamW(
+            self.model["model_ll"].parameters(),
+            lr=self.args.lr,
+            betas=(0.9, 0.95),
+            weight_decay=1e-4
+        )
+        
+        self.optimizer_hf = torch.optim.AdamW(
+            self.model["model_hf"].parameters(),
+            lr=self.args.lr,
+            betas=(0.9, 0.95),
+            weight_decay=1e-4
+        )
+        
+        self.scheduler_ll = get_cosine_schedule_with_warmup(
+            self.optimizer_ll,
+            num_warmup_steps=warmup_steps_L,
+            num_training_steps=self.global_steps,
+        )
+        
+        self.scheduler_hf = get_cosine_schedule_with_warmup(
+            self.optimizer_hf,
+            num_warmup_steps=warmup_steps_H,
+            num_training_steps=self.global_steps,
+        )
+        
+        if self.is_main:
+            print_log("============ Running training ============")
+            print_log(f"    Num examples = {len(self.train_loader)}")
+            print_log(f"    Num Epochs = {self.global_epochs}")
+            print_log(f"    Instantaneous batch size per GPU = {self.args.batch_size}")
+            print_log(f"    Total train batch size (w. parallel, distributed & accumulation) = {self.args.batch_size * self.accelerator.num_processes}")
+            print_log(f"    Total optimization steps = {self.global_steps}")
+            print_log(f"    LL optimizer lr: {self.args.lr}")
+            print_log(f"    HF optimizer lr: {self.args.lr }")
     
     def save(self, svname=None):
         # =================================
@@ -416,10 +748,12 @@ class Runner(object):
         data = {
             'step': self.cur_step,
             'epoch': self.cur_epoch,
-            'model': self.accelerator.get_state_dict(self.model),
+            'model': self.accelerator.get_state_dict(self.wavelet_dual_model),
             'ema': self.ema.state_dict(),
-            'opt': self.optimizer.state_dict(),
-            'scheduler': self.scheduler.state_dict(),
+            'opt_ll': self.optimizer_ll.state_dict(),
+            'opt_hf': self.optimizer_hf.state_dict(),
+            'scheduler_ll': self.scheduler_ll.state_dict(),
+            'scheduler_hf': self.scheduler_hf.state_dict(),
         }
         
         if svname == None:
@@ -443,24 +777,24 @@ class Runner(object):
             data = torch.load(osp.join(self.ckpt_path, f"ckpt-{milestone}.pt"), map_location=device)
             print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
-        model = self.accelerator.unwrap_model(self.model)
+        model = self.accelerator.unwrap_model(self.wavelet_dual_model)
         model.load_state_dict(data['model'])
-        self.model = self.accelerator.prepare(model)
+        self.wavelet_dual_model = self.accelerator.prepare(model)
         if self.args.res_opt:
             try:
-                self.optimizer.load_state_dict(data['opt'])
-                self.scheduler.load_state_dict(data['scheduler'])
+                self.optimizer_ll.load_state_dict(data['opt_ll'])
+                self.optimizer_hf.load_state_dict(data['opt_hf'])
+                self.scheduler_ll.load_state_dict(data['scheduler_ll'])
+                self.scheduler_hf.load_state_dict(data['scheduler_hf'])
             except:
                 print_log(f"No optimizer", self.is_main)
             try:
                 self.cur_epoch = data['epoch'] + 1 
+                self.cur_step = data['step']
+                print("Current epoch", self.cur_epoch)
             except:
                 print_log(f"No record epoch", self.is_main)
 
-            try:
-                self.cur_step = data['step']
-            except:
-                print_log(f"No record step", self.is_main)
             
         if self.is_main:
             self.ema.load_state_dict(data['ema'])
@@ -469,44 +803,52 @@ class Runner(object):
     def train(self):
         # set global step as traing process
         # torch.autograd.set_detect_anomaly(True)
-       
+        self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         start_epoch = self.cur_epoch
         for epoch in range(start_epoch, self.global_epochs):
 
             print(f"Training : {epoch+1}")
             epoch_start_time = time.time()
             self.cur_epoch = epoch
-            self.model.train()
+            self.wavelet_dual_model.train()
             
-            for i, batch in enumerate(self.train_loader):
+            for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
-                with self.accelerator.autocast(self.model):
-
+                with self.accelerator.autocast(self.wavelet_dual_model):
+               
                     loss_dict = self._train_batch(batch)
                     self.accelerator.backward(loss_dict['total_loss'])
                     
                     if self.cur_step == 0:
                         # training process check
-                        for name, param in self.model.named_parameters():
+                        for name, param in self.wavelet_dual_model.named_parameters():
                             if param.grad is None:
                                 print_log(name, self.is_main)   
     
                 self.accelerator.wait_for_everyone()
                 if self.accelerator.sync_gradients:
-                    self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
+                    self.accelerator.clip_grad_norm_(self.wavelet_dual_model.parameters(), 1.0)
                 
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                self.optimizer_ll.step()
+                self.optimizer_hf.step()
+                
+                self.optimizer_ll.zero_grad()
+                self.optimizer_hf.zero_grad()
                 
                 if not self.accelerator.optimizer_step_was_skipped:
-                    self.scheduler.step()
+                    self.scheduler_ll.step()
+                    self.scheduler_hf.step()
                 
-                # record train info
-                lr = self.optimizer.param_groups[0]['lr']
-                log_dict = dict()
-                log_dict['lr'] = lr
-                for k,v in loss_dict.items():
-                    log_dict[k] = v.item()
+                lr_ll = self.optimizer_ll.param_groups[0]['lr']
+                lr_hf = self.optimizer_hf.param_groups[0]['lr']
+           
+                log_dict = {
+                    'lr_ll': lr_ll,
+                    'lr_hf': lr_hf,
+                    'total_loss': loss_dict['total_loss'].item(),
+                    'll_loss': loss_dict['ll_loss_dict']['total_loss'].item(),
+                    'hf_loss': loss_dict['hf_loss_dict']['total_loss'].item(),
+                }
                 self.accelerator.log(log_dict, step=self.cur_step)
              
                 state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
@@ -526,7 +868,7 @@ class Runner(object):
                     if not osp.exists(self.sanity_path):
                         try:
                             print_log(f" ========= Running Sanity Check ==========", self.is_main)
-                            radar_ori, radar_recon= self._sample_batch(batch)
+                            radar_ori, radar_recon_l, radar_recon_h = self._sample_batch(batch)
                             os.makedirs(self.sanity_path)
                             # if self.is_main:
                             #     for i in range(radar_ori.shape[0]):
@@ -553,10 +895,10 @@ class Runner(object):
                             self.max_csi = cur_csi
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
-                    print_log(f" ========= Finisth one Epoch ==========", self.is_main)
+                    print_log(f" ========= Finish one Epoch ==========", self.is_main)
             else:
                 self.save()
-                print_log(f" ========= Finisth one Epoch ==========", self.is_main)
+                print_log(f" ========= Finish one Epoch ==========", self.is_main)
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
         self.accelerator.wait_for_everyone()
@@ -567,14 +909,48 @@ class Runner(object):
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     
     def _train_batch(self, batch):
-        radar_batch = self._get_seq_data(batch)
+        radar_batch = self._get_seq_data(batch)   
+        #Error in case of inconsistency#
+        assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error" 
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
-        assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
+        B, T_in = frames_in.shape[0:2] 
+        B, T_out = frames_out.shape[0:2] 
+        frames_in_l, frames_in_h = self.dwt(frames_in)
+        frames_out_l, frames_out_h = self.dwt(frames_out)
         
-        if hasattr(self.model, 'module'):
-            _, loss = self.model.module.predict(frames_in=frames_in, frames_gt=frames_out, compute_loss=True)
+        std_l = frames_in_l.std()
+        std_h = frames_in_h.std(dim=(0,1,3,4))
+        
+        frames_in_l = frames_in_l/std_l
+        frames_out_l = frames_out_l/std_l
+
+        frames_in_h = (frames_in_h/std_h[None, None, :, None, None]).reshape(B*T_in,-1,self.args.img_size, self.args.img_size)
+        frames_out_h = (frames_out_h/std_h[None, None, :, None, None]).reshape(B*T_out,-1,self.args.img_size, self.args.img_size)
+ 
+        frames_in_l = frames_in_l.view(B, self.args.frames_in, self.args.img_channel_L, self.args.img_size, self.args.img_size)
+        frames_out_l = frames_out_l.view(B, self.args.frames_out, self.args.img_channel_L, self.args.img_size, self.args.img_size)
+
+        frames_in_h = frames_in_h.view(B, self.args.frames_in, self.args.img_channel_H, self.args.img_size, self.args.img_size)
+        frames_out_h = frames_out_h.view(B, self.args.frames_out, self.args.img_channel_H, self.args.img_size, self.args.img_size)
+        
+        
+        
+        if hasattr(self.wavelet_dual_model, 'module'):
+            _, loss = self.wavelet_dual_model.module.predict(
+                frames_in_ll=frames_in_l, 
+                frames_in_hf=frames_in_h,
+                frames_gt_ll=frames_out_l, 
+                frames_gt_hf=frames_out_h,
+                compute_loss=True
+            )
         else:
-            _, loss = self.model.predict(frames_in=frames_in, frames_gt=frames_out, compute_loss=True)
+            _, loss = self.wavelet_dual_model.predict(
+                frames_in_ll=frames_in_l, 
+                frames_in_hf=frames_in_h,
+                frames_gt_ll=frames_out_l, 
+                frames_gt_hf=frames_out_h,
+                compute_loss=True
+            )
         if loss is None:
             raise ValueError("Loss is None, please check the model predict function")
         
@@ -586,21 +962,55 @@ class Runner(object):
         else:
             return {'total_loss': loss}
         
-    
+
     @torch.no_grad()
     def _sample_batch(self, batch, use_ema=False, vis_diff=False):
-        # sample_fn = self.ema.ema_model.predict if use_ema else self.model.predict
-        # First priority given to ema_model.
-        sample_fn = (self.ema.ema_model.module.predict if hasattr(self.ema.ema_model, 'module') else self.ema.ema_model.predict) if use_ema else (self.model.module.predict if hasattr(self.model, 'module') else self.model.predict)
+        if use_ema:
+            sample_fn = self.ema.ema_model.module.predict if hasattr(self.ema.ema_model, 'module') else self.ema.ema_model.predict
+        else:
+            sample_fn = self.wavelet_dual_model.module.predict if hasattr(self.wavelet_dual_model, 'module') else self.wavelet_dual_model.predict
         frame_in = self.args.frames_in
         radar_batch = self._get_seq_data(batch)
         radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
-        radar_pred, *_ = sample_fn(radar_input,compute_loss=False)
-        
-        radar_gt = self.accelerator.gather(radar_gt).detach().cpu().numpy()
-        radar_pred = self.accelerator.gather(radar_pred).detach().cpu().numpy()
+        B, T_in = radar_input.shape[0:2] 
+        B, T_out, Cout, Hout, Wout = radar_gt.shape
 
-        return radar_gt, radar_pred
+        radar_input_l, radar_input_h = self.dwt(radar_input)
+        radar_gt_l, radar_gt_h = self.dwt(radar_gt)
+        
+        std_l = radar_input_l.std()
+        std_h = radar_input_h.std(dim=(0,1,3,4))
+        
+        radar_input_l = radar_input_l/std_l
+        radar_gt_l = radar_gt_l/std_l
+
+        radar_input_h = (radar_input_h/std_h[None, None, :, None, None]).reshape(B*T_in,-1,self.args.img_size, self.args.img_size)
+        radar_gt_h = (radar_gt_h/std_h[None, None, :, None, None]).reshape(B*T_out,-1,self.args.img_size, self.args.img_size)
+
+        radar_input_l = radar_input_l.view(B, self.args.frames_in, self.args.img_channel_L, self.args.img_size, self.args.img_size)
+        radar_gt_l = radar_gt_l.view(B, self.args.frames_out, self.args.img_channel_L, self.args.img_size, self.args.img_size)
+
+        radar_input_h = radar_input_h.view(B, self.args.frames_in, self.args.img_channel_H, self.args.img_size, self.args.img_size)
+        radar_gt_h = radar_gt_h.view(B, self.args.frames_out, self.args.img_channel_H, self.args.img_size, self.args.img_size)
+        
+
+        (radar_pred_l, radar_pred_h), *_ = sample_fn(
+            radar_input_l, 
+            radar_input_h, 
+            radar_gt_l, 
+            radar_gt_h, 
+            compute_loss=False
+        )
+        B,T,C_H,H,W = radar_pred_h.shape
+        radar_pred_l = radar_pred_l.reshape(B*T, self.args.img_channel_L, H,W)
+        radar_pred_h = radar_pred_h.reshape(B*T,4, 3,H, W)
+        radar_pred_l = radar_pred_l*std_l
+        radar_pred_h = [(radar_pred_h*std_h[None, None, :, None, None]).cpu()]
+        radar_recon_flat = self.idwt((radar_pred_l.cpu(), radar_pred_h))
+        radar_gt = self.accelerator.gather(radar_gt.reshape(B*T_out,Cout, Hout, Wout)).detach().cpu().numpy()
+        radar_recon_flat = self.accelerator.gather(radar_recon_flat).detach().numpy()
+        
+        return radar_gt, radar_recon_flat
     
     
     def test_samples(self, milestone, epoch=None, do_test=False):
@@ -608,11 +1018,16 @@ class Runner(object):
             print("Validation")
         if do_test==True:
             print("Testing")
+            self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         save_vis = True
         # init test data loader
-        data_loader = self.test_loader if do_test else self.valid_loader
+        if do_test:
+            data_loaders = zip(self.test_loader, self.test_os_loader)
+        else:
+            data_loaders = zip(self.valid_loader, self.valid_os_loader)
+
         # init sampling method
-        self.model.eval()
+        self.wavelet_dual_model.eval()
         # init test dir config
 
         save_dir = osp.join(self.test_path, f"sample-{milestone}") if do_test else osp.join(self.valid_path, f"sample-{milestone}")
@@ -637,14 +1052,32 @@ class Runner(object):
             
         # start test loop
         valid_nums = 0
-        for batch in data_loader:
-            # sample
+        assert len(self.test_loader) == len(self.test_os_loader), "Mismatch in lengths of test_loader and test_os_loader (might be due to batch size)"
+        total = len(self.test_loader)
+        for (batch, os_batch) in tqdm(data_loaders, total=total):
+            
+            radar_os_batch = self._get_seq_data(os_batch)
+            radar_os_gt = radar_os_batch[:,self.args.frames_in:]
+
             radar_ori, radar_recon= self._sample_batch(batch)
+            
+            
+            # decode once
+            radar_recon_dec = self.decode_stage(self.ae, radar_recon, 1.0)
+
+            # reshape back
+            radar_recon = radar_recon_dec.view(self.args.batch_size, self.args.frames_out, 1, 128, 128)
+
+
+            radar_ori = radar_os_gt.cpu().numpy()
+            radar_recon = radar_recon.cpu().numpy()
+
             
             # evaluate result and save
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
-                
+
+
             self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
@@ -653,24 +1086,33 @@ class Runner(object):
         if self.is_main:
             
             res = eval.done()
+            prefix = "test" if do_test else "val"
+            
+            # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
+            log_data = {f"{prefix}/{k}": v for k, v in res.items()}
+            
+            # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
+            # but sometimes it's nice to have epoch as an explicit metric)
+            log_data[f"{prefix}/epoch"] = epoch 
+            
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
                 print_log(f"Valid Results: {res}")
             print_log("="*30)
 
-            res["epoch"] = epoch
-            # Log to wandb
-            self.accelerator.log(res, step=self.cur_step)
+            # Log the PREFIXED data
+            self.accelerator.log(log_data, step=self.cur_step)
+        
+            # --- END FIX ---
 
             if self.args.valid:
-                return res['csi'] 
+                return res['csi']
         else:
             return None
 
         
     def check_milestones(self, target_ckpt=None):
-
         
         if target_ckpt is not None:
             self.load(target_ckpt)

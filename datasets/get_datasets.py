@@ -104,10 +104,12 @@ def vis_res(pred_seq, gt_seq, save_path, data_type='vil',
     
 # Specify the location of the dataset. 
 DATAPATH = {
-    'cikm'     : 'path/to/cikm.h5',
+    'cikm'     : '/home/vatsal/NWM/Dataset/CIKM/cikm.h5',
+    'cikm_latent_32': '/home/vatsal/NWM/Dataset/cikm_latent_32/cikm_latent32.h5',
     'shanghai' : '/home/vatsal/NWM/Dataset/Shanghai_Radar/shanghai.h5',
     'shanghai_lr_latent_32' : '/home/vatsal/NWM/Dataset/shanghai_latent_32/shanghai_latent_data.h5',
-    'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
+    'meteo'    : '/home/vatsal/Dataserver2/Datasets/Meteonet/meteo_radar.h5',
+    'meteo_lr_latent_32'    : '/home/vatsal/NWM/Dataset/meteonet_latent_32/meteonet_latent32.h5',
     'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
     'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
     'sevir_lr_latent_32' : '/home/vatsal/NWM/Dataset/sevir_lr_latent_32_normalize_resize/',
@@ -127,6 +129,13 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         val = CIKM(DATAPATH[data_name], 'valid', img_size)
         test = CIKM(DATAPATH[data_name], 'test', img_size)
     
+    elif dataset_name == 'cikm_latent_32':
+        from .dataset_cikm_latent import CIKM, gray2color, PIXEL_SCALE, THRESHOLDS
+        
+        train = CIKM(DATAPATH[data_name], 'train', img_size)
+        val = CIKM(DATAPATH[data_name], 'valid', img_size)
+        test = CIKM(DATAPATH[data_name], 'test', img_size)
+
     # elif data_name == 'vil':
         
     #     from .dataset_VIL import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
@@ -161,7 +170,13 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)
         val = Meteo(DATAPATH[data_name], type='val', img_size=img_size)
         test = Meteo(DATAPATH[data_name], type='test', img_size=img_size)
-        
+    
+    elif data_name == 'meteo_lr_latent_32':
+        from .dataset_meteonet_lr_latent import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
+        train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)
+        val = Meteo(DATAPATH[data_name], type='val', img_size=img_size)
+        test = Meteo(DATAPATH[data_name], type='test', img_size=img_size)
+
     elif dataset_name == 'sevir':
         print("Sevir dataset")
         from .dataset_sevir import SEVIRTorchDataset, gray2color, PIXEL_SCALE, THRESHOLDS

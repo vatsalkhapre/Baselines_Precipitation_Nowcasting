@@ -459,7 +459,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'amplinet':
-            from models.alphapre_amplinet import get_model
+            from models.Full_space_models.alphapre_amplinet import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,

@@ -303,7 +303,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'alphapre':
-            from models.alphapre import get_model
+            from models.Full_space_models.alphapre import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -320,7 +320,7 @@ class Runner(object):
             model = get_model(**kwargs)
         
         elif self.args.backbone == 'amplinet':
-            from models.alphapre_amplinet import get_model
+            from models.Full_space_models.alphapre_amplinet import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -337,7 +337,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'amplinet_mseonly':
-            from models.alphapre_amplinet_MSE_only import get_model
+            from models.Full_space_models.alphapre_amplinet_MSE_only import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -354,7 +354,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'fnoamplinet_mseonly':
-            from models.alphapre_fnoamplinet_MSE_only import get_model
+            from models.Full_space_models.alphapre_fnoamplinet_MSE_only import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -373,7 +373,7 @@ class Runner(object):
 
         
         elif self.args.backbone == 'afnoamplinet_mseonly':
-            from models.alphapre_AFNOamplinet_MSE_only import get_model
+            from models.Full_space_models.alphapre_AFNOamplinet_MSE_only import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -390,7 +390,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'alphapre_amplinet_amp_loss':
-            from models.alphapre_amplinet_amp_loss import get_model
+            from models.Full_space_models.alphapre_amplinet_amp_loss import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,

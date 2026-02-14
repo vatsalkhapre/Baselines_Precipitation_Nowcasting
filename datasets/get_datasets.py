@@ -312,7 +312,6 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         )
 
     
-
     color_fn = partial(vis_res, 
                     pixel_scale = PIXEL_SCALE, 
                     thresholds = THRESHOLDS, 

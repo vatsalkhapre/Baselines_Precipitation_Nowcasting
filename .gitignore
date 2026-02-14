@@ -34,3 +34,5 @@ __pycache__/
 */__pycache__/
 */*/__pycache__/
 */*/*/__pycache__/
+datasets/dataset_sevir_lr_latent.py
+datasets/dataset_sevir.py

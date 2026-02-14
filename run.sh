@@ -5,7 +5,7 @@ python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --epochs 100 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
     --valid \
-    --num_workers 4 \
+    --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre' \
     --run_name 'Afno_Amplinet_falfcl_only_meteonet_latent_32_.21'

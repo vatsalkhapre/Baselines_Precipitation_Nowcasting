@@ -40,7 +40,7 @@ class Shanghai(Dataset):
 
         with h5py.File(self.data_path,'r') as f:
             imgs = f[self.type][str(index)][()]   # numpy array: (25, 565, 784), dtype=uint8, range(0,70)
-            frames = torch.from_numpy(imgs).float()
+            frames = imgs
         return frames # (25,1,128,128)
  
 

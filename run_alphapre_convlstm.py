@@ -44,7 +44,7 @@ def create_parser():
     parser.add_argument('--backbone',       type=str,   default='afnoamplinet_mseonly',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_afnoamplinet_mseonly",              help="additional note for experiment")
+    parser.add_argument("--exp_note",       type=str,   default="afnoamplinet_st_0.02_ht_1.0",              help="additional note for experiment")
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")
@@ -101,7 +101,7 @@ def create_parser():
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",    type=str,   default='online',        help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre",     help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Training_alpha_afnoamplinet_mse',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='Training_shanghai_afnoamplinet_mse_st_0.02_ht_1.0',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")

@@ -95,7 +95,7 @@ class AFNOTimeCell(nn.Module):
             nn.SELU(True),
             nn.Linear(int(t_out*size_factor), t_out),
         )
-        self.afno = AFNO2D(hidden_dim, num_blocks, 0.0, 1.0, 1)
+        self.afno = AFNO2D(hidden_dim, num_blocks, 0.02, 1.0, 1)
     
     def forward(self, x):
         B,T,C,H,W = x.shape

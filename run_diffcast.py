@@ -329,7 +329,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'earthformer':
-            from models.earth_former import get_model
+            from models.Other_models.earth_former import get_model
             kwargs = {
                 "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -338,14 +338,14 @@ class Runner(object):
             model = get_model(**kwargs)
         
         elif self.args.backbone == 'fno':
-            from models.fno import FNOModel
+            from models.Other_models.fno import FNOModel
             model = FNOModel(in_channels=self.args.frames_in, out_channels=self.args.frames_out)
             
         else:
             raise NotImplementedError
         
         if self.args.use_diff:
-            from models.diffcast import get_model
+            from models.Other_models.diffcast import get_model
             kwargs = {
                 'img_channels' : self.args.img_channel,
                 'dim' : 64,

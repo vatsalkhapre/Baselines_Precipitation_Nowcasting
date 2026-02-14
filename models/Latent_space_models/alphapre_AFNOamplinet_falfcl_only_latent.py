@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from einops import rearrange
 from einops.layers.torch import Rearrange
+from utils.utilspp import RandomScheduling
 
 class AFNO2D(nn.Module):
     """
@@ -30,7 +31,6 @@ class AFNO2D(nn.Module):
         self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
 
     def forward(self, x, spatial_size=None):
-        bias = x
 
         dtype = x.dtype
         x = x.float()
@@ -50,7 +50,7 @@ class AFNO2D(nn.Module):
         o2_real = torch.zeros(x.shape, device=x.device)
         o2_imag = torch.zeros(x.shape, device=x.device)
 
-        total_modes = N // 2 + 1
+        total_modes = x.shape[2]
         kept_modes = int(total_modes * self.hard_thresholding_fraction)
 
         o1_real[:, :, :kept_modes] = F.relu(
@@ -82,13 +82,13 @@ class AFNO2D(nn.Module):
         x = torch.view_as_complex(x)
         x = x.reshape(B, x.shape[1], x.shape[2], C)
         x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
-        x = x.reshape(B, N, C)
+
         x = x.type(dtype)
-        return x + bias
-    
-class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, size_factor=1.0,
-        ):
+
+        return x 
+
+class AFNOTimeCell(nn.Module):
+    def __init__(self, t_in, t_out,hidden_dim, size_factor=1, num_blocks=8):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
         self.tmlp = nn.Sequential(
@@ -96,17 +96,46 @@ class AmpCell(nn.Module):
             nn.SELU(True),
             nn.Linear(int(t_out*size_factor), t_out),
         )
-        self.amptime =  FNOAmpTimeCell(t_in, t_out)
+        self.afno = AFNO2D(hidden_dim, num_blocks, 0.01, 1.0, 1)
+    
+    def forward(self, x):
+        B,T,C,H,W = x.shape
+        x = x.permute(0,2,3,4,1)
+        bias = self.tmlp(x)
+        x=bias
+        
+        x = x.permute(0,4,2,3,1)        # (B,T,H,W,C)
+
+        x = x.reshape(B*self.t_out, H*W, C)
+        x = self.afno(x, (H, W))
+        x = x.view(B, self.t_out, H, W, C)
+        x = x.permute(0,1,4,2,3)        # (B,T,C,H,W)
+        x = x + bias.permute(0,4,1,2,3)
+        return x
+    
+class AmpCell(nn.Module):
+    def __init__(self, t_in, t_out, dim, size_factor=1.0):
+        super().__init__()
+        self.t_in, self.t_out = t_in, t_out
+        self.tmlp = nn.Sequential(
+            nn.Linear(t_in, int(t_out*size_factor)),
+            nn.SELU(True),
+            nn.Linear(int(t_out*size_factor), t_out),
+        )
+        self.amptime =  AFNOTimeCell(t_in, t_out, dim)
         self.conv = nn.Sequential(nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),
                                   nn.GroupNorm(4, dim*t_out),
                                   nn.SiLU(),
                                   nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),)
 
     def forward(self, x):
+
+        
         residual = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         x = self.amptime(x)
-        x = x + residual
 
+        x = x + residual
+        
         residual = x
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
@@ -150,7 +179,7 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self,total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
@@ -163,29 +192,25 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.criterion = nn.MSELoss()
+        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
+
         
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
-        xas = torch.sigmoid(xas)
+        # xas = torch.sigmoid(xas)
         return xas
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
         
         xas = self(frames_in, frames_gt, compute_loss)
         if compute_loss:
-            if self.itr < self.aweight_stop_steps:
-                self.amp_weight -= self.sampling_changing_rate
-            else:
-                self.amp_weight  = 0.
-
+            
             loss = 0.
             
-
             anet_loss = self.criterion(xas, frames_gt)
             loss = {'total_loss': anet_loss}
             return xas, loss
@@ -231,6 +256,8 @@ def Downsample(dim, dim_out):
     )
 
 def get_model(
+    total_steps,
+    const_ratio,
     img_channels=1,
     dim = 64,
     T_in = 5, 
@@ -244,7 +271,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(total_steps, const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

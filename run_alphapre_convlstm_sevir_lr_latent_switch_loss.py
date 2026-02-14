@@ -24,13 +24,14 @@ from diffusers import (
     get_linear_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
 )
-
-
+from tqdm import tqdm
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
-
+from models.autoencoder_kl import AutoencoderKL
+import torch.multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
@@ -41,19 +42,23 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alphapre_amp_loss',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl_mse_hybrid',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='shanghai',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default="Training_100epochs_amplinet_amplossonly",              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='sevir_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default='amplinet_latent_falfcl_mse_switch_loss',              help="additional note for experiment")
 
-    # --------------- Dataset ---------------
-    parser.add_argument("--dataset",            type=str,       default='shanghai',   help="dataset name")
+    # --------------- Loss weights ---------------
+    parser.add_argument("--mse_weight", type=float, default=1.00,            help="mse weight for hybid falfcl loss")
+    parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
+
+    # ----------------- Dataset ------------------
+    parser.add_argument("--dataset",            type=str,       default='sevir_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
     parser.add_argument("--file_rain_seq_add",  type=str,       default=0,              help="Rainy days file")
     parser.add_argument("--method",             type= int,      default= None,          help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--img_size",           type=int,       default=128,            help="image size")
+    parser.add_argument("--img_size",           type=int,       default=32,            help="image size")
     parser.add_argument("--stride",             type=int,       default=13,             help="dataset stride")
-    parser.add_argument("--img_channel",        type=int,       default=1,              help="channel of image")
+    parser.add_argument("--img_channel",        type=int,       default=4,              help="channel of image")
     parser.add_argument("--patch",              type=int,       default=2,              help="patch size")
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
@@ -93,7 +98,7 @@ def create_parser():
     parser.add_argument("--eval",           action="store_true",                 help="evaluation mode")
     parser.add_argument("--valid",          action="store_true",                 help="valid mode")
     parser.add_argument("--valid_limit",    action="store_true",                 help="valid limit mode")
-    parser.add_argument("--vlnum",          type=int,   default=30,              help="valid limit nums")
+    parser.add_argument("--vlnum",          type=int,   default=10,              help="valid limit nums")
     parser.add_argument("--visual",         action="store_true",                 help="save all test sample visualization")
     parser.add_argument("--gpu_use",        type=str,   nargs='+', default=["0",],  help="gpu(s) to use")
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
@@ -101,12 +106,14 @@ def create_parser():
     # --------------- Wandb ---------------
     parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Training_alpha_amplinet_amploss_only',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='amplinet_latent32_falfclloss_switch_loss',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
+    #------------------------- AE --------------------------------
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
 
@@ -115,6 +122,7 @@ class Runner(object):
     def __init__(self, args):
         
         self.args = args
+        self.ae_ckpt = args.ae_ckpt_path
         self._preparation()
         self.max_csi, self.best_step = 0.0, 0
         # Config DDP kwargs from accelerate
@@ -151,13 +159,13 @@ class Runner(object):
     
         print_log(self.accelerator.state, self.is_main)
         
+        #Loading and preparing data.
         self._load_data()
-        self.train_loader, self.valid_loader, self.test_loader = self.accelerator.prepare(
-            self.train_loader, self.valid_loader, self.test_loader
-        )
+        self.train_loader, self.valid_loader, self.test_loader, self.valid_os_loader, self.test_os_loader = self.accelerator.prepare(
+        self.train_loader, self.valid_loader, self.test_loader, self.valid_os_loader, self.test_os_loader)
         self._build_model()
         self._build_optimizer()
-        
+
         # distributed ema for parallel sampling
 
         self.model, self.optimizer,  self.scheduler = self.accelerator.prepare(
@@ -173,7 +181,8 @@ class Runner(object):
             # print_log(show_img_info(sample), self.is_main)
             
         print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
-        print_log(f"Input shape : {self.args.img_size}x{self.args.img_size}")
+        
+        print_log(f"Input shape: {self.args.img_size}x{self.args.img_size}")
 
 
         if self.args.ckpt_milestone is not None:
@@ -224,16 +233,108 @@ class Runner(object):
                 # logging.StreamHandler()
             ]
         )
+    
+    def load_autoencoder(
+        self,
+        model,
+        checkpoint_path,
+        device="cuda",
+        dtype=torch.float32
+    ):
+        """
+        model: instantiated autoencoder model (same architecture as training)
+        checkpoint_path: path to .pt / .pth checkpoint
+        """
+
+        # ---- load checkpoint to CPU first (safe) ----
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
         
+        assert "model" in ckpt, "Checkpoint does not contain 'model' key"
+
+        ckpt_model = ckpt["model"]
+        
+        # ---- find matching submodel key ----
+        model_keys = list(model.state_dict().keys())
+        
+        ckpt_keys = list(ckpt_model.keys())
+        
+        # If checkpoint saved multiple submodels, pick autoencoder
+        if isinstance(ckpt_model, dict) and all(isinstance(v, dict) for v in ckpt_model.values()):
+            # typical structure: ckpt['model']['autoencoder_kl']
+            if len(ckpt_model) == 1:
+                ckpt_state = list(ckpt_model.values())[0]
+            else:
+                # explicitly choose autoencoder
+                
+                ckpt_state = ckpt_model.get("autoencoder_kl", None)
+                if ckpt_state is None:
+                    raise KeyError("autoencoder_kl not found in checkpoint")
+                
+                    
+        else:
+            ckpt_state = ckpt_model
+
+        # ---- strip 'module.' if present ----
+        new_state_dict = OrderedDict()
+        for k, v in ckpt_state.items():
+            if k.startswith("module."):
+                k = k[7:]
+            elif k.startswith("net."):
+                k = k[4:]
+            new_state_dict[k] = v
+
+        
+        # ---- load weights ----
+        model.load_state_dict(new_state_dict, strict=True)
+
+        # ---- move to device and eval ----
+        model.to(device=device, dtype=dtype)
+        model.eval()
+
+        # ---- freeze params (important for compression) ----
+        for p in model.parameters():
+            p.requires_grad = False
+
+        print("✅ Autoencoder loaded successfully")
+        return model
+
+    @torch.no_grad()
+    def encode_stage(self, model, x, scale_factor):
+        z = model.encode(x)
+        return z.sample() * scale_factor
+
+
+    @torch.no_grad()
+    def decode_stage(self,model, z, scale_factor):
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z)
+        z = z.to(next(model.parameters()).device)
+        z = z / scale_factor
+        return model.decode(z)
+
     def _load_data(self):
         # =================================
         # Get Train/Valid/Test dataloader among datasets 
         # =================================
 
-        train_data, valid_data, test_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+        train_data, valid_data , test_data , color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
             data_name=self.args.dataset,
             # data_path=self.args.data_path,
             img_size=self.args.img_size,
+            seq_len=self.args.seq_len,
+            batch_size=self.args.batch_size,
+            stride=self.args.stride,
+            file_rain_seq_add=self.args.file_rain_seq_add,
+            method = self.args.method,
+            in_channels = self.args.frames_in,
+            out_channels = self.args.frames_out,
+            preprocess_type = self.args.preprocessing
+        )
+        
+        _, valid_os_data, test_os_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+            data_name="sevir",
+            # data_path=self.args.data_path,
+            img_size=128,
             seq_len=self.args.seq_len,
             batch_size=self.args.batch_size,
             stride=self.args.stride,
@@ -255,19 +356,39 @@ class Runner(object):
             self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
-        if self.args.dataset == 'sevir':
+        if self.args.dataset == 'sevir_lr_latent_32' or self.args.dataset == 'sevir_lr_latent':
             self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            
-            
+            self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+        
+        if self.args.dataset == 'shanghai_lr_latent_32':
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+            self.valid_os_loader = torch.utils.data.DataLoader(
+                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_os_loader = torch.utils.data.DataLoader(
+                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+      
+
         print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
                   self.is_main)
         
         for sample in self.train_loader:
             print(sample.shape)
             break
-
+        
+        
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
         
@@ -275,7 +396,10 @@ class Runner(object):
         # =================================
         # import and create different models given model config
         # =================================
+    
         print_log("Build Model!", self.is_main)
+        self.ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
+  
         if self.args.backbone == 'simvp':
             from models.simvp import get_model
             kwargs = {
@@ -286,7 +410,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'alphapre':
-            from models.alphapre_latent_loss import get_model
+            from models.Latent_space_models.alphapre_latent import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -302,8 +426,8 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
-        elif self.args.backbone == 'alphapre_amp_loss':
-            from models.alphapre_amplinet_amp_loss import get_model
+        elif self.args.backbone == 'alphapre_latent':
+            from models.Latent_space_models.alphapre_latent import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -319,8 +443,8 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        elif self.args.backbone == 'alphapre_AFNOAmplinet_mse_loss':
-            from models.alphapre_amplinet_amp_loss import get_model
+        elif self.args.backbone == 'alphapre_latent_amplinet_mseonly':
+            from models.Latent_space_models.alphapre_amplinet_MSE_only_latent import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -335,6 +459,48 @@ class Runner(object):
                 'aweight_stop_steps': self.args.aw_stop_step,
             }
             model = get_model(**kwargs)
+
+        elif self.args.backbone == 'amplinet':
+            from models.alphapre_amplinet import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+        
+        elif self.args.backbone == 'amplinet_latent_falfcl_mse_hybrid':
+            from models.Latent_space_models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
+            total_steps = self.args.epochs*len(self.train_loader)
+            kwargs = {
+                "lambda_mse": self.args.mse_weight, 
+                "lambda_fal_fcl": self.args.falfcl_weight,
+                "total_steps": total_steps,
+                "const_ratio": 0.1, 
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+            print_log(f"model parameters : {kwargs}", self.is_main)
 
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
@@ -469,8 +635,10 @@ class Runner(object):
     def train(self):
         # set global step as traing process
         # torch.autograd.set_detect_anomaly(True)
-       
+        self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         start_epoch = self.cur_epoch
+        weight1 = np.linspace(0.0, 1.0, 7)
+        weight2 = 1.0 - weight1
         for epoch in range(start_epoch, self.global_epochs):
 
             print(f"Training : {epoch+1}")
@@ -478,19 +646,39 @@ class Runner(object):
             self.cur_epoch = epoch
             self.model.train()
             
-            for i, batch in enumerate(self.train_loader):
+            
+            for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
                 with self.accelerator.autocast(self.model):
-
+               
                     loss_dict = self._train_batch(batch)
-                    self.accelerator.backward(loss_dict['total_loss'])
-                    
+            
+                    if (epoch+1)>16:
+                        loss = loss_dict['falfcl_loss']
+                        self.accelerator.backward(loss)
+                    elif (epoch+1)>9 and (epoch+1)<=16:
+                        loss = (weight1[(epoch+1)-10]*loss_dict['falfcl_loss'])+(weight2[(epoch+1)-10]*loss_dict['mse_loss'])
+                        self.accelerator.backward(loss)
+                    else:
+                        loss = loss_dict['mse_loss']
+                        self.accelerator.backward(loss)
+
+                    if torch.isnan(loss):
+                        print("Loss is NaN")
+                        exit()
+
+                    if torch.isinf(loss):
+                        print("Loss is Inf")
+                        exit()
+
                     if self.cur_step == 0:
                         # training process check
                         for name, param in self.model.named_parameters():
                             if param.grad is None:
                                 print_log(name, self.is_main)   
-    
+
+                loss_dict['total_loss'] = loss
+
                 self.accelerator.wait_for_everyone()
                 if self.accelerator.sync_gradients:
                     self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -506,7 +694,10 @@ class Runner(object):
                 log_dict = dict()
                 log_dict['lr'] = lr
                 for k,v in loss_dict.items():
-                    log_dict[k] = v.item()
+                    if type(v) == float:
+                        log_dict[k] = v
+                    else:
+                        log_dict[k] = v.item()
                 self.accelerator.log(log_dict, step=self.cur_step)
              
                 state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
@@ -567,8 +758,12 @@ class Runner(object):
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     
     def _train_batch(self, batch):
-        radar_batch = self._get_seq_data(batch)
+        radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
+        std_val = frames_in.std()
+        frames_in = frames_in/std_val
+        frames_out = frames_out/std_val
+        
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):
@@ -578,6 +773,21 @@ class Runner(object):
         if loss is None:
             raise ValueError("Loss is None, please check the model predict function")
         
+        # falfcl_loss = loss['falfcl_loss']
+        # mse_loss = loss['mse_loss']
+
+        # falfcl_grads = torch.autograd.grad(falfcl_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+        # falfcl_norm = torch.norm(
+        #     torch.stack([torch.norm(g, 2) for g in falfcl_grads if g is not None]), 2
+        # ).item()
+        # mse_grads = torch.autograd.grad(mse_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+        # mse_norm = torch.norm(
+        #     torch.stack([torch.norm(g, 2) for g in mse_grads if g is not None]), 2
+        # ).item()
+        # inflence_ratio = falfcl_norm/mse_norm
+
+        # loss['inflence_ratio'] = inflence_ratio
+
         if isinstance(loss, dict):
             if 'total_loss' in loss:
                 return loss
@@ -586,7 +796,7 @@ class Runner(object):
         else:
             return {'total_loss': loss}
         
-    
+
     @torch.no_grad()
     def _sample_batch(self, batch, use_ema=False, vis_diff=False):
         # sample_fn = self.ema.ema_model.predict if use_ema else self.model.predict
@@ -595,8 +805,10 @@ class Runner(object):
         frame_in = self.args.frames_in
         radar_batch = self._get_seq_data(batch)
         radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
+        std_value = radar_input.std()
+        radar_input = radar_input/std_value
         radar_pred, *_ = sample_fn(radar_input,compute_loss=False)
-        
+        radar_pred = radar_pred*std_value
         radar_gt = self.accelerator.gather(radar_gt).detach().cpu().numpy()
         radar_pred = self.accelerator.gather(radar_pred).detach().cpu().numpy()
 
@@ -608,9 +820,14 @@ class Runner(object):
             print("Validation")
         if do_test==True:
             print("Testing")
+            self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
         save_vis = True
         # init test data loader
-        data_loader = self.test_loader if do_test else self.valid_loader
+        if do_test:
+            data_loaders = zip(self.test_loader, self.test_os_loader)
+        else:
+            data_loaders = zip(self.valid_loader, self.valid_os_loader)
+
         # init sampling method
         self.model.eval()
         # init test dir config
@@ -637,14 +854,35 @@ class Runner(object):
             
         # start test loop
         valid_nums = 0
-        for batch in data_loader:
-            # sample
-            radar_ori, radar_recon= self._sample_batch(batch)
+        assert len(self.test_loader) == len(self.test_os_loader), "Mismatch in lengths of test_loader and test_os_loader (might be due to batch size)"
+        total = len(self.test_loader)
+        for (batch, os_batch) in tqdm(data_loaders, total=total):
+            
+            radar_os_batch = self._get_seq_data(os_batch)
+            radar_os_gt = radar_os_batch[:,self.args.frames_in:]
+
+            _, radar_recon = self._sample_batch(batch)
+            B, T, C, H, W = radar_recon.shape
+
+            # flatten time
+            radar_recon_flat = radar_recon.reshape(B*T, C, H, W)
+
+            # decode once
+            radar_recon_dec = self.decode_stage(self.ae, radar_recon_flat, 1.0)
+
+            # reshape back
+            radar_recon = radar_recon_dec.view(B, T, 1, 128, 128)
+
+
+            radar_ori = radar_os_gt.cpu().numpy()
+            radar_recon = radar_recon.cpu().numpy()
+
             
             # evaluate result and save
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
-                
+
+
             self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
@@ -653,24 +891,33 @@ class Runner(object):
         if self.is_main:
             
             res = eval.done()
+            prefix = "test" if do_test else "val"
+            
+            # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
+            log_data = {f"{prefix}/{k}": v for k, v in res.items()}
+            
+            # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
+            # but sometimes it's nice to have epoch as an explicit metric)
+            log_data[f"{prefix}/epoch"] = epoch 
+            
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
                 print_log(f"Valid Results: {res}")
             print_log("="*30)
 
-            res["epoch"] = epoch
-            # Log to wandb
-            self.accelerator.log(res, step=self.cur_step)
+            # Log the PREFIXED data
+            self.accelerator.log(log_data, step=self.cur_step)
+        
+            # --- END FIX ---
 
             if self.args.valid:
-                return res['csi'] 
+                return res['csi']
         else:
             return None
 
         
     def check_milestones(self, target_ckpt=None):
-
         
         if target_ckpt is not None:
             self.load(target_ckpt)

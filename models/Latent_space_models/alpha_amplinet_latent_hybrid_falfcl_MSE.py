@@ -145,8 +145,10 @@ class AlphaPre_Amplinet(nn.Module):
         return xas
 
     def hybrid_loss(self, pred, gt, lambda_mse, lambda_fal_fcl):
-        loss = lambda_mse*self.mse_loss(pred, gt)+ lambda_fal_fcl*self.fal_fcl_loss(pred, gt)
-        return loss
+        mse_l = self.mse_loss(pred, gt)
+        falfcl_l = self.fal_fcl_loss(pred, gt)
+        loss = lambda_mse*mse_l+ lambda_fal_fcl*falfcl_l
+        return loss, mse_l, falfcl_l
         
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
         
@@ -165,8 +167,8 @@ class AlphaPre_Amplinet(nn.Module):
             # xas_abs = torch.abs(xas_fft)
             # amp_loss = self.criterion(xas_abs, frames_abs)
             # loss += self.amp_weight*amp_loss
-            hybrid_loss = self.hybrid_loss(xas, frames_gt, self.lambda_mse, self.lambda_fal_fcl)
-            loss = {'total_loss': hybrid_loss}
+            hybrid_loss, mse_loss, falfcl_loss = self.hybrid_loss(xas, frames_gt, self.lambda_mse, self.lambda_fal_fcl)
+            loss = {'total_loss': hybrid_loss, 'mse_loss': mse_loss, 'falfcl_loss': falfcl_loss}
             return xas, loss
         else:
             return xas, None

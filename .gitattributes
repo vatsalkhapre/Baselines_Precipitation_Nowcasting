@@ -1,0 +1,2 @@
+datasets/dataset_sevir.py merge=ours
+datasets/dataset_sevir_lr_latent.py merge=ours

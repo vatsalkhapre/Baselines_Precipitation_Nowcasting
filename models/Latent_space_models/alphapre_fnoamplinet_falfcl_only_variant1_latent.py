@@ -1,119 +1,98 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import math
+
 from einops import rearrange
 from einops.layers.torch import Rearrange
+from utils.utilspp import RandomScheduling
 
-class AFNO2D(nn.Module):
-    """
-    hidden_size: channel dimension size
-    num_blocks: how many blocks to use in the block diagonal weight matrices (higher => less complexity but less parameters)
-    sparsity_threshold: lambda for softshrink
-    hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
-    """
-    def __init__(self, hidden_size, num_blocks=8, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
+class FNOAmpTimeCell(nn.Module):
+    def __init__(self, t_in, t_out, modes1=16, modes2=16, width=None):
         super().__init__()
-        assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
-
-        self.hidden_size = hidden_size
-        self.sparsity_threshold = sparsity_threshold
-        self.num_blocks = num_blocks
-        self.block_size = self.hidden_size // self.num_blocks
-        self.hard_thresholding_fraction = hard_thresholding_fraction
-        self.hidden_size_factor = hidden_size_factor
-        self.scale = 0.02
-
-        self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
-        self.b1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor))
-        self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
-        self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
-
-    def forward(self, x, spatial_size=None):
-
-        dtype = x.dtype
-        x = x.float()
-        B, N, C = x.shape
-
-        if spatial_size == None:
-            H = W = int(math.sqrt(N))
-        else:
-            H, W = spatial_size
-
-        x = x.reshape(B, H, W, C)
-        x = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
-        x = x.reshape(B, x.shape[1], x.shape[2], self.num_blocks, self.block_size)
-
-        o1_real = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
-        o1_imag = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
-        o2_real = torch.zeros(x.shape, device=x.device)
-        o2_imag = torch.zeros(x.shape, device=x.device)
-
-        total_modes = x.shape[2]
-        kept_modes = int(total_modes * self.hard_thresholding_fraction)
-
-        o1_real[:, :, :kept_modes] = F.relu(
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) - \
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) + \
-            self.b1[0]
-        )
-
-        o1_imag[:, :, :kept_modes] = F.relu(
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) + \
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) + \
-            self.b1[1]
-        )
-
-        o2_real[:, :, :kept_modes] = (
-            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) - \
-            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) + \
-            self.b2[0]
-        )
-
-        o2_imag[:, :, :kept_modes] = (
-            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) + \
-            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) + \
-            self.b2[1]
-        )
-
-        x = torch.stack([o2_real, o2_imag], dim=-1)
-        x = F.softshrink(x, lambd=self.sparsity_threshold)
-        x = torch.view_as_complex(x)
-        x = x.reshape(B, x.shape[1], x.shape[2], C)
-        x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
-
-        x = x.type(dtype)
-
-        return x 
-
-class AFNOTimeCell(nn.Module):
-    def __init__(self, t_in, t_out,hidden_dim, size_factor=1, num_blocks=8):
-        super().__init__()
-        self.t_in, self.t_out = t_in, t_out
-        self.tmlp = nn.Sequential(
-            nn.Linear(t_in, int(t_out*size_factor)),
-            nn.SELU(True),
-            nn.Linear(int(t_out*size_factor), t_out),
-        )
-        self.afno = AFNO2D(hidden_dim, num_blocks, 0.0, 1.0, 1)
-    
-    def forward(self, x):
-        B,T,C,H,W = x.shape
-        x = x.permute(0,2,3,4,1)
-        bias = self.tmlp(x)
-        x=bias
+        self.t_in = t_in
+        self.t_out = t_out
+        self.modes1 = modes1 # Modes to keep in height
+        self.modes2 = modes2 # Modes to keep in width
         
-        x = x.permute(0,4,2,3,1)        # (B,T,H,W,C)
+        # If width is not provided, we stick to the original logic
+        # But usually FNO projects channels up. Here "Channels" are Time steps.
+        
+        self.scale = 1 / (t_in * t_out)
+        
+        # Weights: [t_in, t_out, modes1, modes2]
+        # Complex weights to mix Time per Frequency Mode
+        self.weights1 = nn.Parameter(self.scale * torch.randn(t_in, t_out, self.modes1, self.modes2, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(self.scale * torch.randn(t_in, t_out, self.modes1, self.modes2, dtype=torch.cfloat))
+        
+        # Residual path (same as original tmlp)
+        self.tmlp = nn.Sequential(
+            nn.Linear(t_in, int(t_out)),
+            nn.SELU(True),
+            nn.Linear(int(t_out), t_out),
+        )
 
-        x = x.reshape(B*self.t_out, H*W, C)
-        x = self.afno(x, (H, W))
-        x = x.view(B, self.t_out, H, W, C)
-        x = x.permute(0,1,4,2,3)        # (B,T,C,H,W)
-        x = x + bias.permute(0,4,1,2,3)
-        return x
+    # Complex multiplication: 
+    # (Batch, Channel, ModesH, ModesW, Tin) * (Tin, Tout, ModesH, ModesW) -> (Batch, Channel, ModesH, ModesW, Tout)
+    def compl_mul2d(self, input, weights):
+        # input: (B, C, H, W, Tin) -> permute to (B, C, Tin, H, W) for easier handling?
+        # Let's keep your dimension ordering: (B, C, H, W, T)
+        
+        # We need to contract T_in and keep B, C, H, W, T_out
+        # Einstein Summation:
+        # b c h w i : Batch, Channel, Height(mode), Width(mode), Time_In
+        # i o h w   : Time_In, Time_Out, Height(mode), Width(mode)
+        # -> b c h w o
+        
+        return torch.einsum("bchwi, iohw -> bchwo", input, weights)
+
+    def forward(self, x):
+        # x shape: [B, T_in, C, H, W]
+        B, T_in, C, H, W = x.shape
+        
+        # 1. Residual (Bias) Path - same as original
+        # Permute to [B, C, H, W, T]
+        x_res = x.permute(0, 2, 3, 4, 1) 
+        bias = self.tmlp(x_res)
+
+        # 2. Spectral Path
+        # FFT
+        x_ft = torch.fft.rfft2(x_res, dim=(2, 3), norm="ortho")
+        
+        # Initialize output in frequency domain (zeros)
+        # x_ft shape: [B, C, H, W//2 + 1, T]
+        out_ft = torch.zeros(B, C, H, W // 2 + 1, self.t_out, device=x.device, dtype=torch.cfloat)
+        
+        # 3. FNO Operations (Apply weights only to lower corners/modes)
+        # Corner 1: Top-Left
+        out_ft[:, :, :self.modes1, :self.modes2, :] = \
+            self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2, :], self.weights1)
+    
+
+        # Corner 2: Bottom-Left (handling periodicity in frequency)
+        out_ft[:, :, -self.modes1:, :self.modes2, :] = \
+            self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2, :], self.weights2)
+
+        out_ft_real = F.relu(out_ft.real)
+        out_ft_imaginary = F.relu(out_ft.imag)
+        out_ft = torch.view_as_complex(torch.stack([out_ft_real, out_ft_imaginary], dim=-1))
+
+        # 4. Inverse FFT
+        x = torch.fft.irfft2(out_ft, s=(H, W), dim=(2, 3), norm="ortho")
+        
+        # 5. Combine + Activation
+        # Note: Original AmpTimeCell used SplitReLU inside spectral domain. 
+        # FNO usually applies activation in Spatial Domain.
+        # We will follow standard FNO practice here: IFFT -> Add Bias -> Gelu/Relu
+        
+        x = x + bias
+        # x = F.silu(x) # Using SiLU (Swish) as is common in modern FNOs
+        
+        # Permute back to [B, T_out, C, H, W]
+        return x.permute(0, 4, 1, 2, 3)
     
 class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, size_factor=1.0):
+    def __init__(self, t_in, t_out, dim, size_factor=1.0,
+        ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
         self.tmlp = nn.Sequential(
@@ -121,20 +100,17 @@ class AmpCell(nn.Module):
             nn.SELU(True),
             nn.Linear(int(t_out*size_factor), t_out),
         )
-        self.amptime =  AFNOTimeCell(t_in, t_out, dim)
+        self.amptime =  FNOAmpTimeCell(t_in, t_out)
         self.conv = nn.Sequential(nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),
                                   nn.GroupNorm(4, dim*t_out),
                                   nn.SiLU(),
                                   nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3,padding=1),)
 
     def forward(self, x):
-
-        
         residual = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         x = self.amptime(x)
-
         x = x + residual
-        
+
         residual = x
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
@@ -178,7 +154,7 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
@@ -191,17 +167,15 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.criterion = nn.MSELoss()
+        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
-
-        h, w = input_shape
         
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
-        xas = torch.sigmoid(xas)
+        # xas = torch.sigmoid(xas)
         return xas
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
@@ -209,8 +183,10 @@ class AlphaPre_Amplinet(nn.Module):
         xas = self(frames_in, frames_gt, compute_loss)
         if compute_loss:
             
+            
             loss = 0.
             
+
             anet_loss = self.criterion(xas, frames_gt)
             loss = {'total_loss': anet_loss}
             return xas, loss
@@ -256,6 +232,8 @@ def Downsample(dim, dim_out):
     )
 
 def get_model(
+    total_steps,
+    const_ratio,
     img_channels=1,
     dim = 64,
     T_in = 5, 
@@ -269,7 +247,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(total_steps, const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

@@ -41,10 +41,10 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='amplinet_latent_falfcl_mse_hybrid',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='alpha_afnoamplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='Speed testing',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='Speed testing',              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='meteo_lr_latent_32',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default='Testing_Integrity_with_afno_amplinet_0.01_1.0',              help="additional note for experiment")
 
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
@@ -104,16 +104,16 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
+    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
-    parser.add_argument("--run_name",       type=str,   default='Amplinet_falfcl_only_meteonet_latent_32',        help="wandb run name")
+    parser.add_argument("--run_name",       type=str,   default='Afno_Amplinet_falfcl_only_meteonet_latent_32_.21',        help="wandb run name")
 
     #------------------------- Plots -----------------------------
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
     #------------------------- AE --------------------------------
-    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEO.pth", help="ae ckpt path")
+    parser.add_argument("--ae_ckpt_path", type=str, default="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth", help="ae ckpt path")
     args = parser.parse_args()
     return args
 

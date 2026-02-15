@@ -9,4 +9,4 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre' \
-    --run_name 'Amplinet_falfcl_only_meteonet_latent_32_.88_deteministic'
+    --run_name 'Amplinet_falfcl_only_meteonet_latent_32_.70_deteministic'

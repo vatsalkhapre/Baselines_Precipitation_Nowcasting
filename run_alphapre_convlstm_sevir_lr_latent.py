@@ -40,8 +40,6 @@ os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 
 
-# Model Registry: Maps backbone names to module paths
-# kwargs_type: "basic" (no total_steps), "standard" (with total_steps), "hybrid" (with mse weights)
 MODEL_REGISTRY = {
     # -------------------------------------------------------------------------
     # Existing Latent Space Models
@@ -82,61 +80,46 @@ MODEL_REGISTRY = {
         "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
         "kwargs_type": "standard",
     },
-    
-    # -------------------------------------------------------------------------
-    # Model Parts Importance / Ablation Models
-    # Backbone name format: amplinet_latent_falfcl_only_X.Y.Z
-    # File format: alpha_amplinet_latent_FAL_FCL_X_Y_Z.py
-    # -------------------------------------------------------------------------
-    "amplinet_latent_falfcl_only_1": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_1",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.1": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_1",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.2": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_2",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3.1": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_1",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3.2.1": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_1",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3.2.2": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_2",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3.2.3": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_3",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_2.3.3": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_3",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_3.1": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_1",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_3.2": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_2",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_only_3.3": {
-        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_3",
-        "kwargs_type": "standard",
-    },
 }
+
+# Ablation model prefixes that need dot→underscore conversion
+ABLATION_PREFIXES = [
+    "amplinet_latent_falfcl_only_",
+]
+
+
+def get_model_config(backbone: str) -> dict:
+    """
+    Get model config from registry, with automatic handling of ablation models.
+    
+    For ablation models like 'amplinet_latent_falfcl_only_2.3.3':
+    - Converts dots to underscores for module path
+    - Maps to: models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_3
+    """
+    # Check if it's in the static registry
+    if backbone in MODEL_REGISTRY:
+        return MODEL_REGISTRY[backbone]
+    
+    # Check if it's an ablation model with dots
+    for prefix in ABLATION_PREFIXES:
+        if backbone.startswith(prefix):
+            # Extract version part (e.g., "2.3.3" from "amplinet_latent_falfcl_only_2.3.3")
+            version = backbone[len(prefix):]
+            
+            # Convert dots to underscores for the module name
+            version_underscore = version.replace(".", "_")
+            
+            # Build module path
+            module_path = f"models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+            
+            return {
+                "module": module_path,
+                "kwargs_type": "standard",
+            }
+    
+    # Not found
+    return None
+
 
 def create_parser():
     # --------------- Basic ---------------
@@ -503,11 +486,12 @@ class Runner(object):
     def _build_model(self):
         """
         Build model using registry-based dynamic loading.
-        Supports all existing models plus Model_parts_importance ablation variants.
+        Supports dots in backbone names (e.g., amplinet_latent_falfcl_only_2.3.3)
+        which map to underscore files (e.g., alpha_amplinet_latent_FAL_FCL_2_3_3.py)
         """
         print_log("Build Model!", self.is_main)
         
-        # Build autoencoder (same as before)
+        # Build autoencoder
         self.ae_model = AutoencoderKL(
             in_channels=1,
             out_channels=1,
@@ -521,26 +505,37 @@ class Runner(object):
         
         backbone = self.args.backbone
         
-        # Validate backbone exists in registry
-        if backbone not in MODEL_REGISTRY:
-            available = '\n  - '.join(sorted(MODEL_REGISTRY.keys()))
+        # Get config (handles dot→underscore conversion for ablation models)
+        config = get_model_config(backbone)
+        
+        if config is None:
+            # List available options
+            static_models = list(MODEL_REGISTRY.keys())
+            ablation_examples = [
+                "amplinet_latent_falfcl_only_1",
+                "amplinet_latent_falfcl_only_2.1",
+                "amplinet_latent_falfcl_only_2.3.1",
+                "amplinet_latent_falfcl_only_2.3.2.1",
+                "amplinet_latent_falfcl_only_3.1",
+                "etc..."
+            ]
+            available = '\n  - '.join(static_models + ablation_examples)
             raise NotImplementedError(
                 f"Backbone '{backbone}' not found.\nAvailable backbones:\n  - {available}"
             )
         
-        # Get config from registry
-        config = MODEL_REGISTRY[backbone]
         module_path = config["module"]
         kwargs_type = config["kwargs_type"]
         
-        # Dynamically import model's get_model function
+        # Dynamic import
+        print_log(f"Loading module: {module_path}", self.is_main)
         module = importlib.import_module(module_path)
         get_model = module.get_model
         
         # Calculate total_steps
         total_steps = self.args.epochs * len(self.train_loader)
         
-        # Build kwargs based on type
+        # Build kwargs
         if kwargs_type == "basic":
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
@@ -589,13 +584,10 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
-        else:
-            raise ValueError(f"Unknown kwargs_type: {kwargs_type}")
         
         # Create model
         model = get_model(**kwargs)
         
-        # Print logs
         print_log(f"model parameters : {kwargs}", self.is_main)
         
         self.model = model
@@ -606,6 +598,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
+
 
     def _build_optimizer(self):
         # =================================

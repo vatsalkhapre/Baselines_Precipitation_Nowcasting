@@ -31,7 +31,7 @@ from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
 from models.autoencoder_kl import AutoencoderKL
 # ========================================================
-torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.deterministic = True
 # ========================================================
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"

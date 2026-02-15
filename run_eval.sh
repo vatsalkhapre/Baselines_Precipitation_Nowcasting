@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/shanghai/fnoamplinet_mseonly_shanghai_Training_100epochs_fnoamplinet_mseonly/checkpoints/ckpt-best.pt --eval

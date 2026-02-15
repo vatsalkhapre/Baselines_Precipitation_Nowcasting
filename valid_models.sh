@@ -1,1 +1,0 @@
-python3 run_diffcast.py --use_diff --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/vil_mosdac/Diffphydnet_vil_mosdac_Training/checkpoints/ckpt-69588.pt --eval 

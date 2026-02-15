@@ -1,4 +1,5 @@
 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    --backbone alpha_afnoamplinet_latent_falfcl \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32 \
     --exp_note "Testing_Integrity_with_afno_amplinet_0.01_1.0" \

@@ -157,8 +157,8 @@ class AlphaPre_Amplinet(nn.Module):
             # xas_abs = torch.abs(xas_fft)
             # amp_loss = self.criterion(xas_abs, frames_abs)
             # loss += self.amp_weight*amp_loss
-            anet_loss = self.criterion(xas, frames_gt)
-            loss = {'total_loss': anet_loss}
+            falfcl_loss = self.criterion(xas, frames_gt)
+            loss = {'total_loss': falfcl_loss}
             return xas, loss
         else:
             return xas, None

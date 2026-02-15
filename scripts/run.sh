@@ -1,11 +1,12 @@
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    --backbone amplinet_latent_falfcl_mse_hybrid \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32 \
-    --exp_note "Testing_Integrity_with_afno_amplinet_0.01_1.0_deterministic" \
+    --exp_note "Testing_Integrity_with_amplinet_falfcl_only_deterministic" \
     --epochs 25 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
     --valid \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre' \
-    --run_name 'Afno_Amplinet_falfcl_only_meteonet_latent_32_.88_deteministic'
+    --run_name 'Amplinet_falfcl_only_meteonet_latent_32_.88_deteministic'

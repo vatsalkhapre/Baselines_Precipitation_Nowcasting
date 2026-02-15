@@ -30,14 +30,113 @@ from datasets.get_datasets import get_dataset
 from utils.tools import print_log, cycle, show_img_info
 from copy import deepcopy
 from models.autoencoder_kl import AutoencoderKL
+import importlib
 # ========================================================
-# torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.deterministic = True
 # ========================================================
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 
+
+# Model Registry: Maps backbone names to module paths
+# kwargs_type: "basic" (no total_steps), "standard" (with total_steps), "hybrid" (with mse weights)
+MODEL_REGISTRY = {
+    # -------------------------------------------------------------------------
+    # Existing Latent Space Models
+    # -------------------------------------------------------------------------
+    "alphapre": {
+        "module": "models.Latent_space_models.alphapre_latent",
+        "kwargs_type": "basic",
+    },
+    "alphapre_latent": {
+        "module": "models.Latent_space_models.alphapre_latent",
+        "kwargs_type": "basic",
+    },
+    "alphapre_latent_amplinet_mseonly": {
+        "module": "models.Latent_space_models.alphapre_amplinet_MSE_only_latent",
+        "kwargs_type": "basic",
+    },
+    "amplinet": {
+        "module": "models.Full_space_models.alphapre_amplinet",
+        "kwargs_type": "basic",
+    },
+    "amplinet_latent_falfcl": {
+        "module": "models.Latent_space_models.alpha_amplinet_latent_FAL_FCL",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_mse_hybrid": {
+        "module": "models.Latent_space_models.alpha_amplinet_latent_hybrid_falfcl_MSE",
+        "kwargs_type": "hybrid",
+    },
+    "alpha_fnoamplinet_latent_falfcl_var1": {
+        "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_variant1_latent",
+        "kwargs_type": "standard",
+    },
+    "alpha_fnoamplinet_latent_falfcl": {
+        "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_latent",
+        "kwargs_type": "standard",
+    },
+    "alpha_afnoamplinet_latent_falfcl": {
+        "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
+        "kwargs_type": "standard",
+    },
+    
+    # -------------------------------------------------------------------------
+    # Model Parts Importance / Ablation Models
+    # Backbone name format: amplinet_latent_falfcl_only_X.Y.Z
+    # File format: alpha_amplinet_latent_FAL_FCL_X_Y_Z.py
+    # -------------------------------------------------------------------------
+    "amplinet_latent_falfcl_only_1": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_1",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.1": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_1",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.2": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_2",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3.1": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_1",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3.2.1": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_1",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3.2.2": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_2",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3.2.3": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_2_3",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_2.3.3": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_3",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_3.1": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_1",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_3.2": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_2",
+        "kwargs_type": "standard",
+    },
+    "amplinet_latent_falfcl_only_3.3": {
+        "module": "models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_3_3",
+        "kwargs_type": "standard",
+    },
+}
 
 def create_parser():
     # --------------- Basic ---------------
@@ -399,200 +498,114 @@ class Runner(object):
         
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}",
                   self.is_main)
-        
-    def _build_model(self):
-        # =================================
-        # import and create different models given model config
-        # =================================
     
+    
+    def _build_model(self):
+        """
+        Build model using registry-based dynamic loading.
+        Supports all existing models plus Model_parts_importance ablation variants.
+        """
         print_log("Build Model!", self.is_main)
-        self.ae_model = AutoencoderKL(in_channels=1 , out_channels=1, down_block_types = ('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'), up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'), block_out_channels=(128, 256, 512), layers_per_block=2, latent_channels=4, norm_num_groups=32)
-  
-
-        if self.args.backbone == 'alphapre':
-            from models.Latent_space_models.alphapre_latent import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
         
-        elif self.args.backbone == 'alphapre_latent':
-            from models.Latent_space_models.alphapre_latent import get_model
+        # Build autoencoder (same as before)
+        self.ae_model = AutoencoderKL(
+            in_channels=1,
+            out_channels=1,
+            down_block_types=('DownEncoderBlock2D', 'DownEncoderBlock2D', 'DownEncoderBlock2D'),
+            up_block_types=('UpDecoderBlock2D', 'UpDecoderBlock2D', 'UpDecoderBlock2D'),
+            block_out_channels=(128, 256, 512),
+            layers_per_block=2,
+            latent_channels=4,
+            norm_num_groups=32
+        )
+        
+        backbone = self.args.backbone
+        
+        # Validate backbone exists in registry
+        if backbone not in MODEL_REGISTRY:
+            available = '\n  - '.join(sorted(MODEL_REGISTRY.keys()))
+            raise NotImplementedError(
+                f"Backbone '{backbone}' not found.\nAvailable backbones:\n  - {available}"
+            )
+        
+        # Get config from registry
+        config = MODEL_REGISTRY[backbone]
+        module_path = config["module"]
+        kwargs_type = config["kwargs_type"]
+        
+        # Dynamically import model's get_model function
+        module = importlib.import_module(module_path)
+        get_model = module.get_model
+        
+        # Calculate total_steps
+        total_steps = self.args.epochs * len(self.train_loader)
+        
+        # Build kwargs based on type
+        if kwargs_type == "basic":
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
             }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alphapre_latent_amplinet_mseonly':
-            from models.Latent_space_models.alphapre_amplinet_MSE_only_latent import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'amplinet':
-            from models.Full_space_models.alphapre_amplinet import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'amplinet_latent_falfcl':
-            from models.Latent_space_models.alpha_amplinet_latent_FAL_FCL import get_model
-            total_steps = self.args.epochs*len(self.train_loader)
+        elif kwargs_type == "standard":
             kwargs = {
                 "total_steps": total_steps,
-                "const_ratio": 0.1, 
+                "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
             }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'amplinet_latent_falfcl_mse_hybrid':
-            from models.Latent_space_models.alpha_amplinet_latent_hybrid_falfcl_MSE import get_model
-            total_steps = self.args.epochs*len(self.train_loader)
+        elif kwargs_type == "hybrid":
             kwargs = {
-                "lambda_mse": self.args.mse_weight, 
+                "lambda_mse": self.args.mse_weight,
                 "lambda_fal_fcl": self.args.falfcl_weight,
                 "total_steps": total_steps,
-                "const_ratio": 0.1, 
+                "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
             }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alpha_fnoamplinet_latent_falfcl_var1':
-            from models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_variant1_latent import get_model
-            total_steps = self.args.epochs*len(self.train_loader)
-            kwargs = {
-                "total_steps": total_steps,
-                "const_ratio": 0.1, 
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alpha_fnoamplinet_latent_falfcl':
-            from models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_latent import get_model
-            total_steps = self.args.epochs*len(self.train_loader)
-            kwargs = {
-                "total_steps": total_steps,
-                "const_ratio": 0.1, 
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'alpha_afnoamplinet_latent_falfcl':
-            from models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent import get_model
-            total_steps = self.args.epochs*len(self.train_loader)
-            kwargs = {
-                "total_steps": total_steps,
-                "const_ratio": 0.1, 
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
         else:
-            raise NotImplementedError
-
-        ############Print logs############
+            raise ValueError(f"Unknown kwargs_type: {kwargs_type}")
+        
+        # Create model
+        model = get_model(**kwargs)
+        
+        # Print logs
         print_log(f"model parameters : {kwargs}", self.is_main)
-    
+        
         self.model = model
         print_log("begin ema", self.is_main)
-        self.ema = EMA(self.model, beta=self.args.ema_rate, update_every=20).to(self.device)          #EMA is a trick for optimizing training.
+        self.ema = EMA(self.model, beta=self.args.ema_rate, update_every=20).to(self.device)
         print_log("end device", self.is_main)
         
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
-            print_log("Main Model Parameters: %.2fM" % (total/1e6), self.is_main)
+            print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
 
     def _build_optimizer(self):
         # =================================

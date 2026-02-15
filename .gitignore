@@ -37,3 +37,5 @@ __pycache__/
 datasets/dataset_sevir_lr_latent.py
 datasets/dataset_sevir.py
 z_check.py
+earthformer_env_21.yaml
+earthformer_env_88.yml

@@ -39,3 +39,7 @@ datasets/dataset_sevir.py
 z_check.py
 earthformer_env_21.yaml
 earthformer_env_88.yml
+models/prediff/__pycache__
+models/prediff/taming/__pycache__
+models/prediff/utils/__pycache__
+models/prediff/taming/losses/__pycache__

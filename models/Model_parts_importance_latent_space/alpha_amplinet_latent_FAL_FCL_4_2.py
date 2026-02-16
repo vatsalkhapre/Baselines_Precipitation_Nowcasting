@@ -79,11 +79,11 @@ class AmpliNet(nn.Module):
         super().__init__()
         self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
         self.dim, self.hidden_dim = dim, hidden_dim
-        # self.tmlp = nn.Sequential(
-        #     nn.Linear(pre_seq_length, int(aft_seq_length*mlp_ratio)),
-        #     nn.SELU(True),
-        #     nn.Linear(int(aft_seq_length*mlp_ratio), aft_seq_length),
-        # )
+        self.tmlp = nn.Sequential(
+            nn.Linear(pre_seq_length, int(aft_seq_length*mlp_ratio)),
+            nn.SELU(True),
+            nn.Linear(int(aft_seq_length*mlp_ratio), aft_seq_length),
+        )
         self.convin = nn.Sequential(ResnetBlock(dim, hidden_dim),
                                     ResnetBlock(hidden_dim, hidden_dim),
                                     nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1))
@@ -104,7 +104,6 @@ class AmpliNet(nn.Module):
         for ampcell in self.amplist:
             x = ampcell(x)
         x = xr + rearrange(x, 'b t c h w -> (b t) c h w')
-        x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convout(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
 

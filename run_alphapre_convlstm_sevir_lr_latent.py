@@ -300,7 +300,13 @@ class Runner(object):
         os.makedirs(self.valid_path, exist_ok=True)
         os.makedirs(self.test_path, exist_ok=True)
         os.makedirs(self.log_path, exist_ok=True)
-        
+
+    #=================Automatically generating ckpt milestone path====================
+        if self.args.eval and self.args.ckpt_milestone is None:
+            self.args.ckpt_milestone = osp.join(self.ckpt_path, "ckpt-best.pt")
+            print(f"[Auto] Using checkpoint: {self.args.ckpt_milestone}")   
+    #=================================================================================
+
         exp_params      = self.args.__dict__
         params_path     = osp.join(self.exp_dir, 'params.yaml')
         yaml.dump(exp_params, open(params_path, 'w'))

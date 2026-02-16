@@ -374,6 +374,7 @@ class Evaluator(object):
         res_dict['csi'] = np.nan_to_num(np.mean(avg_csi))
         res_dict['csi4'] = np.mean(avg_csi44)
         res_dict['csi16'] = np.mean(avg_csi16)
+        res_dict['hss'] = np.mean(avg_hss)
         res_dict['mse'] = np.mean(mses)
         res_dict['mae'] = np.mean(maes)
         res_dict['rmse'] = np.mean(rmses)

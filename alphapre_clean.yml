@@ -1,0 +1,30 @@
+name: alphapre
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8.5
+  - pip
+  - cudatoolkit=11.3.1
+  - numpy=1.24.3
+  - pandas=2.0.3
+  - scikit-image=0.19.2
+  - torchvision=0.13.1
+  - torchaudio
+  - matplotlib=3.7.4
+  - pyyaml
+  - tqdm
+  - scipy=1.10.1
+  - networkx=3.1
+  - h5py=3.10.0
+  - pip:
+    - torch==2.4.1  # Note: The original env had a mix, but pip is safer for specific torch versions
+    - accelerate==0.28.0
+    - diffusers==0.27.2
+    - timm==1.0.9
+    - transformers==4.33.3
+    - opencv-python==4.8.1.78
+    - einops==0.7.0
+    - moviepy==1.0.3
+    - tensorboard

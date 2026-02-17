@@ -1,8 +1,6 @@
 import os
 from glob import glob
-import xarray as xr
 import numpy as np
-import pyart
 from datetime import datetime
 from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict

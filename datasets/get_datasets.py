@@ -4,8 +4,6 @@ import os
 import numpy as np
 import os.path as osp
 import datetime
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 from functools import partial
 from matplotlib import colors
 import matplotlib.pyplot as plt

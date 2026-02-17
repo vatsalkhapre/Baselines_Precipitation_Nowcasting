@@ -566,6 +566,27 @@ class RandomScheduling(nn.Module):
         return loss
 
 
+class FCL_Loss(nn.Module):
+    def __init__(self):
+        super(FCL_Loss, self).__init__()
+
+    def fcl(self, fft_pred, fft_truth):
+        # In general, FFTs here must be shifted to the center; but here we use the whole fourier space, so it is okay to no need have fourier shift operation
+        conj_pred = torch.conj(fft_pred)
+        numerator = (conj_pred*fft_truth).sum().real
+        denominator = torch.sqrt(((fft_truth).abs()**2).sum()*((fft_pred).abs()**2).sum())
+        return 1. - numerator/denominator
+
+
+    def forward(self, pred, gt):
+        fft_pred = torch.fft.fftn(pred, dim=[-1,-2], norm='ortho')
+        fft_gt = torch.fft.fftn(gt, dim=[-1,-2], norm='ortho')
+        _, _, _, H, W = pred.shape
+        weight = np.sqrt(H*W)
+        loss = self.fcl(fft_pred, fft_gt)
+        loss = loss*weight
+        return loss
+    
 class RandomScheduling_MSE(nn.Module):
     def __init__(self, total_step, micro_batch=1, const_ratio=0.1):
         super(RandomScheduling_MSE, self).__init__()

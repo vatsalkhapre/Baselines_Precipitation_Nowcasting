@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --backbone amplinet_latent_falfcl_only_1 \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32_model_parts \
@@ -8,7 +8,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --backbone amplinet_latent_falfcl_only_2.1 \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32_model_parts \
@@ -18,7 +18,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --backbone amplinet_latent_falfcl_only_2.2 \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32_model_parts \
@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --backbone amplinet_latent_falfcl_only_2.3.1 \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32_model_parts \
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --backbone amplinet_latent_falfcl_only_2.3.2.1 \
     --dataset meteo_lr_latent_32 \
     --exp_dir meteo_lr_latent_32_model_parts \

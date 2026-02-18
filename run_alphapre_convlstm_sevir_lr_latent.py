@@ -809,6 +809,7 @@ class Runner(object):
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
                     print_log(f" ========= Finisth one Epoch ==========", self.is_main)
+                    time.sleep(30)
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)

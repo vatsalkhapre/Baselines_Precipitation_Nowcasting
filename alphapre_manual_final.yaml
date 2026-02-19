@@ -1,7 +1,12 @@
 name: alphapre_manual
 channels:
+<<<<<<< HEAD
   - defaults
   - pytorch
+=======
+  - pytorch
+  - defaults
+>>>>>>> afdf6fd (modified scripts)
 dependencies:
   - _libgcc_mutex=0.1
   - _openmp_mutex=5.1

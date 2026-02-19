@@ -44,3 +44,4 @@ models/prediff/taming/__pycache__
 models/prediff/utils/__pycache__
 models/prediff/taming/losses/__pycache__
 condaenv.vnwadny_.requirements.txt
+z_test.py

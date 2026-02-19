@@ -140,36 +140,36 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
     #     data_dir = DATAPATH[data_name]
     #     train, val, test  = rainy_dataset(data_dir,in_channels ,out_channels, img_size = img_size, method = method, preprocessing = preprocess_type)
 
-    elif data_name == 'mosdac':
+    elif dataset_name == 'mosdac':
         from .dataset_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
         data_dir = DATAPATH[data_name]
         train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add,img_size = img_size,  preprocessing = preprocess_type)
     
-    elif data_name == 'vil_mosdac':
+    elif dataset_name == 'vil_mosdac':
             from .dataset_vil_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
             data_dir = DATAPATH[data_name]
             train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add, img_size = img_size,  preprocessing = preprocess_type)
 
-    elif data_name == 'shanghai':
+    elif dataset_name == 'shanghai':
         from .dataset_shanghai import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
         val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
         test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
 
-    elif data_name == 'shanghai_lr_latent_32':
+    elif dataset_name == 'shanghai_lr_latent_32':
         print("Shanghai latent dataset")
         from .dataset_shanghai_latent_32 import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Shanghai(DATAPATH[data_name], type='train', img_size=img_size)
         val = Shanghai(DATAPATH[data_name], type='val', img_size=img_size)
         test = Shanghai(DATAPATH[data_name], type='test', img_size=img_size)
     
-    elif data_name == 'meteo':
+    elif dataset_name == 'meteo':
         from .dataset_meteonet import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)
         val = Meteo(DATAPATH[data_name], type='val', img_size=img_size)
         test = Meteo(DATAPATH[data_name], type='test', img_size=img_size)
     
-    elif data_name == 'meteo_lr_latent_32':
+    elif dataset_name == 'meteo_lr_latent_32':
         from .dataset_meteonet_lr_latent import Meteo, gray2color, THRESHOLDS, PIXEL_SCALE
         train = Meteo(DATAPATH[data_name], type='train', img_size=img_size)
         val = Meteo(DATAPATH[data_name], type='val', img_size=img_size)

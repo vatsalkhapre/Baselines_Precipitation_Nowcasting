@@ -108,13 +108,17 @@ def get_model_config(backbone: str) -> dict:
             
             # Convert dots to underscores for the module name
             version_underscore = version.replace(".", "_")
-            
+            if version_underscore.split("_")[-1] == "hybridloss":
+                kwargs_type = "hybrid"
+            else:
+                kwargs_type = "standared"
+
             # Build module path
             module_path = f"models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
             
             return {
                 "module": module_path,
-                "kwargs_type": "standard",
+                "kwargs_type": kwargs_type,
             }
     
     # Not found
@@ -556,7 +560,8 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
-        elif kwargs_type == "standard":
+
+        elif kwargs_type == "standared":
             kwargs = {
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
@@ -572,10 +577,11 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
+
         elif kwargs_type == "hybrid":
             kwargs = {
-                "lambda_mse": self.args.mse_weight,
-                "lambda_fal_fcl": self.args.falfcl_weight,
+                "lam1": self.args.mse_weight,
+                "lam2": self.args.falfcl_weight,
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),
@@ -837,8 +843,10 @@ class Runner(object):
             _, loss = self.model.predict(frames_in=frames_in, frames_gt=frames_out, compute_loss=True)
         if loss is None:
             raise ValueError("Loss is None, please check the model predict function")
+        
+        # ========================================Incase we want to plot gradient's influence ratio===============================================
         # falfcl_loss = loss['falfcl_loss']
-        # mse_loss = loss['mse_loss']
+        # mse_loss = loss['hf_loss']
 
         # falfcl_grads = torch.autograd.grad(falfcl_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
         # falfcl_norm = torch.norm(
@@ -851,7 +859,7 @@ class Runner(object):
         # inflence_ratio = falfcl_norm/mse_norm
 
         # loss['inflence_ratio'] = inflence_ratio
-        
+        #===========================================================================================================================================
         if isinstance(loss, dict):
             if 'total_loss' in loss:
                 return loss

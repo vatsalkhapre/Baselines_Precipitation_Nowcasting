@@ -1,32 +1,11 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import numpy as np
+from pytorch_wavelets import DWTForward
 from einops import rearrange
 from einops.layers.torch import Rearrange
 from utils.utilspp import RandomScheduling
-
-class GaborLayer(nn.Module):
-    def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0):
-        super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-        self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
-        self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        )
-        self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
-        self.linear.bias.data.uniform_(-np.pi, np.pi)
-        self.param = nn.Parameter(torch.rand(out_features))
-        return
- 
-    def forward(self, x):
-        D = (
-            (x ** 2).sum(-1)[..., None]
-            + (self.mu ** 2).sum(-1)[None, :]
-            - 2 * x @ self.mu.T
-        )
-        return torch.sin(1.5*self.param*self.linear(x)) * torch.exp(-0.5 * D * self.gamma[None, :])
-    
+from utils.wavelet_hf_loss import HF_consistency
 
 class AmpTimeCell(nn.Module):
     def __init__(self, t_in, t_out, size_factor=1):
@@ -73,14 +52,18 @@ class AmpCell(nn.Module):
         ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
-        self.gabor = GaborLayer(t_in, t_out, 1, 2,1)
+        self.tmlp = nn.Sequential(
+            nn.Linear(t_in, int(t_out*size_factor)),
+            nn.SELU(True),
+            nn.Linear(int(t_out*size_factor), t_out),
+        )
         # self.amptime =  AmpTimeCell(t_in, t_out)
 
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
     def forward(self, x):
-        residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
+        residual = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         x = residual
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
@@ -125,12 +108,13 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
-                 hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
+    def __init__(self, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, lambda1, lambda2, hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
         self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
         self.input_shape, self.input_dim = input_shape, input_dim
+        self.lambda1 = lambda1
+        self.lambda2 = lambda2
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num
         self.pha_weight = pha_weight
@@ -138,7 +122,8 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
+        self.falfcl = RandomScheduling(total_steps, 1, const_ratio)
+        self.hfloss = HF_consistency()
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
@@ -172,8 +157,10 @@ class AlphaPre_Amplinet(nn.Module):
             # xas_abs = torch.abs(xas_fft)
             # amp_loss = self.criterion(xas_abs, frames_abs)
             # loss += self.amp_weight*amp_loss
-            falfcl_loss = self.criterion(xas, frames_gt)
-            loss = {'total_loss': falfcl_loss}
+            falfcl_loss = self.falfcl(xas, frames_gt)
+            hfloss = self.hfloss(xas, frames_gt)
+            total_loss = self.lambda1*hfloss + self.lambda2*falfcl_loss
+            loss = {'total_loss': total_loss, 'falfcl_loss': self.lambda2*falfcl_loss, 'hf_loss': self.lambda1*20*hfloss}
             return xas, loss
         else:
             return xas, None
@@ -217,6 +204,8 @@ def Downsample(dim, dim_out):
     )
 
 def get_model(
+    lam1,
+    lam2,
     total_steps,
     const_ratio,
     img_channels=1,
@@ -232,8 +221,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
-                     hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
+    model = AlphaPre_Amplinet(total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, lambda1=lam1, lambda2=lam2, hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )
     

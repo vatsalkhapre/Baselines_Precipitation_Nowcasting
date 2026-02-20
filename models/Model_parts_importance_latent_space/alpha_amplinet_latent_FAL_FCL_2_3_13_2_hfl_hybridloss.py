@@ -159,8 +159,9 @@ class AlphaPre_Amplinet(nn.Module):
             # loss += self.amp_weight*amp_loss
             falfcl_loss = self.falfcl(xas, frames_gt)
             hfloss = self.hfloss(xas, frames_gt)
+            
             total_loss = self.lambda1*hfloss + self.lambda2*falfcl_loss
-            loss = {'total_loss': total_loss, 'falfcl_loss': self.lambda2*falfcl_loss, 'hf_loss': self.lambda1*20*hfloss}
+            loss = {'total_loss': total_loss, 'falfcl_loss': self.lambda2*falfcl_loss, 'hf_loss': self.lambda1*hfloss}
             return xas, loss
         else:
             return xas, None

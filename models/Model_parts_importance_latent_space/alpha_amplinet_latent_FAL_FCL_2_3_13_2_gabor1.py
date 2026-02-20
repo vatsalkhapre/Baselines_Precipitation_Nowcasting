@@ -73,7 +73,7 @@ class AmpCell(nn.Module):
         ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
-        self.gabor = GaborLayer(t_in, t_out, 1, 2,1)
+        self.gabor = GaborLayer(t_in, t_out, 1, 1,1)
         self.tmlp = nn.Sequential(
             nn.Linear(t_in, int(t_out*size_factor)),
             nn.SELU(True),

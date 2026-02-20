@@ -28,6 +28,7 @@ class HF_consistency(torch.nn.Module):
         # Each band in coeffs is
         pred_hf = torch.cat(pred_coeffs[1], dim=1) 
         gt_hf = torch.cat(gt_coeffs[1], dim=1)     
+        hf_mse = F.mse_loss(pred_hf, gt_hf)
 
         # 5. Calculate MSE on these high-frequency details
-        return F.mse_loss(pred_hf, gt_hf)
+        return hf_mse

@@ -110,6 +110,8 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
+            elif "gabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_standared"
             else:
                 kwargs_type = "standared"
 
@@ -140,8 +142,8 @@ def create_parser():
 
     # --------------- Gabor Parameters ---------------
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
-    parser.add_argument("--alpha"           , type=int, default=0.00,            help="alpha for gabor")
-    parser.add_argument("--beta"            , type=int, default=0.00,            help="beta for gabor")
+    parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
+    parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
 
     # --------------- Dataset ---------------

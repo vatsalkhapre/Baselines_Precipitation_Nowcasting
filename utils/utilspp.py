@@ -15,7 +15,7 @@ from torch import nn
 from torch.nn import functional as F
 import torchvision.transforms as T
 import torchmetrics
-
+from utils.wavelet_hf_loss import HF_consistency
 
 # =======================================================================
 # Utils in utils :)
@@ -639,7 +639,62 @@ class RandomScheduling_MSE(nn.Module):
         loss = loss*weight
         # self.step += 1
         return loss
+    
+#==================================================================================================
+#                                        NewLoss                                                  #
+#==================================================================================================
 
+class RandomScheduling_HF_WMSE(nn.Module):
+    def __init__(self, total_step, micro_batch=1, const_ratio=0.1):
+        super(RandomScheduling_MSE, self).__init__()
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        const_step = int(total_step*const_ratio)
+        self.prob_thres = torch.linspace(1,0, int(total_step-const_step)).to(device)
+        # dec = torch.linspace(1,0, int(total_step-const_step)).to(device)
+        # if(const_ratio!=1):
+        #     const = dec[-1] * torch.ones(const_step, device=device)
+        # else:
+        #     const = torch.zeros(int(total_step*const_ratio), device=device)
+        # self.prob_thres = torch.cat((dec, const), dim=0)
+        self.mse = nn.MSELoss()
+        self.hf_loss = HF_consistency()
+        self.micro_batch = micro_batch
+        self.step = 0
+        self.out = 0
+
+    def get_thres(self):
+        if self.step % self.micro_batch == 0:
+            prob = self.prob_thres[self.step//self.micro_batch] if self.step//self.micro_batch < len(self.prob_thres) else self.prob_thres[-1]
+            self.out = 1 if random.random() > prob else 0
+        self.step += 1
+        return self.out
+
+    def fcl(self, fft_pred, fft_truth):
+        # In general, FFTs here must be shifted to the center; but here we use the whole fourier space, so it is okay to no need have fourier shift operation
+        conj_pred = torch.conj(fft_pred)
+        numerator = (conj_pred*fft_truth).sum().real
+        denominator = torch.sqrt(((fft_truth).abs()**2).sum()*((fft_pred).abs()**2).sum())
+        return 1. - numerator/denominator
+
+    def fal(self, fft_pred, fft_truth):
+        return nn.MSELoss()(fft_pred.abs(), fft_truth.abs())
+
+
+    def forward(self, pred, gt):
+        fft_pred = torch.fft.fftn(pred, dim=[-1,-2], norm='ortho')
+        fft_gt = torch.fft.fftn(gt, dim=[-1,-2], norm='ortho')
+        # prob = 1 if random.random() > self.prob_thres[self.step] else 0
+        prob = self.get_thres()
+        loss2_mse = self.mse(pred, gt)
+        loss2_hf = self.hf_loss(pred, gt)
+        loss2 = loss2_mse + loss2_hf
+        fcl_loss = self.fcl(fft_pred, fft_gt)
+        _, _, _, H, W = pred.shape
+        weight = np.sqrt(H*W)
+        loss = prob * loss2 + (1-prob) * fcl_loss*weight
+        # self.step += 1
+        return loss, loss2_mse, loss2_hf, fcl_loss
+    
 # =======================================================================
 # Data Visualization
 # =======================================================================

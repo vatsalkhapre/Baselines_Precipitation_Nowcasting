@@ -1,4 +1,4 @@
-for weight_scale in 0.5 1.0 
+for weight_scale in 1.0 
 do
     for a in 1.0
     do 
@@ -7,12 +7,12 @@ do
             for f in 1.5
             do
             CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
-                --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
+                --backbone amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2 \
                 --dataset cikm_latent_32 \
                 --exp_dir cikm_latent_32_model_parts \
-                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_gabor2_${weight_scale}_${a}_${b}_${f}" \
-                --epochs 50 \
+                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_${weight_scale}_${a}_${b}_${f}" \
                 --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
+                --epochs 50 \
                 --valid \
                 --seq_len 15 \
                 --falfcl_weight 1 \
@@ -25,14 +25,35 @@ do
                 --num_workers 8 \
                 --wandb_state 'online' \
                 --wandb_project_name 'Alphapre' \
-                --run_name amplinet_latent_falfcl_only_2_3_13_2_gabor2_cikm_${weight_scale}_${a}_${b}_${f}
+                --run_name amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_cikm_${weight_scale}_${a}_${b}_${f}
+
+            CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+                --backbone amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2 \
+                --dataset meteo_lr_latent_32 \
+                --exp_dir meteo_lr_latent_32_model_parts \
+                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_${weight_scale}_${a}_${b}_${f}" \
+                --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
+                --epochs 50 \
+                --valid \
+                --seq_len 25 \
+                --falfcl_weight 1 \
+                --frames_in 5 \
+                --frames_out 20 \
+                --weight_scale ${weight_scale} \
+                --alpha ${a} \
+                --beta ${b} \
+                --freq_multiplier ${f} \
+                --num_workers 8 \
+                --wandb_state 'online' \
+                --wandb_project_name 'Alphapre' \
+                --run_name amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_meteonet_${weight_scale}_${a}_${b}_${f}
             done
         done
     done
 done
 
 
-for weight_scale in 0.5 1.0 
+for weight_scale in 1.0 
 do
     for a in 1.0
     do 
@@ -41,16 +62,33 @@ do
             for f in 1.5
             do
             CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
-                --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
+                --backbone amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2 \
                 --dataset cikm_latent_32 \
                 --exp_dir cikm_latent_32_model_parts \
-                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_gabor2_${weight_scale}_${a}_${b}_${f}" \
+                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_${weight_scale}_${a}_${b}_${f}" \
                 --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
                 --eval \
                 --seq_len 15 \
                 --falfcl_weight 1 \
                 --frames_in 5 \
                 --frames_out 10 \
+                --weight_scale ${weight_scale} \
+                --alpha ${a} \
+                --beta ${b} \
+                --freq_multiplier ${f} \
+                --num_workers 8 \
+                --wandb_state 'offline'
+            CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+                --backbone amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2 \
+                --dataset meteo_lr_latent_32 \
+                --exp_dir meteo_lr_latent_32_model_parts \
+                --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2DConvfusion_gabor2_${weight_scale}_${a}_${b}_${f}" \
+                --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
+                --eval \
+                --seq_len 25 \
+                --falfcl_weight 1 \
+                --frames_in 5 \
+                --frames_out 20 \
                 --weight_scale ${weight_scale} \
                 --alpha ${a} \
                 --beta ${b} \

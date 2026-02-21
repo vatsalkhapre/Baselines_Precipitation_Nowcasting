@@ -645,8 +645,8 @@ class RandomScheduling_MSE(nn.Module):
 #==================================================================================================
 
 class RandomScheduling_HF_WMSE(nn.Module):
-    def __init__(self, total_step, micro_batch=1, const_ratio=0.1):
-        super(RandomScheduling_MSE, self).__init__()
+    def __init__(self, total_step, micro_batch=1, const_ratio=0.1, w_mse = 1.0):
+        super(RandomScheduling_HF_WMSE, self).__init__()
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         const_step = int(total_step*const_ratio)
         self.prob_thres = torch.linspace(1,0, int(total_step-const_step)).to(device)
@@ -661,6 +661,7 @@ class RandomScheduling_HF_WMSE(nn.Module):
         self.micro_batch = micro_batch
         self.step = 0
         self.out = 0
+        self.w_mse = w_mse
 
     def get_thres(self):
         if self.step % self.micro_batch == 0:
@@ -687,7 +688,7 @@ class RandomScheduling_HF_WMSE(nn.Module):
         prob = self.get_thres()
         loss2_mse = self.mse(pred, gt)
         loss2_hf = self.hf_loss(pred, gt)
-        loss2 = loss2_mse + loss2_hf
+        loss2 = self.w_mse*loss2_mse + loss2_hf
         fcl_loss = self.fcl(fft_pred, fft_gt)
         _, _, _, H, W = pred.shape
         weight = np.sqrt(H*W)

@@ -137,7 +137,7 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self, lambda1, lambda2, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
@@ -150,18 +150,18 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.chf_wmse_loss = RandomScheduling_HF_WMSE(total_steps, 1, const_ratio)
+        self.chf_wmse_loss = RandomScheduling_HF_WMSE(total_steps, 1, const_ratio, w_mse=lambda1)
         # self.hfloss = HF_consistency()
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
-
         h, w = input_shape
         spec_mask = torch.zeros(h, w//2+1)
         spec_mask[...,:spec_num,:spec_num] = 1.
         spec_mask[...,-spec_num:,:spec_num] = 1.
         self.register_buffer('spec_mask', spec_mask)
-        
+     
+
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
         xas = self.amplinet(x)
@@ -232,6 +232,8 @@ def Downsample(dim, dim_out):
     )
 
 def get_model(
+    lambda1,
+    lambda2,
     weight_scale,
     alpha,
     beta,
@@ -251,7 +253,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(lambda1, lambda2, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

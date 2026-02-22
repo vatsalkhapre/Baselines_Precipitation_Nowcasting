@@ -79,12 +79,12 @@ HMF_COLORS = np.array([
 
 def gray2color(image, **kwargs):
 
-    # 定义颜色映射和边界
+
     cmap = colors.ListedColormap(COLOR_MAP )
     bounds = BOUNDS
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    # 将图像进行染色
+
     colored_image = cmap(norm(image))
 
     return colored_image

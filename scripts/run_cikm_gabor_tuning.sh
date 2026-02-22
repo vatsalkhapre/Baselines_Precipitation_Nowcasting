@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
     --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
     --dataset cikm_latent_32 \
     --exp_dir cikm_latent_32_model_parts \
-    --exp_note "amplinet_latent_falfcl_only_2_3_13_2_gabor2" \
+    --exp_note "amplinet_latent_falfcl_only_2_3_13_2_gabor2_20epochs" \
     --epochs 15 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
     --valid \
@@ -13,5 +13,5 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 16 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre' \
-    --run_name 'amplinet_latent_falfcl_only_2_3_13_2_gabor2_cikm'
+    --run_name 'amplinet_latent_falfcl_only_2_3_13_2_gabor2_cikm_20epochs'
 

@@ -856,7 +856,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0:
+                if (epoch+1)%5==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -875,14 +875,8 @@ class Runner(object):
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
-                
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
-        #========================================Breaking at 20 epochs=========================================
-            if (epoch+1)==20:
-                break
-        #======================================================================================================
-
         self.accelerator.wait_for_everyone()
         self.accelerator.end_training()
         

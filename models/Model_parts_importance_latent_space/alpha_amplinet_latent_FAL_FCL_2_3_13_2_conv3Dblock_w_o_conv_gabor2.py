@@ -96,9 +96,6 @@ class AmpCell(nn.Module):
         out = out.permute(0,2,1,3,4) 
         x= self.Conv_3D_fusion_block(out)
         x = x.permute(0,2,1,3,4) 
-        x = rearrange(x, 'b t c h w -> b (t c) h w')
-        x = self.conv(x)
-        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
         x = x + residual
         return x
     

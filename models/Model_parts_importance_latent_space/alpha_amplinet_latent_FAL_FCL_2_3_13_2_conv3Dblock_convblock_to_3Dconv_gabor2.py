@@ -86,9 +86,8 @@ class AmpCell(nn.Module):
         self.Conv_3D_fusion_block = nn.Sequential(Resnet3DBlock(2*dim, dim),
                                             Resnet3DBlock(dim, dim),
                                             nn.Conv3d(dim, dim, kernel_size=3, padding=1))
-        self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
-                                     ResnetBlock(dim*t_out, dim*t_out),
-                                     nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
+        self.Conv3D = nn.Conv3d(dim, dim, kernel_size=1)
+
     def forward(self, x):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
@@ -96,9 +95,9 @@ class AmpCell(nn.Module):
         out = out.permute(0,2,1,3,4) 
         x= self.Conv_3D_fusion_block(out)
         x = x.permute(0,2,1,3,4) 
-        x = rearrange(x, 'b t c h w -> b (t c) h w')
-        x = self.conv(x)
-        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = rearrange(x, 'b t c h w -> b c t h w')
+        x = self.Conv3D(x)
+        x = rearrange(x, 'b c t h w -> b t c h w')
         x = x + residual
         return x
     

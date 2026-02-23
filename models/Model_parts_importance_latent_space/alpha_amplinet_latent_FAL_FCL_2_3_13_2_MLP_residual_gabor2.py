@@ -83,9 +83,7 @@ class AmpCell(nn.Module):
             nn.Linear(int(t_out*size_factor), t_out),
         )
         # self.amptime =  AmpTimeCell(t_in, t_out)
-        self.Conv_3D_fusion_block = nn.Sequential(Resnet3DBlock(2*dim, dim),
-                                            Resnet3DBlock(dim, dim),
-                                            nn.Conv3d(dim, dim, kernel_size=3, padding=1))
+        self.fusion = nn.Conv3d(2*dim, dim, kernel_size=1)
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
@@ -93,13 +91,13 @@ class AmpCell(nn.Module):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         out = torch.cat([residual, residual2], dim=2)
-        out = out.permute(0,2,1,3,4) 
-        x= self.Conv_3D_fusion_block(out)
+        out = out.permute(0,2,1,3,4)  
+        x= self.fusion(out)
         x = x.permute(0,2,1,3,4) 
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
-        x = x + residual
+        x = x + residual2
         return x
     
 class AmpliNet(nn.Module):
@@ -126,12 +124,10 @@ class AmpliNet(nn.Module):
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convin(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.pre_seq_length)
-        # x_ = x.permute(0,2,3,4,1)
-        # xr = self.tmlp(x_)
-        # xr = rearrange(xr, 'b c h w t -> (b t) c h w')
+   
         for ampcell in self.amplist:
             x = ampcell(x)
-        # x = xr + rearrange(x, 'b t c h w -> (b t) c h w')
+            
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convout(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
@@ -220,30 +216,6 @@ class ResnetBlock(nn.Module):
         h = self.block2(h)
         return h + self.res_conv(x)
 
-class Block3D(nn.Module):
-    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
-        super(Block3D, self).__init__()
-        self.proj = nn.Conv3d(dim, dim_out, kernel_size=kernel_size, padding = kernel_size//2, padding_mode=padding_mode)
-        self.norm = nn.GroupNorm(groups, dim_out) if groupnorm else nn.BatchNorm3d(dim_out)
-        self.act = nn.SiLU()
-
-    def forward(self, x):
-        x = self.proj(x)
-        x = self.norm(x)
-        x = self.act(x)
-        return x
-
-class Resnet3DBlock(nn.Module):
-    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
-        super().__init__()
-        self.block1 = Block3D(dim, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
-        self.block2 = Block3D(dim_out, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
-        self.res_conv = nn.Conv3d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
-
-    def forward(self, x):
-        h = self.block1(x)
-        h = self.block2(h)
-        return h + self.res_conv(x)
 
 
 def Upsample(dim, dim_out):

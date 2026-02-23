@@ -116,9 +116,7 @@ class AmpliNet(nn.Module):
         self.amplist = nn.ModuleList([
             AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim, weight_scale, alpha, beta, freq_multiplier) for i in range(n_layers)
         ])
-        self.convout = nn.Sequential(ResnetBlock(hidden_dim, hidden_dim),
-                                     ResnetBlock(hidden_dim, hidden_dim),
-                                     nn.Conv2d(hidden_dim, dim, kernel_size=1))
+        self.convout = nn.Conv2d(hidden_dim, dim, kernel_size=1)
 
     def forward(self, x):
         x = rearrange(x, 'b t c h w -> (b t) c h w')
@@ -217,7 +215,6 @@ class ResnetBlock(nn.Module):
         h = self.block1(x)
         h = self.block2(h)
         return h + self.res_conv(x)
-
 
 
 def Upsample(dim, dim_out):

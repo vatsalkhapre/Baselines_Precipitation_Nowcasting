@@ -218,6 +218,30 @@ class ResnetBlock(nn.Module):
         h = self.block2(h)
         return h + self.res_conv(x)
 
+class Block3D(nn.Module):
+    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
+        super(Block3D, self).__init__()
+        self.proj = nn.Conv3d(dim, dim_out, kernel_size=kernel_size, padding = kernel_size//2, padding_mode=padding_mode)
+        self.norm = nn.GroupNorm(groups, dim_out) if groupnorm else nn.BatchNorm3d(dim_out)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.proj(x)
+        x = self.norm(x)
+        x = self.act(x)
+        return x
+
+class Resnet3DBlock(nn.Module):
+    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
+        super().__init__()
+        self.block1 = Block3D(dim, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block2 = Block3D(dim_out, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.res_conv = nn.Conv3d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
+
+    def forward(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        return h + self.res_conv(x)
 
 
 def Upsample(dim, dim_out):

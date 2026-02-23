@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from pytorch_wavelets import DWTForward
+# from pytorch_wavelets import DWTForward
 
 class HF_consistency(torch.nn.Module):
     def __init__(self):

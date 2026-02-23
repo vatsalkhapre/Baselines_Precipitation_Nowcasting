@@ -36,21 +36,22 @@
 #       --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth" \
 #       --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_with_plotting.py \
-      --backbone alphapre \
-      --dataset sevir \
-      --eval \
-      --plot \
-      --seq_len 25 \
-      --frames_in 5 \
-      --frames_out 20 \
-      --num_workers 8 \
-      --plot_stride 40 \
-      --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Baselines/Alphapre_sevir/checkpoints/AlphaPre_sevir128.pt \
-      --wandb_state 'offline' 
+# CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_with_plotting.py \
+#       --backbone alphapre \
+#       --dataset sevir \
+#       --eval \
+#       --plot \
+#       --seq_len 25 \
+#       --frames_in 5 \
+#       --frames_out 20 \
+#       --num_workers 8 \
+#       --plot_stride 40 \
+#       --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Baselines/Alphapre_sevir/checkpoints/AlphaPre_sevir128.pt \
+#       --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_with_plotting.py \
-      --backbone alphapre \
+CUDA_VISIBLE_DEVICES=0 python3 run_diffcast_plotting.py \
+      --backbone phydnet \
+      --use_diff \
       --dataset sevir \
       --eval \
       --plot \
@@ -59,7 +60,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_with_plotting.py \
       --frames_out 20 \
       --num_workers 8 \
       --plot_stride 40 \
-      --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Baselines/Alphapre_sevir/checkpoints/diffcast_phydnet_sevir128.pt \
+      --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Baselines/Diffcast_sevir/checkpoints/diffcast_phydnet_sevir128.pt \
       --wandb_state 'offline' 
 #========================================SHANGHAI============================================
 

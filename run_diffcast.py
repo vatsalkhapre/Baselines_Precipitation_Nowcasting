@@ -11,6 +11,10 @@ from tqdm import tqdm
 from datetime import timedelta
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
+import matplotlib.colors as mcolors
+import numpy as np
 import torch
 from accelerate import Accelerator
 from accelerate.utils import set_seed
@@ -51,22 +55,22 @@ def create_parser():
     parser.add_argument('--backbone',        type=str,            default='phydnet',              help='backbone model for deterministic prediction (earthformer, simvp, phydnet)')
     parser.add_argument('--use_diff',        action="store_true", default=False,                  help='Weather use diff framework, as for ablation study')
     parser.add_argument("--seed",           type=int,             default=0,                      help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,             default='vil_mosdac',           help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,             default="Training_continue",                   help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
 
 
     # --------------- Dataset ---------------
    
     parser.add_argument("--file_rain_seq_add",  type=str,   default=0,                  help="Rainy days file full address (in.pkl format)")
     parser.add_argument("--method",             type= int,  default= None,              help = "Method to select the dataset as per the need. (Look at the function for more details)")
-    parser.add_argument("--dataset",            type=str,   default='vil_mosdac',       help="dataset name")
-    parser.add_argument("--img_size",           type=int,   default=240,                help="image size")
+    parser.add_argument("--dataset",            type=str,   default='sevir',       help="dataset name")
+    parser.add_argument("--img_size",           type=int,   default=128,                help="image size")
     parser.add_argument("--img_channel",        type=int,   default=1,                  help="channel of image")
     parser.add_argument("--stride",             type=int,   default=13,                 help="dataset stride")
-    parser.add_argument("--seq_len",            type=int,   default=15,                 help="sequence length sampled from dataset")
+    parser.add_argument("--seq_len",            type=int,   default=25,                 help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,   default=5,                  help="number of frames to input")
-    parser.add_argument("--frames_out",         type=int,   default=10,                 help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,   default=4,                  help="number of workers for data loader")
+    parser.add_argument("--frames_out",         type=int,   default=20,                 help="number of frames to output")    
+    parser.add_argument("--num_workers",        type=int,   default=8,                  help="number of workers for data loader")
     parser.add_argument("--preprocessing",      type=int,   default=0,               help="Type to preprocess the data")
     
     # --------------- Optimizer ---------------
@@ -90,7 +94,7 @@ def create_parser():
     parser.add_argument("--eval",           action="store_true",                 help="evaluation mode")
     
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",        type=str,       default="online",          help="wandb state config")
+    parser.add_argument("--wandb_state",        type=str,       default="offline",          help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str,       default="Diffcast_Sevir",    help="wandb project name")
     parser.add_argument("--run_name",           type=str,       default='Training_vil_mosdac_2',            help="wandb run name")
     

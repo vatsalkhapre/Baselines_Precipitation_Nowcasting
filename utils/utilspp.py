@@ -561,9 +561,9 @@ class RandomScheduling(nn.Module):
         _, _, _, H, W = pred.shape
         weight = np.sqrt(H*W)
         loss = prob*self.fal(fft_pred, fft_gt) + (1-prob) * self.fcl(fft_pred, fft_gt)
-        loss = loss*weight
+        loss = loss*weight*1.25
         # self.step += 1
-        return loss*1.25
+        return loss
 
 class RandomScheduling_linear(nn.Module):
     def __init__(self, total_step, micro_batch=1, const_ratio=0.1):
@@ -701,6 +701,9 @@ class RandomScheduling_exponential(nn.Module):
         weight_spatial = np.sqrt(H*W)
         return (total_loss / T) * weight_spatial
 
+
+
+    
 
 class FCL_Loss(nn.Module):
     def __init__(self):

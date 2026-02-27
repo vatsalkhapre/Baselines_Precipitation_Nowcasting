@@ -67,13 +67,8 @@ class Meteo(Dataset):
             frames = imgs
 
  
-        return frames# (25,1,128,128)
- 
-    
-# def gray2color(img):
-#     cmap = colors.ListedColormap(COLOR_MAP)
-#     norm = colors.BoundaryNorm(BOUNDS, cmap.N)
-#     return cmap(norm(img))
+        return frames
+
 
 def gray2color(image, **kwargs):
 

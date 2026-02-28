@@ -1,21 +1,21 @@
 # #========================================CIKM============================================
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotting_2.py \
-      --backbone amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2 \
-      --dataset cikm_latent_32 \
-      --eval \
-      --plot \
-      --seq_len 15 \
-      --frames_in 5 \
-      --frames_out 10 \
-      --weight_scale 1.0 \
-      --alpha 1.0 \
-      --beta 1.0 \
-      --freq_multiplier 1.5 \
-      --num_workers 8 \
-      --plot_stride 10 \
-      --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/cikm_new_experiments/amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2_cikm_latent_32_amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2_1.0_1.0_1.0_1.5_/checkpoints/ckpt-best.pt \
-      --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
-      --wandb_state 'offline' 
+# CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotting_2.py \
+#       --backbone amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2 \
+#       --dataset cikm_latent_32 \
+#       --eval \
+#       --plot \
+#       --seq_len 15 \
+#       --frames_in 5 \
+#       --frames_out 10 \
+#       --weight_scale 1.0 \
+#       --alpha 1.0 \
+#       --beta 1.0 \
+#       --freq_multiplier 1.5 \
+#       --num_workers 8 \
+#       --plot_stride 10 \
+#       --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/cikm_new_experiments/amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2_cikm_latent_32_amplinet_latent_falfcl_only_2_3_13_2_more_gabor_gabor2_1.0_1.0_1.0_1.5_/checkpoints/ckpt-best.pt \
+#       --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
+#       --wandb_state 'offline' 
 
 # #========================================SEVIR============================================
 # CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotting_2.py \
@@ -84,20 +84,23 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotti
 
 # #========================================METEONET============================================
 
-# CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotting_2.py \
-#       --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
-#       --dataset meteo_lr_latent_32 \
-#       --eval \
-#       --plot \
-#       --seq_len 25 \
-#       --frames_in 5 \
-#       --frames_out 20 \
-#       --weight_scale 1.0 \
-#       --alpha 1.0 \
-#       --beta 1.0 \
-#       --freq_multiplier 1.5 \
-#       --num_workers 8 \
-#       --plot_stride 20 \
-#       --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Best_models/meteonet_latent/amplinet_latent_falfcl_only_2_3_13_2_gabor2_meteo_lr_latent_32_amplinet_latent_falfcl_only_2_3_13_2_gabor2_1.0_1.0_1.0_1.5/checkpoints/ckpt-best.pt \
-#       --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
-#       --wandb_state 'offline' 
+CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_with_plotting_2.py \
+      --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2 \
+      --dataset meteo_lr_latent_32 \
+      --eval \
+      --plot \
+      --seq_len 25 \
+      --frames_in 5 \
+      --frames_out 20 \
+      --weight_scale 1.5 \
+      --alpha 1.0 \
+      --beta 1.0 \
+      --freq_multiplier 1.25 \
+      --afno_blocks 4 \
+      --afno2D_hidden_size_factor 1 \
+      --afno_sparsity_threshold 0.01 \
+      --num_workers 8 \
+      --plot_stride 20 \
+      --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/meteonet_new_experiments/amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2_meteo_lr_latent_32_amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2_1.5_1.0_1.0_1.25_4_1_0.01/checkpoints/ckpt-best.pt \
+      --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
+      --wandb_state 'offline' 

@@ -114,7 +114,9 @@ def get_model_config(backbone: str) -> dict:
                 kwargs_type = "gaborhybrid"
             elif "afnogabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "afno_gabor_standared"
-                
+            
+            elif "spectralgabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "spectralgabor"
             elif "gabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_standared"
             else:
@@ -307,6 +309,8 @@ def create_parser():
     # ---------------------- Spectral --------------------
     parser.add_argument("--modes"           , type=int  , default=8,               help="modes for spectral")
     parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
+    parser.add_argument("--afno2D_hidden_size_factor", type=int, default=1,         help="hidden size factor in afno2d")
+    parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
 
     # --------------- Plotting Arguments ---------------
     parser.add_argument("--plot",         action="store_true",           help="Enable plotting during testing")
@@ -786,6 +790,8 @@ class Runner(object):
                 "beta": self.args.beta,
                 "freq_multiplier": self.args.freq_multiplier,
                 "afno_blocks": self.args.afno_blocks, 
+                "afno2D_hidden_size_factor": self.args.afno2D_hidden_size_factor, 
+                "afno_sparsity_threshold": self.args.afno_sparsity_threshold,
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),
@@ -805,6 +811,27 @@ class Runner(object):
             kwargs = {
                 "lambda1": self.args.mse_weight,
                 "lambda2": self.args.falfcl_weight,
+                "weight_scale": self.args.weight_scale,
+                "alpha": self.args.alpha,
+                "beta": self.args.beta,
+                "freq_multiplier": self.args.freq_multiplier,
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
+            }
+        elif kwargs_type == "spectralgabor":
+            kwargs = {
+                "modes": self.args.modes,
                 "weight_scale": self.args.weight_scale,
                 "alpha": self.args.alpha,
                 "beta": self.args.beta,

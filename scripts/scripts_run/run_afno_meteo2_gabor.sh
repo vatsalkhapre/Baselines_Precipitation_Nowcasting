@@ -1,4 +1,3 @@
-
 for weight_scale in 1.5
 do
     for a in 1.0
@@ -7,11 +6,11 @@ do
         do
             for f in 1.25
             do
-                for blocks in 2
+                for blocks in 4
                 do
-                    for hf in 3 4 
+                    for hf in 1
                     do
-                        for st in 0.01
+                        for st in 0.00
                         do
                         CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                             --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2 \
@@ -35,7 +34,7 @@ do
                             --num_workers 16 \
                             --wandb_state 'online' \
                             --wandb_project_name 'Alphapre' \
-                            --run_name amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2_meteonet${weight_scale}_${a}_${b}_${f}_${blocks}
+                            --run_name amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2_meteonet${weight_scale}_${a}_${b}_${f}_${blocks}_${hf}_${st}
 
                         CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                             --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2 \

@@ -153,6 +153,8 @@ def create_parser():
     # ---------------------- Spectral --------------------
     parser.add_argument("--modes"           , type=int  , default=8,               help="modes for spectral")
     parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
+    parser.add_argument("--afno2D_hidden_size_factor", type=int, default=1,         help="hidden size factor in afno2d")
+    parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
 
     # --------------- Gabor Parameters ---------------
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
@@ -627,6 +629,8 @@ class Runner(object):
                 "beta": self.args.beta,
                 "freq_multiplier": self.args.freq_multiplier,
                 "afno_blocks": self.args.afno_blocks, 
+                "afno2D_hidden_size_factor": self.args.afno2D_hidden_size_factor, 
+                "afno_sparsity_threshold": self.args.afno_sparsity_threshold,
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),

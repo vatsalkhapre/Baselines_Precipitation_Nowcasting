@@ -125,7 +125,6 @@ class AFNO2D(nn.Module):
         self.hard_thresholding_fraction = hard_thresholding_fraction
         self.hidden_size_factor = hidden_size_factor
         self.scale = 0.02
-
         self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
         self.b1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor))
         self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
@@ -192,7 +191,7 @@ class AFNO2D(nn.Module):
 
     
 class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier,num_blocks, size_factor=1.0,
+    def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier,num_blocks,sparsity_threshold, hidden_size_factor, size_factor=1.0,
         ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
@@ -204,9 +203,9 @@ class AmpCell(nn.Module):
         )
         # self.amptime =  AmpTimeCell(t_in, t_out)
         self.fusion = AFNO3fusion(2*dim)
-        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks),
-                                     ResneSpectralBlock(dim*t_out, num_blocks),
-                                     AFNO2D(dim*t_out, num_blocks))
+        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor),
+                                     ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor),
+                                     AFNO2D(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor= hidden_size_factor))
 
     def forward(self, x):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
@@ -222,7 +221,7 @@ class AmpCell(nn.Module):
         return x
 
 class AmpliNet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier,num_blocks, n_layers=1, mlp_ratio=2):
+    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier,num_blocks, sparsity_threshold, hidden_size_factor, n_layers=1, mlp_ratio=2):
         super().__init__()
         self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
         self.dim, self.hidden_dim = dim, hidden_dim
@@ -236,7 +235,7 @@ class AmpliNet(nn.Module):
                                     nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1))
 
         self.amplist = nn.ModuleList([
-            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim, weight_scale, alpha, beta, freq_multiplier, num_blocks) for i in range(n_layers)
+            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim, weight_scale, alpha, beta, freq_multiplier, num_blocks, sparsity_threshold, hidden_size_factor) for i in range(n_layers)
         ])
         self.convout = nn.Sequential(ResnetBlock(hidden_dim, hidden_dim),
                                      ResnetBlock(hidden_dim, hidden_dim),
@@ -259,11 +258,11 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, weight_scale, alpha, beta, freq_multiplier, num_blocks, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self, weight_scale, alpha, beta, freq_multiplier, num_blocks, sparsity_threshold, hidden_size_factor, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, num_blocks)
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, num_blocks, sparsity_threshold, hidden_size_factor)
         self.input_shape, self.input_dim = input_shape, input_dim
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num
@@ -316,9 +315,9 @@ class AlphaPre_Amplinet(nn.Module):
             return xas, None
 
 class SpectralBlock_2D(nn.Module):
-    def __init__(self, dim, num_blocks, groups = 8, groupnorm=True):
+    def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor, groups = 8, groupnorm=True):
         super(SpectralBlock_2D, self).__init__()
-        self.proj = AFNO2D(dim, num_blocks)
+        self.proj = AFNO2D(dim, num_blocks, sparsity_threshold, hidden_size_factor =hidden_size_factor)
         self.norm = nn.GroupNorm(groups, dim) if groupnorm else nn.BatchNorm2d(dim)
         self.act = nn.SiLU()
 
@@ -356,10 +355,10 @@ class ResnetBlock(nn.Module):
         return h + self.res_conv(x)
 
 class ResneSpectralBlock(nn.Module):
-    def __init__(self, dim,num_blocks, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'
+    def __init__(self, dim,num_blocks, sparsity_threshold, hidden_size_factor, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'
         super().__init__()
-        self.block1 = SpectralBlock_2D(dim, num_blocks=num_blocks, groups = groups)
-        self.block2 = SpectralBlock_2D(dim,num_blocks=num_blocks,  groups = groups)
+        self.block1 = SpectralBlock_2D(dim, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, groups = groups)
+        self.block2 = SpectralBlock_2D(dim,num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor=hidden_size_factor,  groups = groups)
         self.res_conv = nn.Identity()
 
     def forward(self, x):
@@ -385,6 +384,8 @@ def get_model(
     beta,
     freq_multiplier,
     afno_blocks,
+    afno_sparsity_threshold,
+    afno2D_hidden_size_factor,
     total_steps,
     const_ratio,
     img_channels=1,
@@ -400,7 +401,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
-    model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, afno_blocks, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
+    model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, afno_blocks, afno_sparsity_threshold, afno2D_hidden_size_factor, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )

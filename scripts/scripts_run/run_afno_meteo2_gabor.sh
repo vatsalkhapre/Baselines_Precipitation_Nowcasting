@@ -6,7 +6,7 @@ do
         do
             for f in 1.25
             do
-                for blocks in 4
+                for blocks in 2
                 do
                     for hf in 1
                     do

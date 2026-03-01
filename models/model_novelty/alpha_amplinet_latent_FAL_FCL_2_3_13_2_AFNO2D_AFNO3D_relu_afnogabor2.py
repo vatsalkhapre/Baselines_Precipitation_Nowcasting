@@ -37,7 +37,7 @@ class AFNO3fusion(nn.Module):
     sparsity_threshold: lambda for softshrink
     hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
     """
-    def __init__(self, hidden_size, num_blocks=1, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
+    def __init__(self, hidden_size, num_blocks=1, sparsity_threshold=0.005, hard_thresholding_fraction=1, hidden_size_factor=1):
         super().__init__()
         assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
 

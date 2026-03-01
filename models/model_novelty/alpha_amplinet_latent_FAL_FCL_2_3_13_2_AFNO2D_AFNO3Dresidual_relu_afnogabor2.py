@@ -47,6 +47,7 @@ class AFNO3fusion(nn.Module):
         self.block_size = self.hidden_size // self.num_blocks
         self.hard_thresholding_fraction = hard_thresholding_fraction
         self.hidden_size_factor = hidden_size_factor
+        self.proj_x = nn.Linear(hidden_size, hidden_size // 2)
         self.scale = 0.02
 
         self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
@@ -55,8 +56,8 @@ class AFNO3fusion(nn.Module):
         self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size//2))
 
     def forward(self, x):
-
-        bias = x
+        x = x.float()
+        bias = self.proj_x(x)
         dtype = x.dtype
         x = x.float()
         B, T, H, W, C = x.shape

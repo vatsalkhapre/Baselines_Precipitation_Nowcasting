@@ -4,15 +4,15 @@ do
     do 
         for b in 1.0
         do
-            for f in 1.25
+            for f in 1.5
             do
-                for blocks in 8
+                for blocks in 2
                 do
                     for hf in 1
                     do
-                        for st in 0.01
-                        do
-                        CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_3.py \
+                        for st in 0.003
+                        do 
+                        CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                             --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2 \
                             --dataset meteo_lr_latent_32 \
                             --exp_dir meteonet_new_experiments \
@@ -36,7 +36,7 @@ do
                             --wandb_project_name 'Alphapre' \
                             --run_name amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2_meteonet${weight_scale}_${a}_${b}_${f}_${blocks}_${hf}_${st}
 
-                        CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_3.py \
+                        CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                             --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_relu_afnogabor2 \
                             --dataset meteo_lr_latent_32 \
                             --exp_dir meteonet_new_experiments \

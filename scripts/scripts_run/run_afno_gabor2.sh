@@ -1,14 +1,14 @@
-for weight_scale in 0.5 0.75 1.0 1.5 2.0 
+for weight_scale in 1.5
 do
     for a in 1.0
     do 
         for b in 1.0
         do
-            for f in 1.5
+            for f in 0.5 0.75 1.0
             do
                 for blocks in 1
                 do
-                CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3.py \
+                CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_convparallel_relu_afnogabor2 \
                     --dataset cikm_latent_32 \
                     --exp_dir cikm_new_experiments \
@@ -30,7 +30,7 @@ do
                     --wandb_project_name 'Alphapre' \
                     --run_name amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_convparallel_relu_afnogabor2_cikm${weight_scale}_${a}_${b}_${f}_${blocks}
 
-                CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3.py \
+                CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_3_25epochs.py \
                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_AFNO3D_convparallel_relu_afnogabor2 \
                     --dataset cikm_latent_32 \
                     --exp_dir cikm_new_experiments \

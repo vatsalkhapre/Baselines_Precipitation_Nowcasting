@@ -83,7 +83,6 @@ class AmpCell(nn.Module):
             nn.Linear(int(t_out*size_factor), t_out),
         )
         # self.amptime =  AmpTimeCell(t_in, t_out)
-        self.fusion = nn.Conv3d(2*dim, dim, kernel_size=1)
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))

@@ -7,94 +7,89 @@ from einops.layers.torch import Rearrange
 from utils.utilspp import RandomScheduling
 from utils.wavelet_hf_loss import HF_consistency
 
-class GaborLayer(nn.Module):
-    def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier = 1.5):
-        super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-        self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
-        self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        )
-        self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
-        self.linear.bias.data.uniform_(-np.pi, np.pi)
-        self.param = nn.Parameter(torch.rand(out_features))
-        self.freq_multiplier = freq_multiplier
-        
-        return
- 
-    def forward(self, x):
-        D = (
-            (x ** 2).sum(-1)[..., None]
-            + (self.mu ** 2).sum(-1)[None, :]
-            - 2 * x @ self.mu.T
-        )
-        return torch.sin(self.freq_multiplier*self.param*self.linear(x)) * torch.exp(-0.5 * D * self.gamma[None, :])
-    
 
-class AmpTimeCell(nn.Module):
-    def __init__(self, t_in, t_out, size_factor=1):
+class AFNO2D(nn.Module):
+    """
+    hidden_size: channel dimension size
+    num_blocks: how many blocks to use in the block diagonal weight matrices (higher => less complexity but less parameters)
+    sparsity_threshold: lambda for softshrink
+    hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
+    """
+    def __init__(self, hidden_size, num_blocks=8, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
         super().__init__()
-        self.t_in, self.t_out = t_in, t_out
-        self.tmlp = nn.Sequential(
-            nn.Linear(t_in, int(t_out*size_factor)),
-            nn.SELU(True),
-            nn.Linear(int(t_out*size_factor), t_out),
-        )
+        assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
+
+        self.hidden_size = hidden_size
+        self.sparsity_threshold = sparsity_threshold
+        self.num_blocks = num_blocks
+        self.block_size = self.hidden_size // self.num_blocks
+        self.hard_thresholding_fraction = hard_thresholding_fraction
+        self.hidden_size_factor = hidden_size_factor
         self.scale = 0.02
 
-        self.w1 = nn.Parameter((self.scale * torch.randn(2, t_in, t_out*size_factor)))
-        self.b1 = nn.Parameter((self.scale * torch.randn(2, 1, 1, 1, t_out*size_factor)))
-        self.w2 = nn.Parameter((self.scale * torch.randn(2, t_out*size_factor, t_out)))
-        self.b2 = nn.Parameter((self.scale * torch.randn(2, 1, 1, 1, t_out)))
-    
-    def forward(self, x):
-        x = x.permute(0,2,3,4,1)
-        bias = self.tmlp(x)
-        xf = torch.fft.rfft2(x, dim=[2,3], norm="ortho")
-        x1_real = torch.einsum('bchwt,to->bchwo', xf.real, self.w1[0]) - \
-                  torch.einsum('bchwt,to->bchwo', xf.imag, self.w1[1]) + \
-                  self.b1[0]
-        x1_imag = torch.einsum('bchwt,to->bchwo', xf.real, self.w1[1]) + \
-                  torch.einsum('bchwt,to->bchwo', xf.imag, self.w1[0]) + \
-                  self.b1[1]
-        x1_real, x1_imag = F.relu(x1_real), F.relu(x1_imag)
-        
-        x2_real = torch.einsum('bchwt,to->bchwo', x1_real, self.w2[0]) - \
-                  torch.einsum('bchwt,to->bchwo', x1_imag, self.w2[1]) + \
-                  self.b2[0]
-        x2_imag = torch.einsum('bchwt,to->bchwo', x1_real, self.w2[1]) + \
-                  torch.einsum('bchwt,to->bchwo', x1_imag, self.w2[0]) + \
-                  self.b2[1]
+        self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
+        self.b1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor))
+        self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
+        self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
 
-        x2 = torch.view_as_complex(torch.stack([x2_real, x2_imag], dim=-1))
-        x = torch.fft.irfft2(x2, dim=[2,3], norm="ortho")
-        x = x + bias
-        return x.permute(0,4,1,2,3)
-    
-class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier, size_factor=1.0,
-        ):
-        super().__init__()
-        self.t_in, self.t_out = t_in, t_out
-        self.gabor = GaborLayer(t_in, t_out, weight_scale, alpha, beta, freq_multiplier)
-        self.tmlp = nn.Sequential(
-            nn.Linear(t_in, int(t_out*size_factor)),
-            nn.SELU(True),
-            nn.Linear(int(t_out*size_factor), t_out),
+    def forward(self, x, spatial_size=None):
+        bias = x
+
+        dtype = x.dtype
+        x = x.float()
+        B, N, C = x.shape
+
+        if spatial_size == None:
+            H = W = int(math.sqrt(N))
+        else:
+            H, W = spatial_size
+
+        x = x.reshape(B, H, W, C)
+        x = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
+        x = x.reshape(B, x.shape[1], x.shape[2], self.num_blocks, self.block_size)
+
+        o1_real = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o1_imag = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o2_real = torch.zeros(x.shape, device=x.device)
+        o2_imag = torch.zeros(x.shape, device=x.device)
+
+        total_modes = N // 2 + 1
+        kept_modes = int(total_modes * self.hard_thresholding_fraction)
+
+        o1_real[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) - \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) + \
+            self.b1[0]
         )
-        # self.amptime =  AmpTimeCell(t_in, t_out)
-        self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
-                                     ResnetBlock(dim*t_out, dim*t_out),
-                                     nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
-    def forward(self, x):
-        residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
-        residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
-        x= residual+residual2
-        x = rearrange(x, 'b t c h w -> b (t c) h w')
-        x = self.conv(x)
-        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
-        x = x + residual
-        return x
+
+        o1_imag[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) + \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) + \
+            self.b1[1]
+        )
+
+        o2_real[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) - \
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[0]
+        )
+
+        o2_imag[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) + \
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[1]
+        )
+
+        x = torch.stack([o2_real, o2_imag], dim=-1)
+        x = F.softshrink(x, lambd=self.sparsity_threshold)
+        x = torch.view_as_complex(x)
+        x = x.reshape(B, x.shape[1], x.shape[2], C)
+        x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
+        x = x.reshape(B, N, C)
+        x = x.type(dtype)
+        return x + bias
+    
+
     
 class AmpliNet(nn.Module):
     def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, n_layers=1, mlp_ratio=2):

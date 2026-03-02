@@ -70,16 +70,24 @@ MODEL_REGISTRY = {
     },
     "alpha_fnoamplinet_latent_falfcl_var1": {
         "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_variant1_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
     "alpha_fnoamplinet_latent_falfcl": {
         "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
     "alpha_afnoamplinet_latent_falfcl": {
         "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
+    "FNO_ablation": {
+        "module": "models.Ablations.FNO",
+        "kwargs_type": "standared",
+    },
+    "AFNO_ablation": {
+        "module": "models.Ablations.AFNO",
+        "kwargs_type": "standared",
+    }
 }
 
 # Ablation model prefixes that need dot→underscore conversion
@@ -134,10 +142,10 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alpha_afnoamplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='AFNO_ablation',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='meteo_lr_latent_32',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='Testing_Integrity_with_afno_amplinet_0.01_1.0',              help="additional note for experiment")
+    parser.add_argument("--exp_note",       type=str,   default='ablation',              help="additional note for experiment")
 
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
@@ -203,7 +211,7 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
     parser.add_argument("--run_name",       type=str,   default='Afno_Amplinet_falfcl_only_meteonet_latent_32_.21',        help="wandb run name")
 
@@ -478,7 +486,7 @@ class Runner(object):
             self.train_loader = torch.utils.data.DataLoader(
                 train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
             )
-            self.valid_loader = self.valid_loader = torch.utils.data.DataLoader(
+            self.valid_loader = torch.utils.data.DataLoader(
                 valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
             )
             self.test_loader = torch.utils.data.DataLoader(
@@ -677,7 +685,7 @@ class Runner(object):
         
         # self.global_epochs = max(num_epoch, self.args.epochs)
         self.global_epochs = self.args.epochs
-        full_training_steps = 50 * num_steps_per_epoch
+        self.global_steps = self.global_epochs * num_steps_per_epoch
         self.steps_per_epoch = num_steps_per_epoch
         
         self.cur_step, self.cur_epoch = 0, 0
@@ -702,13 +710,13 @@ class Runner(object):
             self.scheduler = get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_steps, 
-                num_training_steps=full_training_steps,
+                num_training_steps=self.global_steps,
             )
         elif self.args.scheduler == 'cosine':
             self.scheduler = get_cosine_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_steps , 
-                num_training_steps=full_training_steps,
+                num_training_steps=self.global_steps,
             )
         else:train
     
@@ -877,8 +885,12 @@ class Runner(object):
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
-        self.accelerator.wait_for_everyone()
-        self.accelerator.end_training()
+
+            if (epoch+1)==20:
+                self.accelerator.wait_for_everyone()
+                self.accelerator.end_training()
+                break
+        
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
@@ -1077,182 +1089,6 @@ class Runner(object):
     
     
     
-#     def generate_outputs_from_checkpoint(self, save_dir=None, data_type=None, target_ckpt=None):
-        
-
-#         if data_type == None or save_dir == None:
-#             KeyError("datatype or save_dir not defined.")
-#         checkpoint_path= target_ckpt
-
-#         device = self.device
-#         self.load(checkpoint_path)
-
-#         self.model.eval()
-
-#         latitude_range = slice(6.37081, 10.71)
-#         longitude_range = slice(74.68674, 79.02363)
-
-#         # Number of steps
-#         lat_steps = self.args.img_size
-#         lon_steps = self.args.img_size
-
-#         # Generate coordinate arrays
-#         lat_range = np.linspace(latitude_range.start, latitude_range.stop, lat_steps)
-#         lon_range = np.linspace(longitude_range.start, longitude_range.stop, lon_steps)
-
-        
-
-#         if not os.path.exists(save_dir):
-#             os.makedirs(save_dir, exist_ok=True)
-
-#         input_dir = os.path.join(save_dir, "input")
-#         gt_dir = os.path.join(save_dir, "gt")
-#         result_dir = os.path.join(save_dir, "result")
-
-#         os.makedirs(input_dir, exist_ok=True)
-#         os.makedirs(gt_dir, exist_ok=True)
-#         os.makedirs(result_dir, exist_ok=True)
-
-#         for sample_idx, batch in enumerate(self.test_loader):
-#             if sample_idx%1 == 0:
-#                 x_test, y_test = batch[:, :self.args.frames_in], batch[:, self.args.frames_in:]
-                
-#                 x_test, y_test = x_test.to(device), y_test.to(device)
-                
-#                 with torch.no_grad():
-#                     preds, _ = self.model.predict(x_test, y_test, compute_loss=False)
-
-#                 # x_test = preprocess_input(x_test)
-#                 # y_test = preprocess_input(y_test)
-           
-#                 x_np = x_test[0].squeeze(1).cpu().numpy()
-#                 y_np = y_test[0].squeeze(1).cpu().numpy()
-#                 p_np = preds[0].squeeze(1).cpu().numpy()
-
-# ###################################################################################################################################################
-#                                                 #  Convert back to normal.
-# ###################################################################################################################################################
-#                 # x_np, y_np, p_np = unnormalize(x_np, min= 0, max = 76377.62), unnormalize(y_np, min= 0, max = 76377.62), unnormalize(p_np, min= 0, max = 76377.62)
-                
-#                 if data_type.lower() == "reflectivity":
-#                     x_np, p_np, y_np = 60*x_np, 60*p_np, 60*y_np
-
-#                     vil_colors = [ "#f0f0f0", "#00b0f0", "#00ff80", "#a0f000", "#f0d000", "#f08000", "#f00000", "#c00000", "#2020ff", "#a000a0", "#000000"]
-#                     vil_cmap = ListedColormap(vil_colors, name='vil_colormap')
-#                     norm_vil = mcolors.Normalize(vmin=0, vmax=60)
-
-#                 elif data_type.lower() == "vil_vip":
-#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
-#                     VIL_COLORS = [[0, 0, 0],
-#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
-#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
-#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
-#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
-#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
-#                     [0.9607843137254902, 0.9607843137254902, 0.0],
-#                     [0.9294117647058824, 0.6745098039215687, 0.0],
-#                     [0.9411764705882353, 0.43137254901960786, 0.0],
-#                     [0.6274509803921569, 0.0, 0.0],
-#                     [0.9058823529411765, 0.0, 1.0]]
-
-#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
-#                     VIL_LEVELS = [0.0, 0.15, 0.25, 0.52, 0.77, 1.51, 3.53, 7.07, 12.13, 32.23, 81.32]
-
-#                     cols = deepcopy(VIL_COLORS)
-#                     lev = deepcopy(VIL_LEVELS)
-
-#                     nil = cols.pop(0)
-#                     under = cols[0]
-#                     # over = cols.pop()
-#                     over = cols[-1]
-#                     vil_cmap = ListedColormap(cols)
-#                     vil_cmap.set_bad(nil)
-#                     vil_cmap.set_under(under)
-#                     vil_cmap.set_over(over)
-#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
-
-#                 elif data_type.lower() == "vil":
-#                     peak_val = 5000
-#                     x_np, p_np, y_np = convert_vip_vil(x_np), convert_vip_vil(p_np), convert_vip_vil(y_np)
-#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
-#                     VIL_COLORS = [[0, 0, 0],
-#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
-#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
-#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
-#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
-#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
-#                     [0.9607843137254902, 0.9607843137254902, 0.0],
-#                     [0.9294117647058824, 0.6745098039215687, 0.0],
-#                     [0.9411764705882353, 0.43137254901960786, 0.0],
-#                     [0.6274509803921569, 0.0, 0.0],
-#                     [0.9058823529411765, 0.0, 1.0]]
-
-#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
-#                     VIL_LEVELS = np.linspace(0,int(peak_val), len(VIL_LEVELS))
-
-#                     cols = deepcopy(VIL_COLORS)
-#                     lev = deepcopy(VIL_LEVELS)
-
-#                     nil = cols.pop(0)
-#                     under = cols[0]
-#                     # over = cols.pop()
-#                     over = cols[-1]
-#                     vil_cmap = ListedColormap(cols)
-#                     vil_cmap.set_bad(nil)
-#                     vil_cmap.set_under(under)
-#                     vil_cmap.set_over(over)
-#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
-
-#                 lon_grid, lat_grid = np.meshgrid(lon_range, lat_range)
-                
-
-#                 # Plot inputs
-#                 fig_input, axes_input = plt.subplots(1, self.args.frames_in, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for i in range(self.args.frames_in):
-#                     im = axes_input[i].pcolormesh(lon_grid, lat_grid, x_np[i], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_input[i].set_title(f"Input {i+1}", fontsize = 25)
-#                     axes_input[i].axis("off")
-#                     axes_input[i].add_feature(cfeature.BORDERS)
-#                     axes_input[i].add_feature(cfeature.COASTLINE)
-#                     axes_input[i].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_input.tight_layout()
-#                 # fig_input.colorbar(im, ax=axes_input.ravel().tolist(), orientation='horizontal')
-#                 fig_input.savefig(os.path.join(input_dir, f"Input_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_input)
-
-#                 # Plot GT
-#                 fig_gt, axes_gt = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for j in range(10):
-#                     im = axes_gt[j].pcolormesh(lon_grid, lat_grid, y_np[j], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_gt[j].set_title(f"GT {j+1}", fontsize = 25)
-#                     axes_gt[j].axis("off")
-#                     axes_gt[j].add_feature(cfeature.BORDERS)
-#                     axes_gt[j].add_feature(cfeature.COASTLINE)
-#                     axes_gt[j].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_gt.tight_layout()
-#                 # fig_gt.colorbar(im, ax=axes_gt.ravel().tolist(), orientation='horizontal')
-#                 fig_gt.savefig(os.path.join(gt_dir, f"GT_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_gt)
-
-                
-#                 fig_result, axes_result = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for k in range(10):
-#                     im = axes_result[k].pcolormesh(lon_grid, lat_grid, p_np[k], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_result[k].set_title(f"Pred_{k+1}", fontsize = 25)
-#                     axes_result[k].axis("off")
-#                     axes_result[k].add_feature(cfeature.BORDERS)
-#                     axes_result[k].add_feature(cfeature.COASTLINE)
-#                     axes_result[k].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_result.tight_layout()
-#                 # fig_result.colorbar(im, ax=axes_result.ravel().tolist(), orientation='horizontal')
-#                 fig_result.savefig(os.path.join(result_dir, f"Pred_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_result)
-                
-#                 print(f"Plotted at directory, {result_dir}, Sample_idx; {sample_idx}")
-
 
 def main():
     args = create_parser()

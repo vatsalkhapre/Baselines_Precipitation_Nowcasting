@@ -70,16 +70,24 @@ MODEL_REGISTRY = {
     },
     "alpha_fnoamplinet_latent_falfcl_var1": {
         "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_variant1_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
     "alpha_fnoamplinet_latent_falfcl": {
         "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
     "alpha_afnoamplinet_latent_falfcl": {
         "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
-        "kwargs_type": "standard",
+        "kwargs_type": "standared",
     },
+    "FNO_ablation": {
+        "module": "models.Ablations.FNO",
+        "kwargs_type": "standared",
+    },
+    "AFNO_ablation": {
+        "module": "models.Ablations.AFNO",
+        "kwargs_type": "standared",
+    }
 }
 
 # Ablation model prefixes that need dot→underscore conversion
@@ -134,10 +142,10 @@ def create_parser():
     # --------------- Basic ---------------
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--backbone',       type=str,   default='alpha_afnoamplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
+    parser.add_argument('--backbone',       type=str,   default='AFNO_ablation',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='meteo_lr_latent_32',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='Testing_Integrity_with_afno_amplinet_0.01_1.0',              help="additional note for experiment")
+    parser.add_argument("--exp_note",       type=str,   default='ablation',              help="additional note for experiment")
 
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
@@ -203,7 +211,7 @@ def create_parser():
     parser.add_argument("--res_opt",        action="store_true",                 help="resume opt")  # Remember to activate this when you want to resume
 
     # --------------- Wandb ---------------
-    parser.add_argument("--wandb_state",    type=str,   default='online',      help="wandb state config")
+    parser.add_argument("--wandb_state",    type=str,   default='offline',      help="wandb state config")
     parser.add_argument("--wandb_project_name", type=str, default="Alphapre", help="wandb project name")
     parser.add_argument("--run_name",       type=str,   default='Afno_Amplinet_falfcl_only_meteonet_latent_32_.21',        help="wandb run name")
 

@@ -84,10 +84,8 @@ class AmpCell(nn.Module):
         )
         # self.amptime =  AmpTimeCell(t_in, t_out)
         self.fusion = nn.Conv3d(2*dim, dim, kernel_size=1)
-        self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
-                                     ResnetBlock(dim*t_out, dim*t_out),
-                                     nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
-                                     
+        self.only_temporal = nn.Conv3d(t_out, t_out, kernel_size=1)
+
     def forward(self, x):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
@@ -95,9 +93,8 @@ class AmpCell(nn.Module):
         out = out.permute(0,2,1,3,4)  
         x= self.fusion(out)
         x = x.permute(0,2,1,3,4) 
-        x = rearrange(x, 'b t c h w -> b (t c) h w')
-        x = self.conv(x)
-        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = self.only_temporal(x)
+        x = x + residual
         return x
     
 class AmpliNet(nn.Module):

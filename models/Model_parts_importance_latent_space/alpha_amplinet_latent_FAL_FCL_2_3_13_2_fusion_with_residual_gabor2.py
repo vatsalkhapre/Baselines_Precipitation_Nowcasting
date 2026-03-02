@@ -87,17 +87,14 @@ class AmpCell(nn.Module):
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
-                                     
     def forward(self, x):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
-        out = torch.cat([residual, residual2], dim=2)
-        out = out.permute(0,2,1,3,4)  
-        x= self.fusion(out)
-        x = x.permute(0,2,1,3,4) 
+        x= residual+residual2
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = x + residual
         return x
     
 class AmpliNet(nn.Module):

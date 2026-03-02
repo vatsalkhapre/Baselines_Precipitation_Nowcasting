@@ -93,7 +93,7 @@ class AmpCell(nn.Module):
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         out = torch.cat([residual, residual2], dim=2)
         out = out.permute(0,2,1,3,4)  
-        x= self.fusion(out)
+        x = self.fusion(out)
         x = x.permute(0,2,1,3,4) 
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)

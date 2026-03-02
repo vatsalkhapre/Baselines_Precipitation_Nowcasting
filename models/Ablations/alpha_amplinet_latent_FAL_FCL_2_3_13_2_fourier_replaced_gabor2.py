@@ -6,30 +6,26 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from utils.utilspp import RandomScheduling
 from utils.wavelet_hf_loss import HF_consistency
+import math
 
-class GaborLayer(nn.Module):
-    def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier = 1.5):
+class FourierLayer(nn.Module):
+    def __init__(self, in_features, out_features, weight_scale):
         super().__init__()
-        self.linear = nn.Linear(in_features, out_features)
-        self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
-        self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        )
-        self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
-        self.linear.bias.data.uniform_(-np.pi, np.pi)
-        self.param = nn.Parameter(torch.rand(out_features))
-        self.freq_multiplier = freq_multiplier
         
-        return
- 
+        # Halve because we concatenate sin & cos
+        self.linear = nn.Linear(in_features, out_features // 2)
+        
+        nn.init.kaiming_uniform_(self.linear.weight, a=math.sqrt(5))
+        self.linear.weight.data *= weight_scale
+        
+        nn.init.uniform_(self.linear.bias, -np.pi, np.pi)
+
     def forward(self, x):
-        D = (
-            (x ** 2).sum(-1)[..., None]
-            + (self.mu ** 2).sum(-1)[None, :]
-            - 2 * x @ self.mu.T
+        projected = self.linear(x)
+        return torch.cat(
+            [torch.sin(projected), torch.cos(projected)],
+            dim=-1
         )
-        return torch.sin(self.freq_multiplier*self.param*self.linear(x)) * torch.exp(-0.5 * D * self.gamma[None, :])
-    
 
 class AmpTimeCell(nn.Module):
     def __init__(self, t_in, t_out, size_factor=1):
@@ -76,7 +72,7 @@ class AmpCell(nn.Module):
         ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
-        self.gabor = GaborLayer(t_in, t_out, weight_scale, alpha, beta, freq_multiplier)
+        self.fourier = FourierLayer(t_in, t_out, weight_scale)
         self.tmlp = nn.Sequential(
             nn.Linear(t_in, int(t_out*size_factor)),
             nn.SELU(True),
@@ -87,9 +83,8 @@ class AmpCell(nn.Module):
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
-                                     
     def forward(self, x):
-        residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
+        residual = self.fourier(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         out = torch.cat([residual, residual2], dim=2)
         out = out.permute(0,2,1,3,4)  
@@ -98,6 +93,7 @@ class AmpCell(nn.Module):
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = x + residual
         return x
     
 class AmpliNet(nn.Module):

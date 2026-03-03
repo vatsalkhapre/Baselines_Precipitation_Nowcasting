@@ -157,10 +157,7 @@ class AlphaPre_Amplinet(nn.Module):
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
 
         h, w = input_shape
-        spec_mask = torch.zeros(h, w//2+1)
-        spec_mask[...,:spec_num,:spec_num] = 1.
-        spec_mask[...,-spec_num:,:spec_num] = 1.
-        self.register_buffer('spec_mask', spec_mask)
+        
         
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1

@@ -64,7 +64,7 @@ class MLP(nn.Module):
         return x
 
 class FNO3d(nn.Module):
-    def __init__(self, modes1, modes2, modes3, width, T_in, T_out, input_size, output_size, layer=1):
+    def __init__(self, modes1, modes2, modes3, width, T_in, T_out, input_size, output_size, layer=4):
         super(FNO3d, self).__init__()
 
         self.modes1 = modes1

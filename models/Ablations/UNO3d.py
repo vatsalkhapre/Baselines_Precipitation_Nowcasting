@@ -592,7 +592,7 @@ class AmpCell(nn.Module):
         ):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
-        self.uno = UNO3D_BTCHW(dim, dim, hidden_dim, t_in, t_out, 32, 32)
+        self.uno = UNO3D_BTCHW(dim, dim, 20, t_in, t_out, 32, 32)
         
 
     def forward(self, x):

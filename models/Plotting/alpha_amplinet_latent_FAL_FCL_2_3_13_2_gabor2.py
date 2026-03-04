@@ -44,12 +44,13 @@ class AmpCell(nn.Module):
             nn.SELU(True),
             nn.Linear(int(t_out*size_factor), t_out),
         )
-        # self.amptime =  AmpTimeCell(t_in, t_out)
+   
         self.fusion = nn.Conv3d(2*dim, dim, kernel_size=1)
         self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
                                      ResnetBlock(dim*t_out, dim*t_out),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1))
     def forward(self, x):
+        input = x
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         residual2 = self.tmlp(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
         out = torch.cat([residual, residual2], dim=2)
@@ -59,8 +60,8 @@ class AmpCell(nn.Module):
         x = rearrange(x, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
-        x = x + residual2
-        return x
+        x = x + residual
+        return x, residual, residual2, input
     
 class AmpliNet(nn.Module):
     def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, n_layers=1, mlp_ratio=2):
@@ -86,15 +87,17 @@ class AmpliNet(nn.Module):
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convin(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.pre_seq_length)
-   
+        # x_ = x.permute(0,2,3,4,1)
+        # xr = self.tmlp(x_)
+        # xr = rearrange(xr, 'b c h w t -> (b t) c h w')
         for ampcell in self.amplist:
-            x = ampcell(x)
-            
+            x, residual,residual2, input = ampcell(x)
+        # x = xr + rearrange(x, 'b t c h w -> (b t) c h w')
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convout(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.aft_seq_length)
 
-        return x
+        return x,residual,residual2, input 
     
 class AlphaPre_Amplinet(nn.Module):
     def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
@@ -124,13 +127,13 @@ class AlphaPre_Amplinet(nn.Module):
         
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
-        xas = self.amplinet(x)
+        xas,residual,residual2, input  = self.amplinet(x)
         # xas = torch.sigmoid(xas)
-        return xas
+        return xas,residual,residual2, input 
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
         
-        xas = self(frames_in, frames_gt, compute_loss)
+        xas,residual,residual2, input  = self(frames_in, frames_gt, compute_loss)
         if compute_loss:
             if self.itr < self.aweight_stop_steps:
                 self.amp_weight -= self.sampling_changing_rate
@@ -149,9 +152,9 @@ class AlphaPre_Amplinet(nn.Module):
             # hfloss = self.hfloss(xas, frames_gt)
             # total_loss = falfcl_loss   #Place correct weights here
             loss = {'total_loss': falfcl_loss}
-            return xas, loss
+            return xas,residual,residual2, input , loss
         else:
-            return xas, None
+            return xas,residual,residual2, input , None
 
 class Block(nn.Module):
     def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):

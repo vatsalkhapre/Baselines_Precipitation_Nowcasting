@@ -31,45 +31,7 @@ class GaborLayer(nn.Module):
         return torch.sin(self.freq_multiplier*self.param*self.linear(x)) * torch.exp(-0.5 * D * self.gamma[None, :])
     
 
-class AmpTimeCell(nn.Module):
-    def __init__(self, t_in, t_out, size_factor=1):
-        super().__init__()
-        self.t_in, self.t_out = t_in, t_out
-        self.tmlp = nn.Sequential(
-            nn.Linear(t_in, int(t_out*size_factor)),
-            nn.SELU(True),
-            nn.Linear(int(t_out*size_factor), t_out),
-        )
-        self.scale = 0.02
 
-        self.w1 = nn.Parameter((self.scale * torch.randn(2, t_in, t_out*size_factor)))
-        self.b1 = nn.Parameter((self.scale * torch.randn(2, 1, 1, 1, t_out*size_factor)))
-        self.w2 = nn.Parameter((self.scale * torch.randn(2, t_out*size_factor, t_out)))
-        self.b2 = nn.Parameter((self.scale * torch.randn(2, 1, 1, 1, t_out)))
-    
-    def forward(self, x):
-        x = x.permute(0,2,3,4,1)
-        bias = self.tmlp(x)
-        xf = torch.fft.rfft2(x, dim=[2,3], norm="ortho")
-        x1_real = torch.einsum('bchwt,to->bchwo', xf.real, self.w1[0]) - \
-                  torch.einsum('bchwt,to->bchwo', xf.imag, self.w1[1]) + \
-                  self.b1[0]
-        x1_imag = torch.einsum('bchwt,to->bchwo', xf.real, self.w1[1]) + \
-                  torch.einsum('bchwt,to->bchwo', xf.imag, self.w1[0]) + \
-                  self.b1[1]
-        x1_real, x1_imag = F.relu(x1_real), F.relu(x1_imag)
-        
-        x2_real = torch.einsum('bchwt,to->bchwo', x1_real, self.w2[0]) - \
-                  torch.einsum('bchwt,to->bchwo', x1_imag, self.w2[1]) + \
-                  self.b2[0]
-        x2_imag = torch.einsum('bchwt,to->bchwo', x1_real, self.w2[1]) + \
-                  torch.einsum('bchwt,to->bchwo', x1_imag, self.w2[0]) + \
-                  self.b2[1]
-
-        x2 = torch.view_as_complex(torch.stack([x2_real, x2_imag], dim=-1))
-        x = torch.fft.irfft2(x2, dim=[2,3], norm="ortho")
-        x = x + bias
-        return x.permute(0,4,1,2,3)
     
 class AmpCell(nn.Module):
     def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier, size_factor=1.0,

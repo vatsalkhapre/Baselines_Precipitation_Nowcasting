@@ -4,9 +4,9 @@ do
     do 
         for b in 1.0
         do
-            for weight_scale in 1.5
+            for weight_scale in 1.0
             do
-            # CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
+            # CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
             #     --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
             #     --dataset sevir_lr_latent_32 \
             #     --exp_dir sevir_lr_latent_32_tuning \
@@ -27,7 +27,7 @@ do
             #     --wandb_project_name 'Alphapre' \
             #     --run_name amplinet_latent_falfcl_only_2_3_13_2_gabor2_sevir_${weight_scale}_${a}_${b}_${f}
 
-            CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
+            CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
                 --backbone amplinet_latent_falfcl_only_2_3_13_2_gabor2 \
                 --dataset sevir_lr_latent_32 \
                 --exp_dir sevir_lr_latent_32_tuning \

@@ -1,0 +1,13 @@
+CUDA_VISIBLE_DEVICES=0 python3 run_diffcast_plotting_consecutive.py \
+      --backbone phydnet \
+      --use_diff \
+      --dataset sevir \
+      --eval \
+      --plot \
+      --seq_len 25 \
+      --frames_in 5 \
+      --frames_out 20 \
+      --num_workers 8 \
+      --plot_stride 40 \
+      --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Baselines/Diffcast_sevir/checkpoints/diffcast_phydnet_sevir128.pt \
+      --wandb_state 'offline' 

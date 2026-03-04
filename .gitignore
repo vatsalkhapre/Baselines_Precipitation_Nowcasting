@@ -45,3 +45,4 @@ models/prediff/utils/__pycache__
 models/prediff/taming/losses/__pycache__
 earthformer_clone.yml
 earthformer_env_21.yml
+vil_frames

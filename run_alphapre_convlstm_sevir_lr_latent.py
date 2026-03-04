@@ -87,6 +87,14 @@ MODEL_REGISTRY = {
     "AFNO_ablation": {
         "module": "models.Ablations.AFNO",
         "kwargs_type": "standared",
+    },
+    "WNO_ablation": {
+        "module": "models.Ablations.WNO",
+        "kwargs_type": "standared",
+    },
+    "UNO_ablation": {
+        "module": "models.Ablations.UNO3d",
+        "kwargs_type": "standared",
     }
 }
 

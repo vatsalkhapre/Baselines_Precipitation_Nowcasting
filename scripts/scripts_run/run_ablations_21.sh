@@ -7,6 +7,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --epochs 50 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
     --valid \
+    --hidden_size 96 \
     --seq_len 15 \
     --frames_in 5 \
     --frames_out 10 \
@@ -22,6 +23,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --exp_note "WNO_ablation" \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
     --eval \
+    --hidden_size 96 \
     --seq_len 15 \
     --frames_in 5 \
     --frames_out 10 \
@@ -36,6 +38,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --epochs 50 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth" \
     --valid \
+    --hidden_size 96 \
     --seq_len 25 \
     --frames_in 5 \
     --frames_out 20 \
@@ -51,6 +54,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --exp_note "WNO_ablation" \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth" \
     --eval \
+    --hidden_size 96 \
     --seq_len 25 \
     --frames_in 5 \
     --frames_out 20 \
@@ -66,6 +70,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
     --valid \
     --seq_len 25 \
+    --hidden_size 96 \
     --frames_in 5 \
     --frames_out 20 \
     --num_workers 8 \
@@ -81,6 +86,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
     --eval \
     --seq_len 25 \
+    --hidden_size 96 \
     --frames_in 5 \
     --frames_out 20 \
     --num_workers 8 \

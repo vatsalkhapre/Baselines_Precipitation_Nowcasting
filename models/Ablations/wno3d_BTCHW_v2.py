@@ -74,8 +74,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pywt
 from ptwt import wavedec3, waverec3   # pip install ptwt
-from utils.utilspp import RandomScheduling
-
 
 
 # ---------------------------------------------------------------------------
@@ -476,129 +474,6 @@ class WNO3d_BTCHW(nn.Module):
 
         return x
 
-
-class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, hidden_dim
-        ):
-        super().__init__()
-        self.t_in, self.t_out = t_in, t_out
-    
-        self.wno = WNO3d_BTCHW(hidden_dim, 2, 3, t_in, t_out, 32, 32, dim, dim)
-        
-
-    def forward(self, x):
-
-        out = self.wno(x)
-        return out
-
-
-class AmpliNet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, n_layers=1):
-        super().__init__()
-        self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
-        self.dim, self.hidden_dim = dim, hidden_dim
-        # self.tmlp = nn.Sequential(
-        #     nn.Linear(pre_seq_length, int(aft_seq_length*mlp_ratio)),
-        #     nn.SELU(True),
-        #     nn.Linear(int(aft_seq_length*mlp_ratio), aft_seq_length),
-        # )
-        
-        self.amplist = nn.ModuleList([
-            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length,dim,  hidden_dim) for i in range(n_layers)
-        ])
-        
-    def forward(self, x):
-    
-        # x_ = x.permute(0,2,3,4,1)
-        # xr = self.tmlp(x_)
-        # xr = rearrange(xr, 'b c h w t -> (b t) c h w')
-        for ampcell in self.amplist:
-            x = ampcell(x)
-        # x = xr + rearrange(x, 'b t c h w -> (b t) c h w')
-    
-        return x
-    
-class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
-                 hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
-                 pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
-        super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
-        self.input_shape, self.input_dim = input_shape, input_dim
-        self.hidden_dim = hidden_dim
-        self.spec_num = spec_num
-        self.pha_weight = pha_weight
-        self.anet_weight = anet_weight
-        self.amp_weight = amp_weight
-        self.pre_seq_length = pre_seq_length
-        self.aft_seq_length = aft_seq_length
-        self.falfcl = RandomScheduling(total_steps, 1, const_ratio)
-        # self.hfloss = HF_consistency()
-        self.itr = 0
-        self.aweight_stop_steps = aweight_stop_steps
-        self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
-
-        h, w = input_shape
-        spec_mask = torch.zeros(h, w//2+1)
-        spec_mask[...,:spec_num,:spec_num] = 1.
-        spec_mask[...,-spec_num:,:spec_num] = 1.
-        self.register_buffer('spec_mask', spec_mask)
-        
-    def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
-        self.itr += 1
-        xas = self.amplinet(x)
-        # xas = torch.sigmoid(xas)
-        return xas
-
-    def predict(self, frames_in, frames_gt=None, compute_loss=False):
-        
-        xas = self(frames_in, frames_gt, compute_loss)
-        if compute_loss:
-            if self.itr < self.aweight_stop_steps:
-                self.amp_weight -= self.sampling_changing_rate
-            else:
-                self.amp_weight  = 0.
-
-            loss = 0.
-            
-            # frames_fft = torch.fft.rfft2(frames_gt)
-            # frames_abs = torch.abs(frames_fft)
-            # xas_fft = torch.fft.rfft2(xas)
-            # xas_abs = torch.abs(xas_fft)
-            # amp_loss = self.criterion(xas_abs, frames_abs)
-            # loss += self.amp_weight*amp_loss
-            falfcl_loss = self.falfcl(xas, frames_gt)
-            # hfloss = self.hfloss(xas, frames_gt)
-            # total_loss = falfcl_loss   #Place correct weights here
-            loss = {'total_loss': falfcl_loss}
-            return xas, loss
-        else:
-            return xas, None
-
-
-
-def get_model(
-    total_steps,
-    const_ratio,
-    img_channels=1,
-    dim = 64,
-    T_in = 5, 
-    T_out = 20,
-    input_shape = (128,128),
-    n_layers = 3,
-    spec_num = 20,
-    pha_weight=0.01, 
-    anet_weight=0.1,
-    amp_weight=0.01,
-    aweight_stop_steps=10000,
-    **kwargs
-):
-    model = AlphaPre_Amplinet(total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
-                     hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
-                     pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
-                     )
-    
-    return model
 
 # ---------------------------------------------------------------------------
 # Sanity checks

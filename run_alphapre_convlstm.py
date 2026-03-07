@@ -422,7 +422,7 @@ class Runner(object):
         
         self.cur_step, self.cur_epoch = 0, 0
 
-        warmup_steps = self.args.warmup_steps
+        warmup_steps = self.global_steps * 0.2
 
         # Schedulers takes from diffusers.
         trainable_params = list(filter(lambda p: p.requires_grad, self.model.parameters()))

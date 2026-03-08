@@ -379,13 +379,14 @@ class Runner(object):
             model = Earthfarseer_model(**kwargs)
 
         elif self.args.backbone == 'earthformer':
-            from models.earth_former import get_model
+            from models.earth_former import EarthFormer_xy
             kwargs = {
-                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
+                "in_len": self.args.frames_in,
+                "out_len": self.args.frames_out,
+                "height":128,
+                "width":128
             }
-            model = get_model(**kwargs)
+            model = EarthFormer_xy(**kwargs)
         
         elif self.args.backbone == 'mau':
             from models.earth_former import get_model
@@ -438,7 +439,7 @@ class Runner(object):
                 trainable_params,
                 lr=self.args.lr,
                 betas=(self.args.lr_beta1, self.args.lr_beta2),
-                weight_decay=self.args.l2_norm
+                weight_decay=0.00001
             )
         if self.args.scheduler == 'constant':
             self.scheduler = get_constant_schedule_with_warmup(

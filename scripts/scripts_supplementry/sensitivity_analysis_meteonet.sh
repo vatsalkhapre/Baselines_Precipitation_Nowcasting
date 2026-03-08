@@ -2,7 +2,7 @@
 # Sensitivity Analysis: One hyperparameter at a time
 # Defaults: dim=64, size_factor=1.0, freq_multiplier=1.0
 
-GPU=1
+GPU=0
 BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gabor2"
 DATASET="meteo_lr_latent_32"
 EXP_DIR="meteo_lr_latent_32_sensitivity_analysis"

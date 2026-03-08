@@ -168,7 +168,7 @@ def create_parser():
 
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
-    parser.add_argument("hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")

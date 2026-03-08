@@ -281,7 +281,7 @@ class Runner(object):
             self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
-        if self.args.dataset == 'sevir':
+        elif self.args.dataset == 'sevir':
             self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
@@ -447,9 +447,9 @@ class Runner(object):
             print_log(f"    Optimizer: {self.optimizer} with init lr: {self.args.lr}")
 
     
-    def save(self):
+    def save(self, svname=None):
         # =================================
-        # Save checkpoint stsate for model and ema
+        # Save checkpoint state for model and ema
         # =================================
         if not self.is_main:
             return
@@ -461,12 +461,14 @@ class Runner(object):
             'ema': self.ema.state_dict(),
             'opt': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict(),
-
         }
         
-        torch.save(data, osp.join(self.ckpt_path, f"ckpt-{self.cur_step}.pt"))
-        print("Checkpoint saved")
-        print_log(f"Save checkpoint {self.cur_step} to {self.ckpt_path}", self.is_main)
+        if svname == None:
+            torch.save(data, osp.join(self.ckpt_path, f"ckpt-{self.cur_step}.pt"))
+            print_log(f"Save checkpoint {self.cur_step} to {self.ckpt_path}", self.is_main)
+        else:
+            torch.save(data, osp.join(self.ckpt_path, f"ckpt-{svname}.pt"))
+            print_log(f"Save {svname} checkpoint to {self.ckpt_path}", self.is_main)
         
         
     def load(self, milestone):
@@ -585,7 +587,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%10==0 or epoch == 0:
+                if (epoch+1)%15==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
                     if self.args.valid_limit:
                         self.save()
@@ -734,7 +736,7 @@ class Runner(object):
         
 
         if data_type == None or save_dir == None:
-            KeyError("datatype or save_dir not defined.")
+            raise ValueError("datatype or save_dir not defined.")
         checkpoint_path= target_ckpt
 
         device = self.device

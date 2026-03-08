@@ -41,7 +41,7 @@ run_experiment() {
         --alpha ${DEF_A} \
         --beta ${DEF_B} \
         --freq_multiplier ${F} \
-        --dim ${DIM} \
+        --hidden_dim ${DIM} \
         --size_factor ${SF} \
         --num_workers 8 \
         --wandb_state 'online' \
@@ -64,7 +64,7 @@ run_experiment() {
         --alpha ${DEF_A} \
         --beta ${DEF_B} \
         --freq_multiplier ${F} \
-        --dim ${DIM} \
+        --hidden_dim ${DIM} \
         --size_factor ${SF} \
         --num_workers 8 \
         --wandb_state 'offline'

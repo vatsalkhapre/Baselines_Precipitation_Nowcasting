@@ -21,7 +21,7 @@ run_experiment() {
     local DIM=$1 SF=$2 F=$3 TAG=$4
 
     echo "=============================================="
-    echo "  ${TAG}: dim=${DIM}, size_factor=${SF}, freq=${F}"
+    echo "  ${TAG}: hidden_dim=${DIM}, size_factor=${SF}, freq=${F}"
     echo "=============================================="
 
     # Train
@@ -41,7 +41,7 @@ run_experiment() {
         --alpha ${DEF_A} \
         --beta ${DEF_B} \
         --freq_multiplier ${F} \
-        --dim ${DIM} \
+        --hidden_dim ${DIM} \
         --size_factor ${SF} \
         --num_workers 8 \
         --wandb_state 'online' \
@@ -64,7 +64,7 @@ run_experiment() {
         --alpha ${DEF_A} \
         --beta ${DEF_B} \
         --freq_multiplier ${F} \
-        --dim ${DIM} \
+        --hidden_dim ${DIM} \
         --size_factor ${SF} \
         --num_workers 8 \
         --wandb_state 'offline'

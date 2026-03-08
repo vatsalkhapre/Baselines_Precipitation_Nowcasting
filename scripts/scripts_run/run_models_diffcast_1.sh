@@ -16,7 +16,7 @@
 #     --run_name "Diffcast_meteonet" 
 
 
-CUDA_VISIBLE_DEVICES=0 python3 run_diffcast.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_diffcast.py \
     --exp_dir shanghai \
     --exp_note Diffcast_on_shanghai \
     --batch_size 6 \

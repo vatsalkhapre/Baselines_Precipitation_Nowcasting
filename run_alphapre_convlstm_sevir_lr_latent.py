@@ -128,7 +128,8 @@ def get_model_config(backbone: str) -> dict:
                 kwargs_type = "hybrid"
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
-                
+            elif "supplimentrygabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_supplimentry_std"
             elif "gabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_standared"
             else:
@@ -164,6 +165,9 @@ def create_parser():
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
@@ -612,6 +616,28 @@ class Runner(object):
                 "alpha": self.args.alpha,
                 "beta": self.args.beta,
                 "freq_multiplier": self.args.freq_multiplier,
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
+            }
+
+        elif kwargs_type == "gabor_supplimentry_std":
+            kwargs = {
+                "weight_scale": self.args.weight_scale,
+                "alpha": self.args.alpha,
+                "beta": self.args.beta,
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor": self.args.size_factor,
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),

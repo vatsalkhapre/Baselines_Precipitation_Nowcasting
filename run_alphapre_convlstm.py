@@ -83,6 +83,15 @@ def create_parser():
     parser.add_argument("--warmup_steps",     type=int,   default=1000,            help="warmup steps")
     parser.add_argument("--mixed_precision",  type=str,   default='no',            help="mixed precision training")
     parser.add_argument("--grad_acc_step",    type=int,   default=8,               help="gradient accumulation step")
+    parser.add_argument("--lr",               type=float, default=1e-4,            help="learning rate")             #Check
+    parser.add_argument("--lr_beta1",         type=float, default=0.90,            help="learning rate beta 1")
+    parser.add_argument("--lr_beta2",         type=float, default=0.95,            help="learning rate beta 2")
+    parser.add_argument("--l2-norm",          type=float, default=0.0,             help="l2 norm weight decay")
+    parser.add_argument("--ema_rate",         type=float, default=0.95,            help="exponential moving average rate")
+    parser.add_argument("--scheduler",        type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
+    parser.add_argument("--warmup_steps",     type=int,   default=1000,            help="warmup steps")
+    parser.add_argument("--mixed_precision",  type=str,   default='no',            help="mixed precision training")
+    parser.add_argument("--grad_acc_step",    type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check

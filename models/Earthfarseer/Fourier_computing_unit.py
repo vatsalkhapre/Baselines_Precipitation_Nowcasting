@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from modules import ConvSC, Inception
+from .modules import ConvSC, Inception
 import torch.nn.functional as F
 import torch.fft
 import numpy as np

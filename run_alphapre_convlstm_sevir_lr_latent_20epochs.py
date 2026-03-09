@@ -120,7 +120,8 @@ def get_model_config(backbone: str) -> dict:
                 kwargs_type = "hybrid"
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
-                
+            elif "supplimentrygabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_supplimentry_std"
             elif "gabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_standared"
             else:
@@ -156,6 +157,9 @@ def create_parser():
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
@@ -192,6 +196,7 @@ def create_parser():
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
     parser.add_argument("--spec_num",       type=int,   default=20,              help="spectral number")
     parser.add_argument("--layers",         type=int,   default=3,               help="layers number")
+    parser.add_argument("--hidden_size",    type=int,   default=64,              help="Hidden size of the input inside the model")
     parser.add_argument("--pha_weight",     type=float, default=0.01,            help="phase weight")
     parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
     parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")
@@ -618,6 +623,27 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
 
+        elif kwargs_type == "gabor_supplimentry_std":
+            kwargs = {
+                "weight_scale": self.args.weight_scale,
+                "alpha": self.args.alpha,
+                "beta": self.args.beta,
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor": self.args.size_factor,
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "dim": self.args.hidden_dim,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
+            }
         elif kwargs_type == "gaborhybrid":
             kwargs = {
                 "lambda1": self.args.mse_weight,
@@ -886,7 +912,7 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==25:
+            if (epoch+1)==35:
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break

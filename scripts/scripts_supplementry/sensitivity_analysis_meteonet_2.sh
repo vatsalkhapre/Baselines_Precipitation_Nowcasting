@@ -13,7 +13,7 @@ SEED=0
 DEF_DIM=64
 DEF_SF=1.0
 DEF_F=1.5
-DEF_WS=1.0
+DEF_WS=1.5
 DEF_A=1.0
 DEF_B=1.0
 
@@ -25,7 +25,7 @@ run_experiment() {
     echo "=============================================="
 
     # Train
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \
@@ -49,7 +49,7 @@ run_experiment() {
         --run_name "${BACKBONE}_sensitivity_${TAG}"
 
     # Eval
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \
@@ -76,7 +76,7 @@ run_experiment() {
 # ==============================================================
 # 1. Vary dim (fix size_factor=1.0, freq_multiplier=1.0)
 # ==============================================================
-for DIM in 16 32 64 128 256
+for DIM in 32 128 256
 do
     run_experiment ${DIM} ${DEF_SF} ${DEF_F} "dim_${DIM}"
 done

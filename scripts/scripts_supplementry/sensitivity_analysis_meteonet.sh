@@ -25,7 +25,7 @@ run_experiment() {
     echo "=============================================="
 
     # Train
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \
@@ -49,7 +49,7 @@ run_experiment() {
         --run_name "${BACKBONE}_sensitivity_${TAG}"
 
     # Eval
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \
@@ -77,15 +77,15 @@ run_experiment() {
 # ==============================================================
 # 2. Vary size_factor (fix dim=64, freq_multiplier=1.0)
 # ==============================================================
-for SF in 0.25 0.5 1.0 2.0 4.0
-do
-    run_experiment ${DEF_DIM} ${SF} ${DEF_F} "sf_${SF}"
-done
+# for SF in 0.25 0.5 1.0 2.0 4.0
+# do
+#     run_experiment ${DEF_DIM} ${SF} ${DEF_F} "sf_${SF}"
+# done
 
 # ==============================================================
 # 3. Vary freq_multiplier (fix dim=64, size_factor=1.0)
 # ==============================================================
-for F in 0.25 0.5 1.0 1.5 2.0
+for F in 1.0 1.5 2.0
 do
     run_experiment ${DEF_DIM} ${DEF_SF} ${F} "freq_${F}"
 done

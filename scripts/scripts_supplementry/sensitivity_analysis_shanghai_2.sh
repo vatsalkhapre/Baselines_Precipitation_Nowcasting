@@ -25,7 +25,7 @@ run_experiment() {
     echo "=============================================="
 
     # Train
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \

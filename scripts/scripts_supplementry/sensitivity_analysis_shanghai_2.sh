@@ -2,7 +2,7 @@
 # Sensitivity Analysis: One hyperparameter at a time
 # Defaults: dim=64, size_factor=1.0, freq_multiplier=1.0
 
-GPU=0
+GPU=1
 BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gabor2"
 DATASET="shanghai_lr_latent_32"
 EXP_DIR="shanghai_lr_latent_32_sensitivity_analysis"
@@ -49,7 +49,7 @@ run_experiment() {
         --run_name "${BACKBONE}_sensitivity_${TAG}"
 
     # Eval
-    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
         --exp_dir ${EXP_DIR} \

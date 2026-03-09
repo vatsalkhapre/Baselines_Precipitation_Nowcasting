@@ -265,7 +265,6 @@ def get_model(
     dim=64,
     T_in=5,
     T_out=20,
-    input_shape=(128, 128),
     **kwargs
 ):
     model = LASTOCastForecaster(

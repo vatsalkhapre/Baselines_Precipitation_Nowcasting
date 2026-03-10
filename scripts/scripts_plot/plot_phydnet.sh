@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
       --backbone phydnet \
       --dataset sevir \
       --eval \
@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.p
       --wandb_state 'offline' 
 
 
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
       --backbone phydnet \
       --dataset meteo \
       --eval \
@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.p
       --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Qualitative_analysis/Phydnet/phydnet_on_meteonet/checkpoints/ckpt-best.pt \
       --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
       --backbone phydnet \
       --dataset shanghai \
       --eval \
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.p
       --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Qualitative_analysis/Phydnet/phydnet_on_shanghai/checkpoints/ckpt-best.pt \
       --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm_with_plotting_consecutive.py \
       --backbone phydnet \
       --dataset cikm \
       --eval \

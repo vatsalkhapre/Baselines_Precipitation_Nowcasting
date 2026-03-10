@@ -1,18 +1,18 @@
-# CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-#     --exp_dir meteonet \
-#     --exp_note phydnet_on_meteonet \
-#     --batch_size 16 \
-#     --backbone phydnet \
-#     --dataset meteo \
-#     --seq_len 25 \
-#     --epochs 50 \
-#     --valid \
-#     --frames_in 5 \
-#     --frames_out 20 \
-#     --num_workers 8 \
-#     --wandb_state 'online' \
-#     --wandb_project_name 'Alphapre_all_other_models' \
-#     --run_name "phydnet_meteonet" 
+CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+    --exp_dir meteonet \
+    --exp_note phydnet_on_meteonet \
+    --batch_size 16 \
+    --backbone phydnet \
+    --dataset meteo \
+    --seq_len 25 \
+    --epochs 50 \
+    --valid \
+    --frames_in 5 \
+    --frames_out 20 \
+    --num_workers 8 \
+    --wandb_state 'online' \
+    --wandb_project_name 'Alphapre_all_other_models' \
+    --run_name "phydnet_meteonet" 
 
 
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \

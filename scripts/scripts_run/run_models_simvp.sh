@@ -1,3 +1,4 @@
+
 # CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
 #     --exp_dir meteonet \
 #     --exp_note Simvp_on_meteonet \
@@ -31,27 +32,43 @@
 #     --wandb_project_name 'Alphapre_all_other_models' \
 #     --run_name "simvp_shanghai" 
 
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm \
-    --exp_note Simvp_on_cikm \
-    --batch_size 16 \
-    --backbone simvp \
-    --dataset cikm \
-    --seq_len 15 \
-    --valid \
-    --epochs 70 \
-    --frames_in 5 \
-    --frames_out 10 \
-    --num_workers 8 \
-    --wandb_state 'online' \
-    --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "simvp_cikm" 
+# CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+#     --exp_dir sevir \
+#     --exp_note Simvp_on_sevir \
+#     --batch_size 8 \
+#     --exp_dir cikm \
+#     --exp_note Simvp_on_cikm \
+#     --batch_size 16 \
+#     --backbone simvp \
+#     --dataset sevir \
+#     --seq_len 25 \
+#     --valid \
+#     --epochs 50 \
+#     --dataset cikm \
+#     --seq_len 15 \
+#     --valid \
+#     --epochs 70 \
+#     --frames_in 5 \
+#     --frames_out 10 \
+#     --num_workers 8 \
+#     --wandb_state 'online' \
+#     --wandb_project_name 'Alphapre_all_other_models' \
+#     --run_name "simvp_sevir" 
+
+
 
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+    --exp_dir sevir \
+    --exp_note Simvp_on_sevir \
+    --batch_size 8 \
     --exp_dir cikm \
     --exp_note Simvp_on_cikm \
     --batch_size 16 \
     --backbone simvp \
+    --dataset sevir \
+    --seq_len 25 \
+    --valid \
+    --epochs 50 \
     --dataset cikm \
     --seq_len 15 \
     --eval \

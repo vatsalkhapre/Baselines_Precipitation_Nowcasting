@@ -1,0 +1,1252 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+import os.path as osp
+import math
+import time
+import argparse
+import logging 
+import yaml
+import cProfile
+from tqdm import tqdm
+from datetime import timedelta
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
+import matplotlib.colors as mcolors
+import numpy as np
+import torch
+from accelerate import Accelerator
+from accelerate.utils import set_seed
+from accelerate.utils import ProjectConfiguration, DistributedDataParallelKwargs, InitProcessGroupKwargs
+from ema_pytorch import EMA
+from diffusers import (
+    get_constant_schedule_with_warmup,
+    get_linear_schedule_with_warmup,
+    get_cosine_schedule_with_warmup,
+)
+from datasets.dataset_mosdac import *
+from datasets.get_datasets import get_dataset
+from utils.metrics import Evaluator
+from utils.tools import *
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
+import matplotlib.colors as mcolors
+import numpy as np
+from copy import deepcopy
+from utils.tools import print_log, cycle, show_img_info
+
+# Apply your own wandb api key to log online
+os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
+# os.environ["WANDB_SILENT"] = "true"
+os.environ["ACCELERATE_DEBUG_MODE"] = "1"
+
+"""
+For MOSDAC dataset dont forget to select 
+method
+preprocessing
+in argument parser.
+"""
+#===================================================================================================
+#                                           PLOTTING CODE                                          #
+#===================================================================================================
+
+def plot_image_sequence_colored(images_colored, path_save_imgs, 
+                                title_prefix="t", 
+                                cmap=None, norm=None, label=None):
+    """
+    Plot a sequence of pre-colored RGBA images. Optionally add a colorbar
+    if cmap and norm are provided.
+
+    Args:
+        images_colored : np.ndarray of shape (T, H, W, 4), RGBA float64 from gray2color.
+        path_save_imgs : str, full path to save the figure.
+        title_prefix   : str, prefix for subplot titles.
+        cmap           : matplotlib colormap (optional, for colorbar).
+        norm           : matplotlib norm (optional, for colorbar).
+        label          : str, colorbar label.
+    """
+    T = images_colored.shape[0]
+
+    if T <= 10:
+        nrows, ncols = 1, T
+        fig_w = 2 * T
+        fig_h = 2.8
+    else:
+        nrows, ncols = 2, (T + 1) // 2
+        fig_w = 2 * ncols
+        fig_h = 5.0
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(fig_w, fig_h), constrained_layout=True)
+    if T == 1:
+        axes = np.array([axes])
+    axes_flat = axes.flatten()
+
+    for i in range(T):
+        axes_flat[i].imshow(images_colored[i], interpolation='nearest')
+        axes_flat[i].axis("off")
+
+    # Hide extra axes (if T is odd and nrows=2)
+    for j in range(T, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    # Add colorbar if cmap and norm are provided
+    if cmap is not None and norm is not None:
+        # Create a ScalarMappable for the colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(
+            sm, ax=axes_flat[:T].tolist(),
+            orientation='horizontal',
+            fraction=0.05, pad=0.08, aspect=40
+        )
+        cbar.ax.tick_params(labelsize=7)
+        if label:
+            cbar.set_label(label, fontsize=9)
+
+    fig.savefig(path_save_imgs, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+def denorm_and_colorize(seq, pixel_scale, gray2color_fn, data_type='vil'):
+    """
+    Denormalize a sequence and apply the dataset-specific gray2color.
+
+    Args:
+        seq            : np.ndarray, shape (T, H, W), values in [0, 1] float.
+        pixel_scale    : float (e.g. 255 for VIL).
+        gray2color_fn  : callable, the gray2color function from the dataset.
+        data_type      : str, passed to gray2color if needed.
+
+    Returns:
+        colored : np.ndarray, shape (T, H, W, 4), RGBA float64.
+        denormed: np.ndarray, shape (T, H, W), denormalized uint8 values.
+    """
+    seq_clipped = np.clip(seq, 0, 1)
+    denormed = (seq_clipped * pixel_scale).astype(np.uint8)
+    colored = np.array(
+        [gray2color_fn(denormed[i], data_type=data_type) for i in range(len(denormed))],
+        dtype=np.float64
+    )
+    return colored
+
+
+# Helper to resolve the plot directory from ckpt_milestone path
+# =============================================================================
+
+def resolve_plot_dir(ckpt_milestone_path):
+    """
+    Given ckpt_milestone (e.g. /path/to/Exps/<exp_dir>/<exp_name>/checkpoints/ckpt-best.pt)
+    return /path/to/Exps/<exp_dir>/plots/
+
+    Logic: parent of ckpt file -> 'checkpoints' dir -> parent is <exp_name>,
+           one more parent -> <exp_dir>, create plots/ there.
+    """
+    if os.path.isfile(ckpt_milestone_path):
+        ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    else:
+        ckpt_dir = ckpt_milestone_path
+
+             
+         
+    plot_dir    = os.path.join(ckpt_dir, "plots")
+    
+    return plot_dir
+
+
+#Extract cmap and norm from gray2color for colorbar
+# =============================================================================
+
+def extract_cmap_norm_from_gray2color(gray2color_fn):
+    """
+    gray2color internally builds:
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+
+    We replicate that here by calling gray2color's closure variables.
+
+    If gray2color is a simple function that uses module-level COLOR_MAP and BOUNDS,
+    you can import those directly:
+        from <your_module> import COLOR_MAP, BOUNDS
+
+    Otherwise, the safest approach is to reconstruct from the function's globals
+    or __code__. But the EASIEST solution is just to import them.
+    
+    ---
+    
+    RECOMMENDED: In your gray2color module, expose COLOR_MAP and BOUNDS as module 
+    attributes, then do:
+    
+        from <module> import COLOR_MAP, BOUNDS
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+        return cmap, norm
+    
+    Below is a fallback that tries to extract from gray2color's globals:
+    """
+    try:
+        # Try to get COLOR_MAP and BOUNDS from gray2color's global scope
+        g = gray2color_fn.__globals__
+        COLOR_MAP = g.get('COLOR_MAP')
+        BOUNDS = g.get('BOUNDS')
+        
+        if COLOR_MAP is not None and BOUNDS is not None:
+            cmap = colors.ListedColormap(COLOR_MAP)
+            norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+            return cmap, norm
+    except AttributeError:
+        pass
+    
+    # Fallback: return None (colorbar won't be drawn)
+    print("[Plot Warning] Could not extract cmap/norm from gray2color. "
+          "Colorbar will be skipped. To fix, expose COLOR_MAP and BOUNDS "
+          "as module-level variables in your gray2color module.")
+    return None, None
+
+def subsample_frames(seq, target_count=10):
+    """
+    Subsample `target_count` frames from a sequence using odd indices.
+    
+    For 20 frames -> indices [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    For 10 frames -> all frames returned as-is
+    For  5 frames -> all frames returned as-is
+
+    Args:
+        seq : np.ndarray, shape (T, ...).
+        target_count : int, desired number of frames.
+
+    Returns:
+        np.ndarray of shape (target_count, ...) or (T, ...) if T <= target_count.
+    """
+    T = seq.shape[0]
+    if T <= target_count:
+        return seq
+    indices = list(range(1, T, 2))  # [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+    return seq[indices]
+
+
+def resolve_plot_dir(ckpt_milestone_path):
+    """
+    Given ckpt_milestone path, return <grandparent>/plots/.
+    
+    e.g. .../Exps/<exp_dir>/<exp_name>/checkpoints/ckpt-best.pt
+         -> .../Exps/<exp_dir>/plots/
+    """
+    if os.path.isfile(ckpt_milestone_path):
+        ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    else:
+        ckpt_dir = ckpt_milestone_path
+
+    exp_name_dir = ckpt_dir                 # .../<exp_name>/
+    exp_dir      = os.path.dirname(exp_name_dir)                # .../<exp_dir>/
+    plot_dir     = os.path.join(exp_dir, "plots")
+    
+    return plot_dir
+#===================================================================================================
+#                                           Args                                       #
+#===================================================================================================
+
+def create_parser():
+    # --------------- Basic ---------------
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--backbone',        type=str,            default='phydnet',              help='backbone model for deterministic prediction (earthformer, simvp, phydnet)')
+    parser.add_argument('--use_diff',        action="store_true", default=False,                  help='Weather use diff framework, as for ablation study')
+    parser.add_argument("--seed",           type=int,             default=0,                      help='Experiment seed')
+    parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
+    parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
+
+     # --------------- Plotting Arguments ---------------
+    parser.add_argument("--plot",         action="store_true",           help="Enable plotting during testing")
+    parser.add_argument("--plot_stride",  type=int,   default=4,        help="Plot every N-th test batch (offset/stride)")
+    # --------------- Loss weights ---------------
+    parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
+    parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
+
+    # --------------- Gabor Parameters ---------------
+    parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
+    parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
+    parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
+    parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+    
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
+
+    # --------------- Dataset ---------------
+   
+    parser.add_argument("--file_rain_seq_add",  type=str,   default=0,                  help="Rainy days file full address (in.pkl format)")
+    parser.add_argument("--method",             type= int,  default= None,              help = "Method to select the dataset as per the need. (Look at the function for more details)")
+    parser.add_argument("--dataset",            type=str,   default='sevir',       help="dataset name")
+    parser.add_argument("--img_size",           type=int,   default=128,                help="image size")
+    parser.add_argument("--img_channel",        type=int,   default=1,                  help="channel of image")
+    parser.add_argument("--stride",             type=int,   default=13,                 help="dataset stride")
+    parser.add_argument("--seq_len",            type=int,   default=25,                 help="sequence length sampled from dataset")
+    parser.add_argument("--frames_in",          type=int,   default=5,                  help="number of frames to input")
+    parser.add_argument("--frames_out",         type=int,   default=20,                 help="number of frames to output")    
+    parser.add_argument("--num_workers",        type=int,   default=8,                  help="number of workers for data loader")
+    parser.add_argument("--preprocessing",      type=int,   default=0,               help="Type to preprocess the data")
+    
+    # --------------- Optimizer ---------------
+    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")
+    parser.add_argument("--lr-beta1",       type=float, default=0.90,            help="learning rate beta 1")
+    parser.add_argument("--lr-beta2",       type=float, default=0.95,            help="learning rate beta 2")
+    parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
+    parser.add_argument("--ema_rate",       type=float, default=0.95,            help="exponential moving average rate")
+    parser.add_argument("--scheduler",      type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
+    parser.add_argument("--warmup_steps",   type=int,   default=1000,            help="warmup steps")
+    parser.add_argument("--mixed_precision",type=str,   default='no',            help="mixed precision training")
+    parser.add_argument("--grad_acc_step",  type=int,   default=1,               help="gradient accumulation step")
+    
+    # --------------- Training ---------------
+    parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")
+    parser.add_argument("--epochs",         type=int,   default=25,              help="number of epochs")
+    parser.add_argument("--early_stop",     type=int,   default=10,              help="early stopping steps")
+    parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
+    parser.add_argument("--datatype",       type=str, default=None,                   help="Indicates the datatype available (reflectivity, vil, vil_vip)")
+    # --------------- Additional Ablation Configs ---------------
+    parser.add_argument("--eval",           action="store_true",                 help="evaluation mode")
+    parser.add_argument("--gpu_use",        type=str,   nargs='+', default=["0",],  help="gpu(s) to use")
+    # --------------- Wandb ---------------
+    parser.add_argument("--wandb_state",        type=str,       default="offline",          help="wandb state config")
+    parser.add_argument("--wandb_project_name", type=str,       default="Diffcast_Sevir",    help="wandb project name")
+    parser.add_argument("--run_name",           type=str,       default='Training_vil_mosdac_2',            help="wandb run name")
+    
+    #------------------------- Plots -----------------------------
+    parser.add_argument("--generate_outputs",      action="store_true",          help="Generate visualizations from checkpoint")
+    parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
+
+    # --------------- Basic ---------------
+    parser.add_argument("--layers",         type=int,   default=3,               help="layers number")
+    parser.add_argument("--pha_weight",     type=float, default=0.01,            help="phase weight")
+    parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
+    parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")
+    parser.add_argument("--aw_stop_step",   type=int,   default=5000,            help="training step at which the amplitude weight decays to 0")
+    parser.add_argument("--out_weight",     type=float, default=1.0,             help="final output weight")
+    parser.add_argument("--spec_num",       type=int,   default=20,              help="spectral number")
+
+    
+    args = parser.parse_args()
+    return args
+
+
+
+class Runner(object):
+    
+    def __init__(self, args):
+        
+        self.args = args
+        self._preparation()
+        # Config DDP kwargs from accelerate
+        project_config = ProjectConfiguration(
+            project_dir=self.exp_dir,
+            logging_dir=self.log_path
+        )
+        ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
+        process_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=5400))
+        
+        self.accelerator = Accelerator(
+            project_config  =   project_config,
+            kwargs_handlers =   [ddp_kwargs, process_kwargs],
+            mixed_precision =   self.args.mixed_precision,
+            log_with        =   'wandb'
+        )
+        
+        # Config log tracker 'wandb' from accelerate
+        self.accelerator.init_trackers(
+            # project_name=self.exp_name,
+            project_name=self.args.wandb_project_name,
+            config=self.args.__dict__,
+            init_kwargs={"wandb": 
+                {
+                "mode": self.args.wandb_state,  
+                "name": self.args.run_name
+                # 'resume': self.args.ckpt_milestone
+                }
+                         }   # disabled, online, offline
+        )
+        
+        print_log('============================================================', self.is_main)
+        print_log("                 Experiment Start                           ", self.is_main)
+        print_log('============================================================', self.is_main)
+    
+        print_log(self.accelerator.state, self.is_main)
+        print("Loading data")
+        self._load_data()
+        print("Building model")
+        self._build_model()
+        self._build_optimizer()
+        
+        # distributed ema for parallel sampling
+
+        self.model, self.optimizer,  self.scheduler, self.train_loader, self.valid_loader, self.test_loader = self.accelerator.prepare(
+            self.model, 
+            self.optimizer, self.scheduler,
+            self.train_loader, self.valid_loader, self.test_loader
+        )
+        
+        self.train_dl_cycle = cycle(self.train_loader)
+        if self.is_main:
+            start = time.time()
+            next(self.train_dl_cycle)
+            print_log(f"Data Loading Time: {time.time() - start}", self.is_main)
+            # print_log(show_img_info(sample), self.is_main)
+        print(torch.cuda.is_available())
+        print_log(f"gpu_nums: {torch.cuda.device_count()}, gpu_id: {torch.cuda.current_device()}")
+        
+        if self.args.ckpt_milestone is not None:
+            print("Loading: ", self.args.ckpt_milestone)
+            self.load(self.args.ckpt_milestone)
+
+    @property
+    def is_main(self):
+        return self.accelerator.is_main_process
+    
+    @property
+    def device(self):
+        return "cuda:0"
+    
+    def _preparation(self):
+        # =================================
+        # Build Exp dirs and logging file
+        # =================================
+
+        set_seed(self.args.seed)
+        self.model_name = self.model_name = ('Diff' if self.args.use_diff else 'Single') + self.args.backbone
+        self.exp_name   = f"{self.model_name}_{self.args.dataset}_{self.args.exp_note}"
+        
+        cur_dir         = os.path.dirname(os.path.abspath(__file__))
+        
+        self.exp_dir    = osp.join(cur_dir, 'Exps', self.args.exp_dir, self.exp_name)        
+        self.ckpt_path  = osp.join(self.exp_dir, 'checkpoints')
+        self.valid_path = osp.join(self.exp_dir, 'valid_samples')
+        self.test_path  = osp.join(self.exp_dir, 'test_samples')
+        self.log_path   = osp.join(self.exp_dir, 'logs')
+        self.sanity_path = osp.join(self.exp_dir, 'sanity_check')
+        os.makedirs(self.exp_dir, exist_ok=True)
+        os.makedirs(self.ckpt_path, exist_ok=True)
+        os.makedirs(self.valid_path, exist_ok=True)
+        os.makedirs(self.test_path, exist_ok=True)
+        os.makedirs(self.log_path, exist_ok=True)
+        
+        exp_params      = self.args.__dict__
+        params_path     = osp.join(self.exp_dir, 'params.yaml')
+        yaml.dump(exp_params, open(params_path, 'w'))
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            datefmt="%m/%d/%Y %H:%M:%S",
+            # filemode='a',
+            handlers=[
+                logging.FileHandler(osp.join(self.log_path, 'log.log')),
+                # logging.StreamHandler()
+            ]
+        )
+        
+    def _load_data(self):
+        # =================================
+        # Get Train/Valid/Test dataloader among datasets 
+        # =================================
+        # if self.args.dataset == 'custom':
+        #     self.args.num_workers = 1
+            
+        train_data, valid_data, test_data, color_save_fn, PIXEL_SCALE, THRESHOLDS = get_dataset(
+            data_name=self.args.dataset,
+            # data_path=self.args.data_path,
+            img_size=self.args.img_size,
+            seq_len=self.args.seq_len,
+            file_rain_seq_add=self.args.file_rain_seq_add,
+            method = self.args.method,
+            in_channels = self.args.frames_in,
+            out_channels = self.args.frames_out,
+            batch_size=self.args.batch_size, 
+            stride = self.args.stride,
+            preprocess_type = self.args.preprocessing
+        )
+        
+        self.visiual_save_fn = color_save_fn
+        self.gray2color_fn   = color_save_fn.keywords['gray2color']
+        self.thresholds      = THRESHOLDS
+        self.scale_value     = PIXEL_SCALE
+        
+        # if self.args.dataset != 'sevir':
+        #     # preload big batch data for gradient accumulation
+        #     self.train_loader = torch.utils.data.DataLoader(
+        #         train_data, batch_size=self.args.batch_size*self.args.grad_acc_step, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+        #     )
+        #     self.valid_loader = torch.utils.data.DataLoader(
+        #         valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+        #     )
+        #     self.test_loader = torch.utils.data.DataLoader(
+        #         test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+        #     )
+
+
+        if self.args.dataset == 'vil_mosdac' or self.args.dataset == 'vil' or self.args.dataset == 'mosdac':
+        
+            self.train_loader = create_loader(train_data, batch_size= self.args.batch_size, shuffle=True)
+            self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
+            self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
+
+        if self.args.dataset == 'sevir':
+            self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            
+        else: 
+            # preload big batch data for gradient accumulation
+            self.train_loader = torch.utils.data.DataLoader(
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.valid_loader = torch.utils.data.DataLoader(
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+            )
+            self.test_loader = torch.utils.data.DataLoader(
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+            )
+
+
+        print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",  # Returns the number of batches.
+                  self.is_main)
+            
+        for sample in self.train_loader:
+            print("Sample shape", sample.shape)
+            break
+        print_log(f"train data: {len(self.train_loader)}, valid data: {len(self.valid_loader)}, test_data: {len(self.test_loader)}",
+                  self.is_main)
+    
+        print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}", self.is_main)
+        for loader in [self.train_loader, self.valid_loader, self.test_loader]:
+            for batch in loader:
+                from termcolor import colored
+                print_log(colored(f"Batch Shape: {batch.shape}, Type: {batch.dtype}", 'green'), self.is_main)
+                break
+    
+    def _build_model(self):
+        # =================================
+        # import and create different models given model config
+        # =================================
+        print_log("Build Model!", self.is_main)
+        if self.args.backbone == 'simvp':
+            from models.simvp import get_model
+            kwargs = {
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+            }
+            model = get_model(**kwargs)
+        
+        elif self.args.backbone == 'alphapre':
+            from models.Full_space_models.alphapre import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
+
+        elif self.args.backbone == 'phydnet':
+            from models.phydnet import get_model
+            kwargs = {
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "device": self.device
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == "earthfarseer":
+            from models.Earthfarseer.model import Earthfarseer_model
+            kwargs = {
+                "shape_in": (self.args.frames_in, self.args.img_channel, self.args.img_size, self.args.img_size)
+            }
+            model = Earthfarseer_model(**kwargs)
+
+        elif self.args.backbone == 'earthformer':
+            from models.earth_former import get_model
+            kwargs = {
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+            }
+            model = get_model(**kwargs)
+        
+        elif self.args.backbone == 'mau':
+            from models.earth_former import get_model
+            kwargs = {
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+            }
+            model = get_model(**kwargs)
+            
+        else:
+            raise NotImplementedError
+        
+        if self.args.use_diff:
+            from models.diffcast import get_model
+            kwargs = {
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'dim_mults' : (1,2,4,8),
+                'T_in': self.args.frames_in,
+                'T_out': self.args.frames_out,
+                'sampling_timesteps' : 250,
+            }
+            diff_model = get_model(self.args.img_channel, 64, (1,2,4,8), self.args.frames_in, self.args.frames_out, 1000, sampling_timesteps=250)
+            diff_model.load_backbone(model)
+            model = diff_model
+
+            
+        self.model = model
+        print_log("begin ema", self.is_main)
+        self.ema = EMA(self.model, beta=self.args.ema_rate, update_every=20).to(self.device)        
+        print_log("end device", self.is_main)
+        if self.is_main:
+            total = sum([param.nelement() for param in self.model.parameters()])
+            print_log("Main Model Parameters: %.2fM" % (total/1e6), self.is_main)
+
+
+    def _build_optimizer(self):
+        # =================================
+        # Calcutate training nums and config optimizer and learning schedule
+        # =================================
+        num_steps_per_epoch = len(self.train_loader)
+        # num_epoch = math.ceil(self.args.training_steps / num_steps_per_epoch)
+        
+        # self.global_epochs = max(num_epoch, self.args.epochs)
+        self.global_epochs = self.args.epochs
+        self.global_steps = self.global_epochs * num_steps_per_epoch
+        self.steps_per_epoch = num_steps_per_epoch
+        
+        self.cur_step, self.cur_epoch = 0, 0
+
+        warmup_steps = self.args.warmup_steps
+
+        trainable_params = list(filter(lambda p: p.requires_grad, self.model.parameters()))
+        self.optimizer = torch.optim.AdamW(
+            trainable_params,
+            lr=self.args.lr,
+            betas=(self.args.lr_beta1, self.args.lr_beta2),
+            weight_decay=self.args.l2_norm
+        )
+        if self.args.scheduler == 'constant':
+            self.scheduler = get_constant_schedule_with_warmup(
+                self.optimizer,
+                num_warmup_steps=warmup_steps,
+            )
+        elif self.args.scheduler == 'linear':
+            self.scheduler = get_linear_schedule_with_warmup(
+                self.optimizer, 
+                num_warmup_steps=warmup_steps, 
+                num_training_steps=self.global_steps,
+            )
+        elif self.args.scheduler == 'cosine':
+            self.scheduler = get_cosine_schedule_with_warmup(
+                self.optimizer, 
+                num_warmup_steps=warmup_steps , 
+                num_training_steps=self.global_steps,
+            )
+        else:
+            raise ValueError(
+                "Invalid scheduler_type. Expected 'linear' or 'cosine', got: {}".format(
+                    self.args.scheduler
+            )
+        )
+            
+        if self.is_main:
+            print_log("============ Running training ============")
+            print_log(f"    Num examples = {len(self.train_loader)}")
+            print_log(f"    Num Epochs = {self.global_epochs}")
+            print_log(f"    Instantaneous batch size per GPU = {self.args.batch_size}")
+            print_log(f"    Total train batch size (w. parallel, distributed & accumulation) = {self.args.batch_size * self.accelerator.num_processes}")
+            print_log(f"    Total optimization steps = {self.global_steps}")
+            print_log(f"    Optimizer: {self.optimizer} with init lr: {self.args.lr}")
+        
+    
+    def save(self):
+        # =================================
+        # Save checkpoint stsate for model and ema
+        # =================================
+        if not self.is_main:
+            return
+        
+        data = {
+            'step': self.cur_step,
+            'epoch': self.cur_epoch,
+            'model': self.accelerator.get_state_dict(self.model),
+            'ema': self.ema.state_dict(),
+            'opt': self.optimizer.state_dict(),
+            'scheduler': self.scheduler.state_dict(),
+
+        }
+        
+        torch.save(data, osp.join(self.ckpt_path, f"ckpt-{self.cur_step}.pt"))
+        print("Checkpoint saved")
+        print_log(f"Save checkpoint {self.cur_step} to {self.ckpt_path}", self.is_main)
+        
+        
+    def load(self, milestone):
+        # =================================
+        # load model checkpoint
+        # =================================        
+        device = self.accelerator.device
+        
+        if isinstance(milestone, str) and '.pt' in milestone:
+            data = torch.load(milestone, map_location=device)
+            print_log(f"Load checkpoint {milestone}.", self.is_main)
+        else:
+            data = torch.load(osp.join(self.ckpt_path, f"ckpt-{milestone}.pt"), map_location=device)
+            print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
+     
+        model = self.accelerator.unwrap_model(self.model)
+        model.load_state_dict(data['model'])
+        self.model = self.accelerator.prepare(model)
+        
+        self.optimizer.load_state_dict(data['opt'])
+        self.scheduler.load_state_dict(data['scheduler'])
+        
+        if self.is_main:
+            self.ema.load_state_dict(data['ema'])
+
+        
+        
+    
+    def train(self):
+        print("Training Now")
+        # set global step as traing process
+        pbar = tqdm(
+            initial=self.cur_step,
+            total=self.global_steps,
+            # disable=not self.is_main,
+            disable = True
+        )
+        start_epoch = self.cur_epoch
+        for epoch in range(start_epoch, self.global_epochs):
+
+            epoch_start_time = time.time()
+            self.cur_epoch = epoch
+            print("Training model")
+            self.model.train()
+            
+            for i, batch in enumerate(self.train_loader):
+                # train the model with mixed_precision
+                with self.accelerator.autocast(self.model):
+
+                    loss_dict = self._train_batch(batch)
+                    self.accelerator.backward(loss_dict['total_loss'])
+                    
+                    if self.cur_step == 0:
+                        # training process check
+                        for name, param in self.model.named_parameters():
+                            if param.grad is None:
+                                print_log(name, self.is_main)   
+    
+                self.accelerator.wait_for_everyone()
+                if self.accelerator.sync_gradients:
+                    self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
+                
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                
+                if not self.accelerator.optimizer_step_was_skipped:
+                    self.scheduler.step()
+                
+                # record train info
+                lr = self.optimizer.param_groups[0]['lr']
+                log_dict = dict()
+                log_dict['lr'] = lr
+                for k,v in loss_dict.items():
+                    log_dict[k] = v.item()
+                self.accelerator.log(log_dict, step=self.cur_step)
+                # pbar.set_postfix(**log_dict)   
+                state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
+                # pbar.set_description(state_str)
+                
+                # update ema param and log file every 20 steps
+                if i % 50 == 0:
+                    print(state_str+'::'+str(log_dict))
+                self.ema.update()
+
+                self.cur_step += 1
+                pbar.update(1)
+                
+                # test and log metrics every 10000 steps
+                # if self.cur_step % 10000 == 0:
+                #     print_log(f" ========= Running Test at Step {self.cur_step} ==========", self.is_main)
+                #     self.test_samples(self.cur_step, do_test=False)  # Run validation test
+                #     self.model.train()  # Set back to training mode
+                
+                # do santy check at begining
+                if self.cur_step == 1:
+                    """ santy check """
+                    if not osp.exists(self.sanity_path):
+                        try:
+                            print_log(f" ========= Running Sanity Check ==========", self.is_main)
+                            radar_ori, radar_recon= self._sample_batch(batch)
+                            from termcolor import colored
+                            print_log(colored(f"Sanity Check: {radar_ori.shape}, {radar_recon.shape}", 'blue'), self.is_main)
+                            os.makedirs(self.sanity_path)
+                            if self.is_main:
+                                for i in range(radar_ori.shape[0]):
+                                    self.visiual_save_fn(radar_recon[i], radar_ori[i], osp.join(self.sanity_path, f"{i}/reflectivity"),data_type='vil')
+                            print_log(f" ========= Sanity Check Completed==========", self.is_main)
+
+                        except Exception as e:
+                            print_log(e, self.is_main)
+                            print_log("Sanity Check Failed", self.is_main)
+
+            # save checkpoint and do test every epoch
+            if (epoch+1)%1==0:
+                self.save()
+                # self.test_samples(epoch, self.cur_step, do_test=False)  # Run validation test
+                # self.model.train()  # Set back to training mode
+            
+            epoch_time = time.time() - epoch_start_time
+            print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
+            print_log(f" ========= Finished one Epoch ==========Epoch number:{epoch+1}==========", self.is_main)
+
+        self.accelerator.end_training()
+        
+    def _get_seq_data(self, batch):
+        # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
+        return batch      # [B, T, C, H, W]
+    
+    def _train_batch(self, batch):
+        radar_batch = self._get_seq_data(batch)
+        frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
+
+        assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
+        _, loss = self.model.predict(frames_in=frames_in, frames_gt=frames_out, compute_loss=True)
+        if loss is None:
+            raise ValueError("Loss is None, please check the model predict function")
+        return {'total_loss': loss}
+        
+    
+    @torch.no_grad()
+    def _sample_batch(self, batch, use_ema=False):
+        sample_fn = self.ema.ema_model.predict if use_ema else self.model.predict
+        frame_in = self.args.frames_in
+        radar_batch = self._get_seq_data(batch)
+        radar_input, radar_gt = radar_batch[:,:frame_in], radar_batch[:,frame_in:]
+        radar_pred, _ = sample_fn(radar_input,compute_loss=False)
+        
+        
+        radar_gt = self.accelerator.gather(radar_gt).detach().cpu().numpy()
+
+        radar_pred = self.accelerator.gather(radar_pred).detach().cpu().numpy()
+        return radar_gt, radar_pred
+    
+    # Doing do_test -> True because I need lesser samples 
+    def test_samples(self, milestone, epoch=None, do_test=False):
+        """Drop-in replacement for Runner.test_samples with optional plotting."""
+
+        if do_test == False:
+            print("Validation")
+        if do_test == True:
+            print("Testing")
+            
+
+        # ---- plotting setup ----                                               # <<< PLOT
+        do_plot = getattr(self.args, 'plot', False) and do_test                  # <<< PLOT
+        if do_plot:                                                               # <<< PLOT
+            if self.args.ckpt_milestone is not None:                              # <<< PLOT
+                plot_base = resolve_plot_dir(self.args.ckpt_milestone)            # <<< PLOT
+            else:                                                                 # <<< PLOT
+                plot_base = osp.join(self.exp_dir, '..', 'plots')                # <<< PLOT
+            plot_base = os.path.abspath(plot_base)                                # <<< PLOT
+                                                                                # <<< PLOT
+            input_dir  = osp.join(plot_base, "Input")                             # <<< PLOT
+            gt_dir     = osp.join(plot_base, "Ground_truth")                      # <<< PLOT
+            pred_dir   = osp.join(plot_base, "Predicted")                         # <<< PLOT
+            os.makedirs(input_dir,  exist_ok=True)                                # <<< PLOT
+            os.makedirs(gt_dir,     exist_ok=True)                                # <<< PLOT
+            os.makedirs(pred_dir,   exist_ok=True)                                # <<< PLOT
+                                                                                # <<< PLOT
+            plot_stride = getattr(self.args, 'plot_stride', 4)                    # <<< PLOT
+            print(f"[Plot] Saving plots to: {plot_base}")                         # <<< PLOT
+            print(f"[Plot] Plot stride: every {plot_stride} batches")             # <<< PLOT
+
+        save_vis = True
+        # init test data loader
+        if do_test:
+            data_loader = self.test_loader
+        else:
+            data_loader = self.valid_loader
+
+        # init sampling method
+        self.model.eval()
+        # init test dir config
+        save_dir = osp.join(self.test_path, f"sample-{milestone}") if do_test \
+                else osp.join(self.valid_path, f"sample-{milestone}")
+        os.makedirs(save_dir, exist_ok=True)
+
+        if do_test:
+            from utils.metrics import Evaluator
+            eval = Evaluator(
+                seq_len=self.args.frames_out,
+                value_scale=self.scale_value,
+                thresholds=self.thresholds,
+                save_path=save_dir,
+            )
+        else:
+            from utils.metrics_valid import Evaluator
+            eval = Evaluator(
+                seq_len=self.args.frames_out,
+                value_scale=self.scale_value,
+                thresholds=self.thresholds,
+                save_path=save_dir,
+            )
+
+        # start test loop
+        valid_nums = 0
+        
+        total = len(self.test_loader)
+
+        sample_counter = 0                                                        # <<< PLOT
+
+        for batch_idx, (batch) in enumerate(tqdm(data_loader, total=total)):
+
+            radar_os_batch = self._get_seq_data(batch)
+            radar_os_input = radar_os_batch[:, :self.args.frames_in]              # <<< PLOT  (B, T_in, C, 128, 128)
+            radar_os_gt    = radar_os_batch[:, self.args.frames_in:]
+
+            _, radar_recon = self._sample_batch(batch)
+            B, T, C, H, W = radar_recon.shape
+
+
+            radar_ori   = radar_os_gt.cpu().numpy()
+            if isinstance(radar_recon, torch.Tensor):
+                radar_recon = radar_recon.cpu().numpy()
+
+            # evaluate result and save
+            if self.is_main:
+                eval.evaluate(radar_ori, radar_recon)
+
+            # ===================== PLOTTING =====================                # <<< PLOT
+            if do_plot and self.is_main and (batch_idx % plot_stride == 0):       # <<< PLOT
+                radar_os_input_np = radar_os_input.cpu().numpy()                  # <<< PLOT
+                                                                                # <<< PLOT
+                for b in range(B):                                                # <<< PLOT
+                    sid = sample_counter + b                                       # <<< PLOT
+                                                                                # <<< PLOT
+                    # --- Input: (T_in, C, H, W) -> (T_in, H, W) ---             # <<< PLOT
+                    inp = radar_os_input_np[b].squeeze(1)  # (5, 128, 128)       # <<< PLOT
+                    inp_colored = denorm_and_colorize(                            # <<< PLOT
+                        inp, self.scale_value, self.gray2color_fn                 # <<< PLOT
+                    )                                                              # <<< PLOT
+                    plot_image_sequence_colored(                                   # <<< PLOT
+                        inp_colored,                                               # <<< PLOT
+                        osp.join(input_dir, f"Sample_{sid}.png"),                  # <<< PLOT
+                    )                                                              # <<< PLOT
+                                                                                # <<< PLOT
+                    # --- Ground Truth: subsample 10 from 20 ---                  # <<< PLOT
+                    gt = radar_ori[b].squeeze(1)                                  # <<< PLOT
+                    gt_sub = subsample_frames(gt, target_count=10)                # <<< PLOT
+                    gt_colored = denorm_and_colorize(                             # <<< PLOT
+                        gt_sub, self.scale_value, self.gray2color_fn              # <<< PLOT
+                    )                                                              # <<< PLOT
+                    plot_image_sequence_colored(                                   # <<< PLOT
+                        gt_colored,                                                # <<< PLOT
+                        osp.join(gt_dir, f"Sample_{sid}.png"),                     # <<< PLOT
+                    )                                                              # <<< PLOT
+                                                                                # <<< PLOT
+                    # --- Predicted: subsample 10 from 20 ---                     # <<< PLOT
+                    pred = radar_recon[b].squeeze(1)                              # <<< PLOT
+                    pred_sub = subsample_frames(pred, target_count=10)            # <<< PLOT
+                    pred_colored = denorm_and_colorize(                           # <<< PLOT
+                        pred_sub, self.scale_value, self.gray2color_fn            # <<< PLOT
+                    )                                                              # <<< PLOT
+                    plot_image_sequence_colored(                                   # <<< PLOT
+                        pred_colored,                                              # <<< PLOT
+                        osp.join(pred_dir, f"Sample_{sid}.png"),                   # <<< PLOT
+                    )                                                              # <<< PLOT
+                                                                                # <<< PLOT
+                print(f"[Plot] Saved batch {batch_idx} "                          # <<< PLOT
+                    f"(samples {sample_counter}–{sample_counter+B-1})")         # <<< PLOT
+            # ===================== END PLOTTING =================                # <<< PLOT
+
+            sample_counter += B                                                   # <<< PLOT
+
+            self.accelerator.wait_for_everyone()
+            valid_nums += 1
+            if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
+                break
+
+        # test done
+        if self.is_main:
+            res = eval.done()
+            if self.is_main and self.args.eval:
+                from utils.results_logger_csv import ResultsLogger
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results.csv")
+                logger.log_results(
+                    res_dict=res,
+                    backbone=self.args.backbone,
+                    exp_note=self.args.exp_note,
+                    dataset=self.args.dataset,
+                )
+
+            prefix = "test" if do_test else "val"
+            log_data = {f"{prefix}/{k}": v for k, v in res.items()}
+            log_data[f"{prefix}/epoch"] = epoch
+
+            if do_test:
+                print_log(f"Test Results: {res}")
+            else:
+                print_log(f"Valid Results: {res}")
+            print_log("=" * 30)
+
+            self.accelerator.log(log_data, step=self.cur_step)
+
+            if self.args.valid:
+                return res['csi']
+        else:
+            return None
+
+    def _extract_date_from_fname(fname):
+        # fname can be '01AUG2023_023340.npy' or '01AUG2023_023340'
+        base = os.path.basename(fname)
+        if base.endswith('.npy'):
+            base = base[:-4]
+        date_part = base.split('_')[0]
+        return date_part       
+        
+
+
+    def check_milestones(self, target_ckpt=None):
+
+        mils_paths = os.listdir(self.ckpt_path)
+        milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
+        print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
+        
+        if target_ckpt is not None:
+            self.load(target_ckpt)
+            saved_dir_name = target_ckpt.split('/')[-1].split('.')[0]
+            self.test_samples(saved_dir_name, do_test=True)
+            print("Testing done")
+            return
+        # In case of multiple milestones.
+       
+        mils_paths = os.listdir(self.ckpt_path)
+        milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
+        print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
+        
+        for m in range(0, len(milestones), 1):
+            self.load(milestones[m])
+            self.test_samples(milestones[m], do_test=True)
+            break
+    
+    
+    
+#     def generate_outputs_from_checkpoint(self, save_dir=None, data_type=None, target_ckpt=None):
+        
+
+#         if data_type == None or save_dir == None:
+#             KeyError("datatype or save_dir not defined.")
+#         checkpoint_path= target_ckpt
+
+#         device = self.device
+#         self.load(checkpoint_path)
+
+#         self.model.eval()
+
+#         latitude_range = slice(6.37081, 10.71)
+#         longitude_range = slice(74.68674, 79.02363)
+
+#         # Number of steps
+#         lat_steps = self.args.img_size
+#         lon_steps = self.args.img_size
+
+#         # Generate coordinate arrays
+#         lat_range = np.linspace(latitude_range.start, latitude_range.stop, lat_steps)
+#         lon_range = np.linspace(longitude_range.start, longitude_range.stop, lon_steps)
+
+        
+
+#         if not os.path.exists(save_dir):
+#             os.makedirs(save_dir, exist_ok=True)
+
+#         input_dir = os.path.join(save_dir, "input")
+#         gt_dir = os.path.join(save_dir, "gt")
+#         result_dir = os.path.join(save_dir, "result")
+
+#         os.makedirs(input_dir, exist_ok=True)
+#         os.makedirs(gt_dir, exist_ok=True)
+#         os.makedirs(result_dir, exist_ok=True)
+
+#         for sample_idx, batch in enumerate(self.test_loader):
+#             if sample_idx%1 == 0:
+#                 x_test, y_test = batch[:, :self.args.frames_in], batch[:, self.args.frames_in:]
+                
+#                 x_test, y_test = x_test.to(device), y_test.to(device)
+                
+#                 with torch.no_grad():
+#                     preds, _ = self.model.predict(x_test, y_test, compute_loss=False)
+
+#                 # x_test = preprocess_input(x_test)
+#                 # y_test = preprocess_input(y_test)
+           
+#                 x_np = x_test[0].squeeze(1).cpu().numpy()
+#                 y_np = y_test[0].squeeze(1).cpu().numpy()
+#                 p_np = preds[0].squeeze(1).cpu().numpy()
+
+# ###################################################################################################################################################
+#                                                 #  Convert back to normal.
+# ###################################################################################################################################################
+#                 # x_np, y_np, p_np = unnormalize(x_np, min= 0, max = 76377.62), unnormalize(y_np, min= 0, max = 76377.62), unnormalize(p_np, min= 0, max = 76377.62)
+                
+#                 if data_type.lower() == "reflectivity":
+#                     x_np, p_np, y_np = 60*x_np, 60*p_np, 60*y_np
+
+#                     vil_colors = [ "#f0f0f0", "#00b0f0", "#00ff80", "#a0f000", "#f0d000", "#f08000", "#f00000", "#c00000", "#2020ff", "#a000a0", "#000000"]
+#                     vil_cmap = ListedColormap(vil_colors, name='vil_colormap')
+#                     norm_vil = mcolors.Normalize(vmin=0, vmax=60)
+
+#                 elif data_type.lower() == "vil_vip":
+#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
+#                     VIL_COLORS = [[0, 0, 0],
+#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
+#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
+#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
+#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
+#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
+#                     [0.9607843137254902, 0.9607843137254902, 0.0],
+#                     [0.9294117647058824, 0.6745098039215687, 0.0],
+#                     [0.9411764705882353, 0.43137254901960786, 0.0],
+#                     [0.6274509803921569, 0.0, 0.0],
+#                     [0.9058823529411765, 0.0, 1.0]]
+
+#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
+#                     VIL_LEVELS = [0.0, 0.15, 0.25, 0.52, 0.77, 1.51, 3.53, 7.07, 12.13, 32.23, 81.32]
+
+#                     cols = deepcopy(VIL_COLORS)
+#                     lev = deepcopy(VIL_LEVELS)
+
+#                     nil = cols.pop(0)
+#                     under = cols[0]
+#                     # over = cols.pop()
+#                     over = cols[-1]
+#                     vil_cmap = ListedColormap(cols)
+#                     vil_cmap.set_bad(nil)
+#                     vil_cmap.set_under(under)
+#                     vil_cmap.set_over(over)
+#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
+
+#                 elif data_type.lower() == "vil":
+#                     peak_val = 5000
+#                     x_np, p_np, y_np = convert_vip_vil(x_np), convert_vip_vil(p_np), convert_vip_vil(y_np)
+#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
+#                     VIL_COLORS = [[0, 0, 0],
+#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
+#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
+#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
+#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
+#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
+#                     [0.9607843137254902, 0.9607843137254902, 0.0],
+#                     [0.9294117647058824, 0.6745098039215687, 0.0],
+#                     [0.9411764705882353, 0.43137254901960786, 0.0],
+#                     [0.6274509803921569, 0.0, 0.0],
+#                     [0.9058823529411765, 0.0, 1.0]]
+
+#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
+#                     VIL_LEVELS = np.linspace(0,int(peak_val), len(VIL_LEVELS))
+
+#                     cols = deepcopy(VIL_COLORS)
+#                     lev = deepcopy(VIL_LEVELS)
+
+#                     nil = cols.pop(0)
+#                     under = cols[0]
+#                     # over = cols.pop()
+#                     over = cols[-1]
+#                     vil_cmap = ListedColormap(cols)
+#                     vil_cmap.set_bad(nil)
+#                     vil_cmap.set_under(under)
+#                     vil_cmap.set_over(over)
+#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
+
+#                 lon_grid, lat_grid = np.meshgrid(lon_range, lat_range)
+                
+
+#                 # Plot inputs
+#                 fig_input, axes_input = plt.subplots(1, self.args.frames_in, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
+#                 for i in range(self.args.frames_in):
+#                     im = axes_input[i].pcolormesh(lon_grid, lat_grid, x_np[i], cmap=vil_cmap,norm = norm_vil, shading='auto')
+#                     axes_input[i].set_title(f"Input {i+1}", fontsize = 25)
+#                     axes_input[i].axis("off")
+#                     axes_input[i].add_feature(cfeature.BORDERS)
+#                     axes_input[i].add_feature(cfeature.COASTLINE)
+#                     axes_input[i].add_feature(cfeature.LAND, facecolor='none')
+
+#                 fig_input.tight_layout()
+#                 # fig_input.colorbar(im, ax=axes_input.ravel().tolist(), orientation='horizontal')
+#                 fig_input.savefig(os.path.join(input_dir, f"Input_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
+#                 plt.close(fig_input)
+
+#                 # Plot GT
+#                 fig_gt, axes_gt = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
+#                 for j in range(10):
+#                     im = axes_gt[j].pcolormesh(lon_grid, lat_grid, y_np[j], cmap=vil_cmap,norm = norm_vil, shading='auto')
+#                     axes_gt[j].set_title(f"GT {j+1}", fontsize = 25)
+#                     axes_gt[j].axis("off")
+#                     axes_gt[j].add_feature(cfeature.BORDERS)
+#                     axes_gt[j].add_feature(cfeature.COASTLINE)
+#                     axes_gt[j].add_feature(cfeature.LAND, facecolor='none')
+
+#                 fig_gt.tight_layout()
+#                 # fig_gt.colorbar(im, ax=axes_gt.ravel().tolist(), orientation='horizontal')
+#                 fig_gt.savefig(os.path.join(gt_dir, f"GT_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
+#                 plt.close(fig_gt)
+
+#                 # Plot predicted outputs
+#                 fig_result, axes_result = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
+#                 for k in range(10):
+#                     im = axes_result[k].pcolormesh(lon_grid, lat_grid, p_np[k], cmap=vil_cmap,norm = norm_vil, shading='auto')
+#                     axes_result[k].set_title(f"Pred_{k+1}", fontsize = 25)
+#                     axes_result[k].axis("off")
+#                     axes_result[k].add_feature(cfeature.BORDERS)
+#                     axes_result[k].add_feature(cfeature.COASTLINE)
+#                     axes_result[k].add_feature(cfeature.LAND, facecolor='none')
+
+#                 fig_result.tight_layout()
+#                 # fig_result.colorbar(im, ax=axes_result.ravel().tolist(), orientation='horizontal')
+#                 fig_result.savefig(os.path.join(result_dir, f"Pred_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
+#                 plt.close(fig_result)
+                
+#                 print(f"Plotted at directory, {result_dir}, Sample_idx; {sample_idx}")
+
+def main():
+    args = create_parser()
+    exp = Runner(args)
+    
+
+    if args.gpu_use:
+        gpu_list = ','.join(args.gpu_use)
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list
+        print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+    
+    if args.generate_outputs:
+        # When just evaluating and visualizing
+        save_dir = args.plot_saving_directory
+        exp.generate_outputs_from_checkpoint(save_dir, data_type = args.datatype, target_ckpt=args.ckpt_milestone)
+
+    else: 
+        if not args.eval:
+            exp.train()
+            # exp.check_milestones()
+        else:
+            
+            exp.check_milestones(target_ckpt=args.ckpt_milestone)
+
+if __name__ == '__main__':
+    
+    main()

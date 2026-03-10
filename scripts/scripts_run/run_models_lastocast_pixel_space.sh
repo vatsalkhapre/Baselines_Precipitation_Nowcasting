@@ -1,11 +1,11 @@
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai \
-    --exp_note lastocast_on_shanghai_pixel_space \
+    --exp_dir meteonet \
+    --exp_note lastocast_on_meteonet_pixel_space \
     --batch_size 4 \
     --hidden_dim 64 \
     --size_factor 1.0 \
     --backbone lastocast \
-    --dataset shanghai \
+    --dataset meteo \
     --seq_len 25 \
     --valid \
     --epochs 50 \
@@ -14,4 +14,4 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre' \
-    --run_name "lastocast_shanghai_pixel_space" 
+    --run_name "lastocast_meteonet_pixel_space" 

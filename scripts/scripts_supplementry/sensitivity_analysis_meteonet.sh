@@ -2,8 +2,8 @@
 # Sensitivity Analysis: One hyperparameter at a time
 # Defaults: dim=64, size_factor=1.0, freq_multiplier=1.0
 
-GPU=0
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gabor2"
+GPU=1
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_supplimentrygabor2"
 DATASET="meteo_lr_latent_32"
 EXP_DIR="meteo_lr_latent_32_sensitivity_analysis"
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
@@ -77,17 +77,13 @@ run_experiment() {
 # ==============================================================
 # 2. Vary size_factor (fix dim=64, freq_multiplier=1.0)
 # ==============================================================
-# for SF in 0.25 0.5 1.0 2.0 4.0
-# do
-#     run_experiment ${DEF_DIM} ${SF} ${DEF_F} "sf_${SF}"
-# done
 
 # ==============================================================
 # 3. Vary freq_multiplier (fix dim=64, size_factor=1.0)
 # ==============================================================
-for F in 1.0 1.5 2.0
+for DIM in 16 32 128 256
 do
-    run_experiment ${DEF_DIM} ${DEF_SF} ${F} "freq_${F}"
+    run_experiment ${DIM} ${DEF_SF} ${DEF_F} "dim_${DIM}"
 done
 
 echo "=============================================="

@@ -19,26 +19,26 @@ do
     echo "  TRAINING with seed=${SEED}"
     echo "=============================================="
 
-    # CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
-    #     --backbone ${BACKBONE} \
-    #     --dataset ${DATASET} \
-    #     --exp_dir ${EXP_DIR} \
-    #     --exp_note "${BACKBONE}_${WEIGHT_SCALE}_${ALPHA}_${BETA}_${FREQ}_seed${SEED}" \
-    #     --epochs 50 \
-    #     --ae_ckpt_path "${AE_CKPT}" \
-    #     --valid \
-    #     --seq_len 25 \
-    #     --seed ${SEED} \
-    #     --frames_in 5 \
-    #     --frames_out 20 \
-    #     --weight_scale ${WEIGHT_SCALE} \
-    #     --alpha ${ALPHA} \
-    #     --beta ${BETA} \
-    #     --freq_multiplier ${FREQ} \
-    #     --num_workers 8 \
-    #     --wandb_state 'online' \
-    #     --wandb_project_name 'Alphapre' \
-    #     --run_name "${BACKBONE}_meteonet_seed${SEED}"
+    CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_20epochs.py \
+        --backbone ${BACKBONE} \
+        --dataset ${DATASET} \
+        --exp_dir ${EXP_DIR} \
+        --exp_note "${BACKBONE}_${WEIGHT_SCALE}_${ALPHA}_${BETA}_${FREQ}_seed${SEED}" \
+        --epochs 50 \
+        --ae_ckpt_path "${AE_CKPT}" \
+        --valid \
+        --seq_len 25 \
+        --seed ${SEED} \
+        --frames_in 5 \
+        --frames_out 20 \
+        --weight_scale ${WEIGHT_SCALE} \
+        --alpha ${ALPHA} \
+        --beta ${BETA} \
+        --freq_multiplier ${FREQ} \
+        --num_workers 8 \
+        --wandb_state 'online' \
+        --wandb_project_name 'Alphapre' \
+        --run_name "${BACKBONE}_meteonet_seed${SEED}"
 
     echo "=============================================="
     echo "  EVALUATING with seed=${SEED}"

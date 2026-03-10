@@ -3,7 +3,7 @@
 # Defaults: dim=64, size_factor=1.0, freq_multiplier=1.0
 
 GPU=0
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gabor2"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_supplimentrygabor2"
 DATASET="meteo_lr_latent_32"
 EXP_DIR="meteo_lr_latent_32_sensitivity_analysis"
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
@@ -74,13 +74,12 @@ run_experiment() {
 }
 
 # ==============================================================
-# 1. Vary dim (fix size_factor=1.0, freq_multiplier=1.0)
+# 2. Vary size_factor (fix dim=64, freq_multiplier=1.0)
 # ==============================================================
-for DIM in 16
+for SF in 0.25 0.5 2.0 4.0
 do
-    run_experiment ${DIM} ${DEF_SF} ${DEF_F} "dim_${DIM}"
+    run_experiment ${DEF_DIM} ${SF} ${DEF_F} "sf_${SF}"
 done
-
 
 echo "=============================================="
 echo "  All sensitivity experiments complete!"

@@ -44,6 +44,15 @@ def create_parser():
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
+    # --------------- Loss weights ---------------
+    parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
+    parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
+
+    # --------------- Gabor Parameters ---------------
+    parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
+    parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
+    parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
+    parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
     
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
@@ -110,8 +119,7 @@ def create_parser():
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
-    args = parser.parse_args()
-    return args
+    
 
 class Runner(object):
     
@@ -314,7 +322,7 @@ class Runner(object):
                 "weight_scale":1.5, 
                 "alpha":1.0, 
                 "beta":1.0, 
-                "freq_multiplier": 1.0,
+                "freq_multiplier": 1.5,
                 "size_factor":self.args.size_factor,
                 "total_steps": total_steps, 
                 "const_ratio": 0.1,

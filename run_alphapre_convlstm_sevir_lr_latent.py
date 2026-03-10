@@ -95,6 +95,10 @@ MODEL_REGISTRY = {
     "UNO_ablation": {
         "module": "models.Ablations.UNO3d",
         "kwargs_type": "standared",
+    }, 
+    "LASTOCast": {
+        "module": "models.Lastocast.lastocast",
+        "kwargs_type": "lastocast"
     }
 }
 
@@ -727,8 +731,22 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
-        
-        
+
+        elif kwargs_type == "lastocast": 
+            kwargs = {
+                "weight_scale": self.args.weight_scale, 
+                "alpha": self.args.alpha,
+                "beta": self.args.beta, 
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
+            }
+
         # Create model
         model = get_model(**kwargs)
         

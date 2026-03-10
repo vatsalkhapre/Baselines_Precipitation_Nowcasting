@@ -128,7 +128,8 @@ def create_parser():
     parser.add_argument("--generate_outputs", action="store_true",               help="Generate visualizations from checkpoint")
     parser.add_argument("--plot_saving_directory", type=str,  default=None,      help="Enter saving directory for plots")
 
-    
+    args = parser.parse_args()
+    return args
 
 class Runner(object):
     

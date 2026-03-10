@@ -42,8 +42,10 @@ CUDA_VISIBLE_DEVICES=0 python3 run_diffcast.py \
     --use_diff \
     --dataset cikm \
     --seq_len 15 \
+    --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/cikm/Diffphydnet_cikm_Diffcast_on_cikm/checkpoints/ckpt-last.pt \
+    --res_opt \
     --valid \
-    --epochs 60 \
+    --epochs 90 \
     --frames_in 5 \
     --frames_out 10 \
     --num_workers 8 \

@@ -272,7 +272,7 @@ class Runner(object):
             self.valid_loader = create_loader(valid_data, batch_size= self.args.batch_size)
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
-        if self.args.dataset == 'sevir':
+        elif self.args.dataset == 'sevir':
             self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
             self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
@@ -684,7 +684,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 or (epoch==0):
+                if (epoch+1)%10==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

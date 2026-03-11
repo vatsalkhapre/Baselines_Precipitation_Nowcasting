@@ -22,8 +22,8 @@ matplotlib.rcParams['axes.linewidth'] = 1.2
 
 # Hidden dimension: [16, 32, 64, 128, 256]
 dim_values = [16, 32, 64, 128, 256]
-dim_shanghai = [0.4191, 0.4287, 0.4302, 0.4376, 0.0]      # <-- fill CSI-M values
-dim_meteonet = [0.3968, 0.3992, 0.4142, 0.4082, 0.0]      # <-- fill CSI-M values
+dim_shanghai = [0.4191, 0.4287, 0.4302, 0.4376, 0.4222]      # <-- fill CSI-M values
+dim_meteonet = [0.3968, 0.3992, 0.4142, 0.4082, 0.4042]      # <-- fill CSI-M values
 dim_default_idx = 2  # index of default value (64)
 
 # Size factor: [0.25, 0.5, 1.0, 2.0, 4.0]
@@ -136,6 +136,6 @@ def plot_sensitivity(output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output', type=str, default='sensitivity_analysis.pdf')
+    parser.add_argument('--output', type=str, default='Plots/sensitivity_analysis_plots.pdf')
     args = parser.parse_args()
     plot_sensitivity(args.output)

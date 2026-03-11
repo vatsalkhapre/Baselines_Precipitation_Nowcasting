@@ -531,13 +531,14 @@ class Runner(object):
             model = Earthfarseer_model(**kwargs)
 
         elif self.args.backbone == 'earthformer':
-            from models.earth_former import get_model
+            from models.earth_former import EarthFormer_xy
             kwargs = {
-                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
+                    "in_len": self.args.frames_in,
+                    "out_len": self.args.frames_out, 
+                    "height": self.args.img_size,
+                    "width": self.args.img_size
                 }
-            model = get_model(**kwargs)
+            model = EarthFormer_xy(**kwargs)
 
         else:
             raise NotImplementedError

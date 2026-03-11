@@ -140,6 +140,6 @@ def plot_sensitivity(output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output', type=str, default='sensitivity_analysis.pdf')
+    parser.add_argument('--output', type=str, default='Plots/sensitivity_analysis_plots.pdf')
     args = parser.parse_args()
     plot_sensitivity(args.output)

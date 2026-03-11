@@ -47,7 +47,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_diffcast.py \
 #     --valid \
 #     --epochs 60 \
 #     --frames_in 5 \
-#     --frames_out 10 \
+#     --frames_out 10 \[]
 #     --num_workers 8 \
 #     --wandb_state 'offline' \
 #     --wandb_project_name 'Alphapre_all_other_models' \

@@ -323,7 +323,7 @@ class Runner(object):
                 "weight_scale":1.5, 
                 "alpha":1.0, 
                 "beta":1.0, 
-                "freq_multiplier": 1.5,
+                "freq_multiplier": 2.0,
                 "size_factor":self.args.size_factor,
                 "total_steps": total_steps, 
                 "const_ratio": 0.1,

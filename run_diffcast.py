@@ -28,8 +28,6 @@ from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
 from utils.metrics import Evaluator
 from utils.tools import *
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
 import matplotlib.colors as mcolors
@@ -285,8 +283,7 @@ class Runner(object):
         print_log(f"Pixel Scale: {PIXEL_SCALE}, Threshold: {str(THRESHOLDS)}", self.is_main)
         for loader in [self.train_loader, self.valid_loader, self.test_loader]:
             for batch in loader:
-                from termcolor import colored
-                print_log(colored(f"Batch Shape: {batch.shape}, Type: {batch.dtype}", 'green'), self.is_main)
+                print_log(f"Batch Shape: {batch.shape}, Type: {batch.dtype}", self.is_main)
                 break
     
     def _build_model(self):
@@ -473,8 +470,8 @@ class Runner(object):
         if self.is_main:
             self.ema.load_state_dict(data['ema'])
 
-        self.cur_epoch = data['epoch']
-        self.cur_step = data['step']
+        # self.cur_epoch = data['epoch']
+        # self.cur_step = data['step']
         print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
     
@@ -550,8 +547,8 @@ class Runner(object):
                         try:
                             print_log(f" ========= Running Sanity Check ==========", self.is_main)
                             radar_ori, radar_recon= self._sample_batch(batch)
-                            from termcolor import colored
-                            print_log(colored(f"Sanity Check: {radar_ori.shape}, {radar_recon.shape}", 'blue'), self.is_main)
+                        
+                            print_log(f"Sanity Check: {radar_ori.shape}, {radar_recon.shape}", self.is_main)
                             os.makedirs(self.sanity_path)
                             if self.is_main:
                                 for i in range(radar_ori.shape[0]):

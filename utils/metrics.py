@@ -298,6 +298,7 @@ class Evaluator(object):
         
         avg_csi, avg_far, avg_pod, avg_hss = [], [], [], []
         avg_csi44, avg_csi16 = [], []
+        csi_s, hss_s= [], []
         for threshold in self.thresholds:
             hits = np.array(self.metrics[threshold]["hits"])
             misses = np.array(self.metrics[threshold]["misses"])
@@ -323,6 +324,11 @@ class Evaluator(object):
             pod1 = np.nan_to_num(pod1)
             hss1 = np.nan_to_num(hss1)
             
+
+            csi_s.append(csi1)
+            hss_s.append(hss1)
+
+
             avg_csi.append(np.mean(csi1))
             avg_far.append(np.mean(far1))
             avg_pod.append(np.mean(pod1))
@@ -359,7 +365,12 @@ class Evaluator(object):
         print_log('*'*20 + f"Overall Avg Metrics on Thresholds {self.thresholds}"+'*'*20)
         print_log(f"[ avg_csi ] : {np.mean(avg_csi)}; [ avg_far ] : {np.mean(avg_far)}; [ avg_pod ] : {np.mean(avg_pod)}; [ avg_hss] : {np.mean(avg_hss)}")
         print_log(f"[ avg_csi_pool 4x4 ] : {np.mean(avg_csi44)}; [ avg_csi_pool 16x16 ]: {np.mean(avg_csi16)}")
-
+        print_log('*'*20 + f"Final values for CSI-M for different timesteps"+'*'*20)
+        means_list = np.mean(csi_s, axis=0).tolist()
+        print_log(means_list)
+        print_log('*'*20 + f"Final values for HSS for different timesteps"+'*'*20)
+        hsss_list = np.mean(hss_s, axis=0).tolist()
+        print_log(hsss_list)
         
         
         

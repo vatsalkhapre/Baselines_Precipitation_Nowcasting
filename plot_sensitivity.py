@@ -22,21 +22,21 @@ matplotlib.rcParams['axes.linewidth'] = 1.2
 
 # Hidden dimension: [16, 32, 64, 128, 256]
 dim_values = [16, 32, 64, 128, 256]
-dim_shanghai = [0.4191, 0.4287, 0.4302, 0.4376, 0.4222]      # <-- fill CSI-M values
-dim_meteonet = [0.3968, 0.3992, 0.4142, 0.4082, 0.4042]      # <-- fill CSI-M values
+dim_shanghai = [0.0, 0.0, 0.0, 0.0, 0.0]      # <-- fill CSI-M values
+dim_meteonet = [0.0, 0.0, 0.0, 0.0, 0.0]      # <-- fill CSI-M values
 dim_default_idx = 2  # index of default value (64)
 
 # Size factor: [0.25, 0.5, 1.0, 2.0, 4.0]
 sf_values = [0.25, 0.5, 1.0, 2.0, 4.0]
-sf_shanghai = [0.4283, 0.4338, 0.4302, 0.4241, 0.4318]       # <-- fill CSI-M values
-sf_meteonet = [0.3922, 0.4108, 0.4142, 0.4103, 0.4069]       # <-- fill CSI-M values
+sf_shanghai = [0.0, 0.0, 0.0, 0.0, 0.0]       # <-- fill CSI-M values
+sf_meteonet = [0.0, 0.0, 0.0, 0.0, 0.0]       # <-- fill CSI-M values
 sf_default_idx = 2  # index of default value (1.0)
 
 # Freq multiplier: [0.25, 0.5, 1.0, 1.5, 2.0]
 freq_values = [0.25, 0.5, 1.0, 1.5, 2.0]
-freq_shanghai = [0.4318, 0.4304, 0.4308, 0.4302, 0.4299]     # <-- fill CSI-M values
-freq_meteonet = [0.4086, 0.4097, 0.4121, 0.4142, 0.4139]     # <-- fill CSI-M values
-freq_default_idx = 3  # index of default value (1.0)
+freq_shanghai = [0.0, 0.0, 0.0, 0.0, 0.0]     # <-- fill CSI-M values
+freq_meteonet = [0.0, 0.0, 0.0, 0.0, 0.0]     # <-- fill CSI-M values
+freq_default_idx = 2  # index of default value (1.0)
 
 # ============================================================
 # PLOTTING

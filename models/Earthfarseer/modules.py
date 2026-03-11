@@ -46,7 +46,7 @@ class SwinSubBlock(SwinTransformerBlock):
         x = x.flatten(2).transpose(1, 2)
         shortcut = x
         x = self.norm1(x)
-        x = x.view(B, H, W, C)
+        x = x.reshape(B, H, W, C)
 
         # cyclic shift
         if self.shift_size > 0:
@@ -57,14 +57,14 @@ class SwinSubBlock(SwinTransformerBlock):
         # partition windows
         x_windows = window_partition(
             shifted_x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(
+        x_windows = x_windows.reshape(
             -1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
         attn_windows = self.attn(x_windows, mask=None)  # nW*B, window_size*window_size, C
 
         # merge windows
-        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
+        attn_windows = attn_windows.reshape(-1, self.window_size, self.window_size, C)
         shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
 
         # reverse cyclic shift
@@ -72,7 +72,7 @@ class SwinSubBlock(SwinTransformerBlock):
             x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
             x = shifted_x
-        x = x.view(B, H * W, C)
+        x = x.reshape(B, H * W, C)
 
         # FFN
         x = shortcut + self.drop_path(x)
@@ -299,12 +299,12 @@ class ConvolutionalNetwork(nn.Module):
 
         def forward(self, x_raw):
             B, T, C, H, W = x_raw.shape
-            x = x_raw.view(B * T, C, H, W)
+            x = x_raw.reshape(B * T, C, H, W)
 
             embed, skip = self.enc(x)
             _, C_, H_, W_ = embed.shape
 
-            z = embed.view(B, T, C_, H_, W_)
+            z = embed.reshape(B, T, C_, H_, W_)
             hid = self.hid(z)
             hid = hid.reshape(B * T, C_, H_, W_)
 

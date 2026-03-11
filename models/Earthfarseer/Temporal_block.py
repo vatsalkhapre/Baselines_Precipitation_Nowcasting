@@ -89,7 +89,7 @@ class TeDev(nn.Module):
         B, D, H, W = z.shape
         N = H * W
         z = z.permute(0, 2, 3, 1)
-        z = z.view(B, N, D)
+        z = z.reshape(B, N, D)
         for blk in self.blocks:
             z = blk(z)
         z = self.norm(z).permute(0, 2, 1)

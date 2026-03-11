@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
     --exp_dir shanghai \
     --exp_note earthfarseer_on_shanghai \
     --batch_size 8 \
@@ -10,6 +10,6 @@ CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
     --frames_in 5 \
     --frames_out 20 \
     --num_workers 8 \
-    --wandb_state 'online' \
+    --wandb_state 'offline' \
     --wandb_project_name 'Alphapre_all_other_models' \
     --run_name "earthfarseer_shanghai" 

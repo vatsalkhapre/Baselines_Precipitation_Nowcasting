@@ -372,11 +372,14 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == "earthfarseer":
-            from models.Earthfarseer.model import Earthfarseer_model
+            from models.Earthfarseer.model import get_model
             kwargs = {
-                "shape_in": (self.args.frames_in, self.args.img_channel, self.args.img_size, self.args.img_size)
+                "input_shape": ( self.args.img_size, self.args.img_size), 
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel, 
+                "T_in": self.args.frames_in, 
             }
-            model = Earthfarseer_model(**kwargs)
+            model = get_model(**kwargs)
 
         elif self.args.backbone == 'earthformer':
             from models.earth_former import EarthFormer_xy
@@ -387,13 +390,11 @@ class Runner(object):
                 "width":128
             }
             model = EarthFormer_xy(**kwargs)
-        
+
         elif self.args.backbone == 'mau':
-            from models.earth_former import get_model
+            from models.mau import get_model
             kwargs = {
-                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
+                
             }
             model = get_model(**kwargs)
 

@@ -10,10 +10,36 @@ from .Temporal_block import *
 from .utils import *
 
 
+class TemporalProjection(nn.Module):
+    def __init__(self, T_in, C, T_out):
+        super(TemporalProjection, self).__init__()
+        self.T_out = T_out
+        self.C = C
+        self.conv = BasicConv2d(
+            in_channels=T_in * C,
+            out_channels=T_out * C,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            transpose=False,
+            act_norm=True
+        )
+
+    def forward(self, x):
+        # x: (B, T_in, C, H, W)
+        B, T_in, C, H, W = x.shape
+        x = x.reshape(B, T_in * C, H, W)   # (B, T_in*C, H, W)
+        x = self.conv(x)                    # (B, T_out*C, H, W)
+        x = x.reshape(B, self.T_out, C, H, W)
+        return x
+
 class Earthfarseer_model(nn.Module):
-    def __init__(self, shape_in, hid_S=512, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8):
+    def __init__(self, shape_in, hid_S=512, hid_T=256, N_S=4, N_T=8,
+                 incep_ker=[3,5,7,11], groups=8, T_out=None):
         super(Earthfarseer_model, self).__init__()
         T, C, H, W = shape_in
+        self.T_out = T_out if T_out is not None else T
+
         self.H1 = int(H / 2 ** (N_S / 2)) + 1 if H % 3 == 0 else int(H / 2 ** (N_S / 2))
         self.W1 = int(W / 2 ** (N_S / 2))
 
@@ -21,32 +47,97 @@ class Earthfarseer_model(nn.Module):
         self.skip_conneciton = ConvolutionalNetwork.skip_connection(shape_in=shape_in)
         self.latent_projection = Encoder(C, hid_S, N_S)
         self.enc = Encoder(C, hid_S, N_S)
-        self.TeDev_block = TeDev(T*hid_S, hid_T, N_T, self.H1, self.W1, incep_ker, groups) #
+        self.TeDev_block = TeDev(T*hid_S, hid_T, N_T, self.H1, self.W1, incep_ker, groups)
         self.dec = Decoder(hid_S, C, N_S)
-
+        self.temporal_projection = TemporalProjection(T_in=T, C=C, T_out=self.T_out)
 
     def forward(self, input_st_tensors):
-        # Spatial block FoTF
         B, T, C, H, W = input_st_tensors.shape
-        skip_feature = self.skip_conneciton(input_st_tensors)
-        spatial_feature = self.fotf_encoder(input_st_tensors)
 
+        # Spatial block FoTF
+        spatial_feature = self.fotf_encoder(input_st_tensors)
         spatial_feature = spatial_feature.reshape(-1, C, H, W)
         spatial_embed, spatial_skip_feature = self.latent_projection(spatial_feature)
-        _, C_, H_, W_ = spatial_embed.shape # BxT, D h w
-        spatial_embed = spatial_embed.view(B, T, C_, H_, W_) # B, T, D ,h, w
-
+        _, C_, H_, W_ = spatial_embed.shape
+        spatial_embed = spatial_embed.reshape(B, T, C_, H_, W_)
 
         # Temporal block TeDev
         spatialtemporal_embed = self.TeDev_block(spatial_embed)
-        spatialtemporal_embed = spatialtemporal_embed.reshape(B*T, C_, H_, W_)
+        spatialtemporal_embed = spatialtemporal_embed.reshape(B * T, C_, H_, W_)
 
-
-        # Decoder
+        # Spatial Decoder
         predictions = self.dec(spatialtemporal_embed, spatial_skip_feature)
-        predictions = predictions.reshape(B, T, C, H, W) + skip_feature
-        
+        predictions = predictions.reshape(B, T, C, H, W)
+
+        # Temporal Projection
+        predictions = self.temporal_projection(predictions)  # (B, T_out, C, H, W)
+
         return predictions
+
+
+class EarthFarseer(nn.Module):
+    def __init__(self, T_in, T_out, C, H, W, 
+                 hid_S=512, hid_T=256, N_S=4, N_T=8,
+                 incep_ker=[3,5,7,11], groups=8):
+        super(EarthFarseer, self).__init__()
+        
+        self.T_in = T_in
+        self.T_out = T_out
+        self.criterion = nn.MSELoss()
+        
+        self.model = Earthfarseer_model(
+            shape_in=(T_in, C, H, W),
+            hid_S=hid_S,
+            hid_T=hid_T,
+            N_S=N_S,
+            N_T=N_T,
+            incep_ker=incep_ker,
+            groups=groups,
+            T_out=T_out
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+    def predict(self, frames_in, frames_gt=None, compute_loss=False):
+        pred = self.forward(frames_in)  # (B, T_out, C, H, W)
+        
+        if compute_loss:
+            loss = self.criterion(pred, frames_gt)
+            loss = {'total_loss': loss}
+            return pred, loss
+        else:
+            return pred, None
+
+
+def get_model(
+    img_channels=1,
+    T_in=10,
+    T_out=10,
+    input_shape=(128, 128),
+    hid_S=256,
+    hid_T=128,
+    N_S=4,
+    N_T=4,
+    incep_ker=[3, 5, 7, 11],
+    groups=8,
+    **kwargs
+):
+    H, W = input_shape
+    model = EarthFarseer(
+        T_in=T_in,
+        T_out=T_out,
+        C=img_channels,
+        H=H,
+        W=W,
+        hid_S=hid_S,
+        hid_T=hid_T,
+        N_S=N_S,
+        N_T=N_T,
+        incep_ker=incep_ker,
+        groups=groups
+    )
+    return model
 
 
 if __name__ == '__main__':

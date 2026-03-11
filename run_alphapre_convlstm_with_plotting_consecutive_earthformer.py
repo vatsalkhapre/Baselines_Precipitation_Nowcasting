@@ -656,12 +656,12 @@ class Runner(object):
             print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
         model = self.accelerator.unwrap_model(self.model)
-        model.load_state_dict(data['model'])
+        model.load_state_dict(data['model']['EarthFormer_xy'])
         self.model = self.accelerator.prepare(model)
         if self.args.res_opt:
             try:
-                self.optimizer.load_state_dict(data['opt'])
-                self.scheduler.load_state_dict(data['scheduler'])
+                self.optimizer.load_state_dict(data['optimizer'])   # was data['opt']
+                self.scheduler.load_state_dict(data['lr_scheduler'])
             except:
                 print_log(f"No optimizer", self.is_main)
             try:
@@ -677,14 +677,14 @@ class Runner(object):
                 print_log(f"No record step", self.is_main)
             
         if self.is_main:
-            ema_dict = data['ema']
-            for key, value in ema_dict.items():
-                # If the checkpoint has a scalar (size []), but we need a vector (size [1])
-                if value.dim() == 0:
-                    ema_dict[key] = value.unsqueeze(0)
-
-            # 3. Load the fixed dictionary
-            self.ema.load_state_dict(ema_dict)
+            if 'ema' in data:
+                ema_dict = data['ema']
+                for key, value in ema_dict.items():
+                    if value.dim() == 0:
+                        ema_dict[key] = value.unsqueeze(0)
+                self.ema.load_state_dict(ema_dict)
+            else:
+                print_log("No EMA state in checkpoint, skipping.", self.is_main)
 
 
     def train(self):
@@ -844,7 +844,7 @@ class Runner(object):
             if self.args.ckpt_milestone is not None:                              # <<< PLOT
                 plot_base = resolve_plot_dir(self.args.ckpt_milestone)            # <<< PLOT
             else:                                                                 # <<< PLOT
-                plot_base = osp.join(self.exp_dir, '..', 'plots_meteo')                # <<< PLOT
+                plot_base = osp.join(self.exp_dir, '..', 'plots')                # <<< PLOT
             plot_base = os.path.abspath(plot_base)                                # <<< PLOT
                                                                                 # <<< PLOT
             input_dir  = osp.join(plot_base, "Input")                             # <<< PLOT

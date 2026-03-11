@@ -134,7 +134,7 @@ def resolve_plot_dir(ckpt_milestone_path):
         ckpt_dir = ckpt_milestone_path
 
          
-    plot_dir     = os.path.join(exp_name_dir, "plots")
+    plot_dir    = os.path.join(ckpt_dir, "plots")
     return plot_dir
 
 
@@ -496,7 +496,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'alphapre':
-            from models.Full_space_models.alphapre import get_model
+            from models.alphapre import get_model
             kwargs = {
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
@@ -512,94 +512,20 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
-        elif self.args.backbone == 'amplinet':
-            from models.Full_space_models.alphapre_amplinet import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'amplinet_mseonly':
-            from models.Full_space_models.alphapre_amplinet_MSE_only import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'fnoamplinet_mseonly':
-            from models.Full_space_models.alphapre_fnoamplinet_MSE_only import get_model
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-
         
-        elif self.args.backbone == 'afnoamplinet_mseonly':
-            from models.Full_space_models.alphapre_AFNOamplinet_MSE_only import get_model
+        elif self.args.backbone == 'phydnet':
+            from models.phydnet import get_model
             kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
+                "device": self.device
             }
             model = get_model(**kwargs)
 
-        elif self.args.backbone == 'alphapre_amplinet_amp_loss':
-            from models.Full_space_models.alphapre_amplinet_amp_loss import get_model
+        elif self.args.backbone == "earthfarseer":
+            from models.Earthfarseer.model import Earthfarseer_model
             kwargs = {
-<<<<<<< HEAD
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-=======
                 "shape_in": (self.args.frames_in, self.args.img_channel, self.args.img_size, self.args.img_size)
             }
             model = Earthfarseer_model(**kwargs)
@@ -613,33 +539,7 @@ class Runner(object):
                     "width": self.args.img_size
                 }
             model = EarthFormer_xy(**kwargs)
->>>>>>> 05c62bb (plots)
 
-
-        elif self.args.backbone == 'alphapre_phase_net':
-            from models.Other_models.alphapre_phasenet import get_model 
-            kwargs = {
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                'img_channels' : self.args.img_channel,
-                'dim' : 64,
-                'n_layers': self.args.layers,
-                'pha_weight': self.args.pha_weight,
-                'anet_weight': self.args.anet_weight,
-                'amp_weight': self.args.amp_weight,
-                'spec_num': self.args.spec_num,
-                'aweight_stop_steps': self.args.aw_stop_step,
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'convlstm_paper':
-            from models.Other_models.convlstm import PaperModel
-            # Build the paper's ConvLSTM encoder-forecaster
-            # Paper config: 2 layers, 64 hidden each, kernel 3x3, J=5, K=15, BCE loss, RMSProp lr=1e-3, alpha=0.9
-            hidden_dims = [64, 64]
-            model = PaperModel(frames_in=self.args.frames_in, frames_out=self.args.frames_out,
-            input_channels=self.args.img_channel, hidden_dims=hidden_dims, kernel_size=(3,3))
         else:
             raise NotImplementedError
             
@@ -756,12 +656,12 @@ class Runner(object):
             print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
         model = self.accelerator.unwrap_model(self.model)
-        model.load_state_dict(data['model'])
+        model.load_state_dict(data['model']['EarthFormer_xy'])
         self.model = self.accelerator.prepare(model)
         if self.args.res_opt:
             try:
-                self.optimizer.load_state_dict(data['opt'])
-                self.scheduler.load_state_dict(data['scheduler'])
+                self.optimizer.load_state_dict(data['optimizer'])   # was data['opt']
+                self.scheduler.load_state_dict(data['lr_scheduler'])
             except:
                 print_log(f"No optimizer", self.is_main)
             try:
@@ -777,14 +677,14 @@ class Runner(object):
                 print_log(f"No record step", self.is_main)
             
         if self.is_main:
-            ema_dict = data['ema']
-            for key, value in ema_dict.items():
-                # If the checkpoint has a scalar (size []), but we need a vector (size [1])
-                if value.dim() == 0:
-                    ema_dict[key] = value.unsqueeze(0)
-
-            # 3. Load the fixed dictionary
-            self.ema.load_state_dict(ema_dict)
+            if 'ema' in data:
+                ema_dict = data['ema']
+                for key, value in ema_dict.items():
+                    if value.dim() == 0:
+                        ema_dict[key] = value.unsqueeze(0)
+                self.ema.load_state_dict(ema_dict)
+            else:
+                print_log("No EMA state in checkpoint, skipping.", self.is_main)
 
 
     def train(self):
@@ -944,7 +844,7 @@ class Runner(object):
             if self.args.ckpt_milestone is not None:                              # <<< PLOT
                 plot_base = resolve_plot_dir(self.args.ckpt_milestone)            # <<< PLOT
             else:                                                                 # <<< PLOT
-                plot_base = osp.join(self.exp_dir, '..', 'plots_meteo')                # <<< PLOT
+                plot_base = osp.join(self.exp_dir, '..', 'plots')                # <<< PLOT
             plot_base = os.path.abspath(plot_base)                                # <<< PLOT
                                                                                 # <<< PLOT
             input_dir  = osp.join(plot_base, "Input")                             # <<< PLOT

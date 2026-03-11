@@ -585,6 +585,7 @@ class Runner(object):
         elif self.args.backbone == 'alphapre_amplinet_amp_loss':
             from models.Full_space_models.alphapre_amplinet_amp_loss import get_model
             kwargs = {
+<<<<<<< HEAD
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
@@ -598,6 +599,21 @@ class Runner(object):
                 'aweight_stop_steps': self.args.aw_stop_step,
             }
             model = get_model(**kwargs)
+=======
+                "shape_in": (self.args.frames_in, self.args.img_channel, self.args.img_size, self.args.img_size)
+            }
+            model = Earthfarseer_model(**kwargs)
+
+        elif self.args.backbone == 'earthformer':
+            from models.earth_former import EarthFormer_xy
+            kwargs = {
+                    "in_len": self.args.frames_in,
+                    "out_len": self.args.frames_out, 
+                    "height": self.args.img_size,
+                    "width": self.args.img_size
+                }
+            model = EarthFormer_xy(**kwargs)
+>>>>>>> 05c62bb (plots)
 
 
         elif self.args.backbone == 'alphapre_phase_net':

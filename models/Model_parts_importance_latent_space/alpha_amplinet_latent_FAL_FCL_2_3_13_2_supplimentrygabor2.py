@@ -214,6 +214,7 @@ def get_model(
     aweight_stop_steps=10000,
     **kwargs
 ):
+    
     model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, size_factor, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
                      hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,

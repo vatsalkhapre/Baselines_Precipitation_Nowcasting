@@ -2,8 +2,8 @@
 # Sensitivity Analysis: One hyperparameter at a time
 # Defaults: dim=64, size_factor=1.0, freq_multiplier=1.0
 
-GPU=1
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gabor2"
+GPU=0
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_supplimentrygabor2"
 DATASET="shanghai_lr_latent_32"
 EXP_DIR="shanghai_lr_latent_32_sensitivity_analysis"
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth"
@@ -76,7 +76,7 @@ run_experiment() {
 # ==============================================================
 # 1. Vary dim (fix size_factor=1.0, freq_multiplier=1.0)
 # ==============================================================
-for DIM in 16 32 64 128 256
+for DIM in 16 32 128 256
 do
     run_experiment ${DIM} ${DEF_SF} ${DEF_F} "dim_${DIM}"
 done

@@ -49,6 +49,71 @@ class Earthfarseer_model(nn.Module):
         return predictions
 
 
+class EarthFarseer(nn.Module):
+    def __init__(self, T_in, T_out, C, H, W, 
+                 hid_S=512, hid_T=256, N_S=4, N_T=8,
+                 incep_ker=[3,5,7,11], groups=8):
+        super(EarthFarseer, self).__init__()
+        
+        self.T_in = T_in
+        self.T_out = T_out
+        self.criterion = nn.MSELoss()
+        
+        self.model = Earthfarseer_model(
+            shape_in=(T_in, C, H, W),
+            hid_S=hid_S,
+            hid_T=hid_T,
+            N_S=N_S,
+            N_T=N_T,
+            incep_ker=incep_ker,
+            groups=groups,
+            T_out=T_out
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+    def predict(self, frames_in, frames_gt=None, compute_loss=False):
+        pred = self.forward(frames_in)  # (B, T_out, C, H, W)
+        
+        if compute_loss:
+            loss = self.criterion(pred, frames_gt)
+            loss = {'total_loss': loss}
+            return pred, loss
+        else:
+            return pred, None
+
+
+def get_model(
+    img_channels=1,
+    T_in=10,
+    T_out=10,
+    input_shape=(128, 128),
+    hid_S=512,
+    hid_T=256,
+    N_S=4,
+    N_T=8,
+    incep_ker=[3, 5, 7, 11],
+    groups=8,
+    **kwargs
+):
+    H, W = input_shape
+    model = EarthFarseer(
+        T_in=T_in,
+        T_out=T_out,
+        C=img_channels,
+        H=H,
+        W=W,
+        hid_S=hid_S,
+        hid_T=hid_T,
+        N_S=N_S,
+        N_T=N_T,
+        incep_ker=incep_ker,
+        groups=groups
+    )
+    return model
+
+
 if __name__ == '__main__':
     x = torch.randn((1, 10, 1, 64, 64))
     y = torch.randn((1, 10, 1, 64, 64))

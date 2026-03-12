@@ -115,10 +115,10 @@ def get_model(
     T_in=10,
     T_out=10,
     input_shape=(128, 128),
-    hid_S=256,
-    hid_T=128,
+    hid_S=512,
+    hid_T=256,
     N_S=4,
-    N_T=4,
+    N_T=8,
     incep_ker=[3, 5, 7, 11],
     groups=8,
     **kwargs

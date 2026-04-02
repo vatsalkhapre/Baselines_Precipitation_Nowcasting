@@ -110,6 +110,10 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
+
+            elif "waveletsgabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_wavelet"
+
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
 
@@ -158,10 +162,20 @@ def create_parser():
     parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
 
     # --------------- Gabor Parameters ---------------
-    parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
-    parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
-    parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
-    parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+    parser.add_argument("--weight_scale_low"    , type=float, default=0.00,            help="weight_scale for gabor")
+    parser.add_argument("--alpha_low"           , type=float, default=0.00,            help="alpha for gabor")
+    parser.add_argument("--beta_low"            , type=float, default=0.00,            help="beta for gabor")
+    parser.add_argument("--freq_multiplier_low" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    parser.add_argument("--weight_scale_high"    , type=float, default=0.00,            help="weight_scale for gabor")
+    parser.add_argument("--alpha_high"           , type=float, default=0.00,            help="alpha for gabor")
+    parser.add_argument("--beta_high"            , type=float, default=0.00,            help="beta for gabor")
+    parser.add_argument("--freq_multiplier_high" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    #------------------- Wavelet ----------------------
+    parser.add_argument("--wave",      type=str,    default='haar',           help="Type of wavelet transform")
+    parser.add_argument("--wavelet_level",     type=int,   default=1,         help="Wavelet level used for wavelet transform")
+    parser.add_argument("--hf_mode",        type=str,    default= 'seperate',     help= "High frequency  mode" )
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
@@ -623,6 +637,28 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
+
+        elif kwargs_type == "gabor_wavelet":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "dim": 64,
+            }
+
         elif kwargs_type == "afno_gabor_standared":
             kwargs = {
                 "weight_scale": self.args.weight_scale,
@@ -936,8 +972,10 @@ class Runner(object):
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
-        self.accelerator.wait_for_everyone()
-        self.accelerator.end_training()
+            if (epoch+1)==40:
+                self.accelerator.wait_for_everyone()
+                self.accelerator.end_training()
+                break
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
@@ -1081,7 +1119,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results_wavelet.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

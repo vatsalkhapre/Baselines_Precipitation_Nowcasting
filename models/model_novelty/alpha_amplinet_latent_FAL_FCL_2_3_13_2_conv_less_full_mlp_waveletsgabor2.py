@@ -133,9 +133,6 @@ class WaveletGaborBlock(nn.Module):
         self.wave = wave
         self.dwt = DWTForward(J=level, wave=wave, mode='zero')
         self.idwt = DWTInverse(wave=wave, mode='zero')
-        # For J=2 shared mode, we need a J=1 IDWT for reconstruction
-        if level == 2 and hf_mode == 'shared':
-            self.idwt_j1 = DWTInverse(wave=wave, mode='zero')
 
         # ---- LL temporal stream (always present) ----
         self.stream_ll = BandTemporalStream(
@@ -206,48 +203,45 @@ class WaveletGaborBlock(nn.Module):
         return reconstructed, gabor_residual, H, W
 
     def _process_j2_shared(self, x):
-        """Process with J=2, shared HF Gabor (Option A)."""
+        """Process with J=2, shared HF Gabor (Option A).
+        
+        Uses the SAME Gabor+MLP stream for both HF levels.
+        Each HF level is processed independently, then reconstructed via proper J=2 IDWT.
+        """
         B, T, C, H, W = x.shape
 
         x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
         ll, hf_list = self.dwt(x_flat)
         # ll: (B*T, C, H/4, W/4)
-        # hf_list[0]: (B*T, C, 3, H/4, W/4)  — level 1 (coarse)
-        # hf_list[1]: (B*T, C, 3, H/2, W/2)  — level 2 (fine)
+        # hf_list[0]: (B*T, C, 3, H/4, W/4)  — coarse HF
+        # hf_list[1]: (B*T, C, 3, H/2, W/2)  — fine HF
 
-        hf_l1 = hf_list[0]  # coarser HF
-        hf_l2 = hf_list[1]  # finer HF
+        hf_l1 = hf_list[0]  # coarse
+        hf_l2 = hf_list[1]  # fine
 
-        # Pool both HF levels: upsample L1 to L2 size, concatenate along channel
-        hf_l1_up = F.interpolate(
-            rearrange(hf_l1, 'bt c n h w -> bt (c n) h w'),
-            size=hf_l2.shape[-2:], mode='bilinear', align_corners=False
-        )
-        hf_l2_flat = rearrange(hf_l2, 'bt c n h w -> bt (c n) h w')
-        hf_pooled = hf_l1_up + hf_l2_flat  # (B*T, 3C, H/2, W/2)
-
-        # Reshape for temporal
+        # Reshape for temporal processing
         ll = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        hf_pooled = rearrange(hf_pooled, '(b t) c h w -> b c h w t', t=T)
+        hf_l1_t = rearrange(hf_l1, '(b t) c n h w -> b (c n) h w t', t=T)
+        hf_l2_t = rearrange(hf_l2, '(b t) c n h w -> b (c n) h w t', t=T)
 
-        # Temporal streams
+        # LL gets its own stream
         ll_gabor, ll_fused = self.stream_ll(ll)
-        hf_gabor, hf_fused = self.stream_hf(hf_pooled)
 
-        # Reconstruct with J=1 IDWT (since we pooled to single HF level)
+        # Both HF levels share the SAME stream
+        hf_l1_gabor, hf_l1_fused = self.stream_hf(hf_l1_t)
+        hf_l2_gabor, hf_l2_fused = self.stream_hf(hf_l2_t)
+
+        # Proper J=2 IDWT reconstruction (fused path)
         ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
-        # Upsample LL to match HF spatial size for J=1 IDWT
-        ll_recon = F.interpolate(ll_recon, size=hf_fused.shape[-2:],
-                                  mode='bilinear', align_corners=False)
-        hf_recon = rearrange(hf_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
-        reconstructed = self.idwt_j1((ll_recon, [hf_recon]))
+        hf_l1_recon = rearrange(hf_l1_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        hf_l2_recon = rearrange(hf_l2_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        reconstructed = self.idwt((ll_recon, [hf_l1_recon, hf_l2_recon]))
 
-        # Gabor residual
+        # Gabor residual (gabor-only path)
         ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
-        ll_gabor_flat = F.interpolate(ll_gabor_flat, size=hf_gabor.shape[2:4],
-                                       mode='bilinear', align_corners=False)
-        hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
-        gabor_residual = self.idwt_j1((ll_gabor_flat, [hf_gabor_flat]))
+        hf_l1_gabor_flat = rearrange(hf_l1_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        hf_l2_gabor_flat = rearrange(hf_l2_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        gabor_residual = self.idwt((ll_gabor_flat, [hf_l1_gabor_flat, hf_l2_gabor_flat]))
 
         return reconstructed, gabor_residual, H, W
 
@@ -408,7 +402,7 @@ def get_model(
     total_steps=50000, const_ratio=0.5,
     img_channels=1, dim=64,
     T_in=5, T_out=20,
-    wave='haar', level=1, hf_mode='shared',
+    wave='haar', wavelet_level=1, hf_mode='shared',
     input_shape=(128, 128),
     **kwargs
 ):
@@ -421,7 +415,7 @@ def get_model(
         beta_high=beta_high, freq_multiplier_high=freq_multiplier_high,
         size_factor=size_factor,
         total_steps=total_steps, const_ratio=const_ratio,
-        wave=wave, level=level, hf_mode=hf_mode,
+        wave=wave, level=wavelet_level, hf_mode=hf_mode,
     )
     return model
 

@@ -96,6 +96,10 @@ MODEL_REGISTRY = {
         "module": "models.Ablations.UNO3d",
         "kwargs_type": "standared",
     }, 
+    "LASTOCast_mse": {
+        "module": "models.Lastocast.lastocast_mse",
+        "kwargs_type": "lastocast"
+    },
     "LASTOCast": {
         "module": "models.Lastocast.lastocast",
         "kwargs_type": "lastocast"

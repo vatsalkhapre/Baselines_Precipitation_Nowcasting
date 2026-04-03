@@ -214,7 +214,7 @@ def create_parser():
     parser.add_argument("--ckpt_milestone", type=str,   default=None,            help="resumed checkpoint milestone")
     parser.add_argument("--spec_num",       type=int,   default=20,              help="spectral number")
     parser.add_argument("--layers",         type=int,   default=3,               help="layers number")
-    parser.add_argument("--hidden_size",    type=int,   default=64,              help="Hidden size of the input inside the model")
+    parser.add_argument("--hidden_size",    type=int,   default=96,              help="Hidden size of the input inside the model")
     parser.add_argument("--pha_weight",     type=float, default=0.01,            help="phase weight")
     parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
     parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")

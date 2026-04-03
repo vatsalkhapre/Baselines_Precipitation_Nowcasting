@@ -581,7 +581,7 @@ def get_model(
     total_steps,
     const_ratio,
     img_channels=1,
-    dim = 64,
+    dim = 96,
     T_in = 5, 
     T_out = 20,
     input_shape = (128,128),

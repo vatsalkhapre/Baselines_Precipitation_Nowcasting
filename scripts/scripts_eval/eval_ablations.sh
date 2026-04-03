@@ -1,0 +1,12 @@
+CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
+    --backbone WNO_ablation \
+    --dataset sevir_lr_latent_32 \
+    --eval \
+    --ckpt_milestone /home/vatsal/Dataserver2/ECCV26/Ablations/WNO/WNO_ablation_sevir_lr_latent_32_WNO_ablation/checkpoints/ckpt-best.pt \
+    --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth" \
+    --eval \
+    --seq_len 25 \
+    --frames_in 5 \
+    --frames_out 20 \
+    --num_workers 8 \
+    --wandb_state 'offline' 

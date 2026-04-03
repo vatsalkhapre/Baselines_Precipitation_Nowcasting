@@ -108,19 +108,21 @@ echo ""
 
 # GPU 0: haar and db2
 run_gpu0() {
-    for WAVE in haar db2 db4
+    for WAVE in db4
     do
-        run_experiment 0 "${CIKM}" ${WAVE} 2 shared
-        run_experiment 0 "${CIKM}" ${WAVE} 2 separate
+        run_experiment 1 "${CIKM}" ${WAVE} 1 shared
+        # run_experiment 0 "${CIKM}" ${WAVE} 2 shared
+        # run_experiment 0 "${CIKM}" ${WAVE} 2 separate
     done
 }
 
 # GPU 1: db3 and coif1
 run_gpu1() {
-    for WAVE in db3 coif1 db6
+    for WAVE in db6
     do
-        run_experiment 1 "${CIKM}" ${WAVE} 2 shared
-        run_experiment 1 "${CIKM}" ${WAVE} 2 separate
+        run_experiment 1 "${CIKM}" ${WAVE} 1 shared
+        # run_experiment 1 "${CIKM}" ${WAVE} 2 shared
+        # run_experiment 1 "${CIKM}" ${WAVE} 2 separate
     done
 }
 

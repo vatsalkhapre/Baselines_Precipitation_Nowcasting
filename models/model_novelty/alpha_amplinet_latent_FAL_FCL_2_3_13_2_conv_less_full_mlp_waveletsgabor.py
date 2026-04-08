@@ -2,12 +2,9 @@
 Wavelet-Gabor LASTOCast Block (Unified)
 
 Supports:
-    - J=1 to J=4 with separate Gabor streams per HF level
-    - hf_mode: 'shared' (one stream for all HF) or 'separate' (one per level)
-
-Pipeline:
-    Input → Lifting → DWT → [Gabor+MLP per band] → Fusion per band → IDWT
-          → Spatio-Temporal Conv → + Gabor residual → Projection
+    - J=1: 2 Gabors (LL + HF)
+    - J=2, mode='shared': 2 Gabors (LL + all HF pooled)  [Option A]
+    - J=2, mode='separate': 3 Gabors (LL + HF-L1 + HF-L2) [Option B]
 
 Requirements:
     pip install pytorch_wavelets
@@ -20,9 +17,7 @@ import numpy as np
 from einops import rearrange
 from pytorch_wavelets import DWTForward, DWTInverse
 from utils.utilspp import RandomScheduling
-import matplotlib.pyplot as plt
-import os
-import time
+
 
 class GaborLayer(nn.Module):
     def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier=1.5):
@@ -98,13 +93,13 @@ class BandTemporalStream(nn.Module):
         """
         gabor_out = self.gabor(x)   # (B, C, H, W, T_out)
         mlp_out = self.mlp(x)       # (B, C, H, W, T_out)
-       
+
         # Fuse: cat along channel, permute for Conv3d
         fused = torch.cat([gabor_out, mlp_out], dim=1)  # (B, 2C, H, W, T_out)
         fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
         fused = self.fusion(fused)                        # (B, C, T_out, H, W)
 
-        return gabor_out, mlp_out, fused
+        return gabor_out, fused
 
 
 # ============================================================
@@ -116,10 +111,10 @@ class WaveletGaborBlock(nn.Module):
     LASTOCast block with wavelet-decomposed dual Gabor temporal modeling.
 
     Args:
-        level: DWT decomposition level (1, 2, 3, or 4)
-        hf_mode: 'shared' or 'separate'
-            - 'shared': single Gabor stream for all HF levels
-            - 'separate': one Gabor stream per HF level
+        level: DWT decomposition level (1 or 2)
+        hf_mode: 'shared' or 'separate' (only matters when level=2)
+            - 'shared': single Gabor for all HF bands (Option A)
+            - 'separate': one Gabor per HF level (Option B)
     """
     def __init__(self, t_in, t_out, dim,
                  weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
@@ -131,8 +126,8 @@ class WaveletGaborBlock(nn.Module):
         self.level = level
         self.hf_mode = hf_mode
 
-        assert level in [1, 2, 3, 4], "Levels 1-4 supported"
-        assert hf_mode in ['shared', 'separate']
+        assert level in [1, 2], "Only level 1 and 2 supported"
+        assert hf_mode in ['shared', 'separate'], "hf_mode must be 'shared' or 'separate'"
 
         # ---- Wavelet transform ----
         self.wave = wave
@@ -147,128 +142,170 @@ class WaveletGaborBlock(nn.Module):
         )
 
         # ---- HF temporal streams ----
-        if hf_mode == 'shared':
-            # Single stream shared across all HF levels
+        if level == 1 or hf_mode == 'shared':
+            # Single stream for all HF bands (3*dim channels)
             self.stream_hf = BandTemporalStream(
                 t_in, t_out, 3 * dim,
                 weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                 size_factor,
             )
         else:
-            # Separate stream per HF level
-            # Interpolate freq_multiplier from high (coarsest) to low (finest)
-            self.hf_streams = nn.ModuleList()
-            for i in range(level):
-                if level == 1:
-                    freq_i = freq_multiplier_high
-                else:
-                    # Level 0 = coarsest (highest freq), level[-1] = finest (mid freq)
-                    # Interpolate: coarsest gets freq_high, finest gets midpoint
-                    freq_mid = (freq_multiplier_low + freq_multiplier_high) / 2
-                    alpha_interp = i / (level - 1)  # 0 for coarsest, 1 for finest
-                    freq_i = freq_multiplier_high * (1 - alpha_interp) + freq_mid * alpha_interp
+            # level=2, separate: one stream per HF level
+            # Level 1 HF: coarser details (at LL resolution / 2)
+            self.stream_hf_l1 = BandTemporalStream(
+                t_in, t_out, 3 * dim,
+                weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
+                size_factor,
+            )
+            # Level 2 HF: finer details (at input resolution / 2)
+            # Use slightly different freq — midpoint between low and high
+            freq_mid = (freq_multiplier_low + freq_multiplier_high) / 2
+            self.stream_hf_l2 = BandTemporalStream(
+                t_in, t_out, 3 * dim,
+                weight_scale_high, alpha_high, beta_high, freq_mid,
+                size_factor,
+            )
 
-                self.hf_streams.append(BandTemporalStream(
-                    t_in, t_out, 3 * dim,
-                    weight_scale_high, alpha_high, beta_high, freq_i,
-                    size_factor,
-                ))
-            #     print("freq_i", freq_i)
-            
-            # print("hf_streams length", len(self.hf_streams))
         # ---- Spatio-Temporal Interaction ----
         self.spatial_temporal = nn.Sequential(
             TransformBlock(dim * t_out, dim * t_out),
             TransformBlock(dim * t_out, dim * t_out),
             nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
         )
-        self.viz_counter = 0
+
+    def _process_j1(self, x):
+        """Process with J=1 decomposition."""
+        B, T, C, H, W = x.shape
+
+        # DWT
+        x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
+        ll, hf_list = self.dwt(x_flat)
+        hf = hf_list[0]  # (B*T, C, 3, H', W')
+
+        # Reshape for temporal processing
+        ll = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
+        hf = rearrange(hf, '(b t) c n h w -> b (c n) h w t', t=T)
+
+        # Temporal streams
+        ll_gabor, ll_fused = self.stream_ll(ll)
+        hf_gabor, hf_fused = self.stream_hf(hf)
+
+        # IDWT reconstruction (fused path)
+        ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
+        hf_recon = rearrange(hf_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        reconstructed = self.idwt((ll_recon, [hf_recon]))
+
+        # IDWT reconstruction (gabor-only residual)
+        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
+        hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        gabor_residual = self.idwt((ll_gabor_flat, [hf_gabor_flat]))
+
+        return reconstructed, gabor_residual, H, W
+
+    def _process_j2_shared(self, x):
+        """Process with J=2, shared HF Gabor (Option A).
+        
+        Uses the SAME Gabor+MLP stream for both HF levels.
+        Each HF level is processed independently, then reconstructed via proper J=2 IDWT.
+        """
+        B, T, C, H, W = x.shape
+
+        x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
+        ll, hf_list = self.dwt(x_flat)
+        # ll: (B*T, C, H/4, W/4)
+        # hf_list[0]: (B*T, C, 3, H/4, W/4)  — coarse HF
+        # hf_list[1]: (B*T, C, 3, H/2, W/2)  — fine HF
+
+        hf_l1 = hf_list[0]  # coarse
+        hf_l2 = hf_list[1]  # fine
+
+        # Reshape for temporal processing
+        ll = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
+        hf_l1_t = rearrange(hf_l1, '(b t) c n h w -> b (c n) h w t', t=T)
+        hf_l2_t = rearrange(hf_l2, '(b t) c n h w -> b (c n) h w t', t=T)
+
+        # LL gets its own stream
+        ll_gabor, ll_fused = self.stream_ll(ll)
+
+        # Both HF levels share the SAME stream
+        hf_l1_gabor, hf_l1_fused = self.stream_hf(hf_l1_t)
+        hf_l2_gabor, hf_l2_fused = self.stream_hf(hf_l2_t)
+
+        # Proper J=2 IDWT reconstruction (fused path)
+        ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
+        hf_l1_recon = rearrange(hf_l1_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        hf_l2_recon = rearrange(hf_l2_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        reconstructed = self.idwt((ll_recon, [hf_l1_recon, hf_l2_recon]))
+
+        # Gabor residual (gabor-only path)
+        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
+        hf_l1_gabor_flat = rearrange(hf_l1_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        hf_l2_gabor_flat = rearrange(hf_l2_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        gabor_residual = self.idwt((ll_gabor_flat, [hf_l1_gabor_flat, hf_l2_gabor_flat]))
+
+        return reconstructed, gabor_residual, H, W
+
+    def _process_j2_separate(self, x):
+        """Process with J=2, separate HF Gabors (Option B)."""
+        B, T, C, H, W = x.shape
+
+        x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
+        ll, hf_list = self.dwt(x_flat)
+        # ll: (B*T, C, H/4, W/4)
+        # hf_list[0]: (B*T, C, 3, H/4, W/4)  — level 1 (coarse)
+        # hf_list[1]: (B*T, C, 3, H/2, W/2)  — level 2 (fine)
+
+        hf_l1 = hf_list[0]
+        hf_l2 = hf_list[1]
+
+        # Reshape for temporal
+        ll = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
+        hf_l1_t = rearrange(hf_l1, '(b t) c n h w -> b (c n) h w t', t=T)
+        hf_l2_t = rearrange(hf_l2, '(b t) c n h w -> b (c n) h w t', t=T)
+
+        # Three separate temporal streams
+        ll_gabor, ll_fused = self.stream_ll(ll)
+        hf_l1_gabor, hf_l1_fused = self.stream_hf_l1(hf_l1_t)
+        hf_l2_gabor, hf_l2_fused = self.stream_hf_l2(hf_l2_t)
+
+        # Proper J=2 IDWT reconstruction
+        ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
+        hf_l1_recon = rearrange(hf_l1_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        hf_l2_recon = rearrange(hf_l2_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
+        reconstructed = self.idwt((ll_recon, [hf_l1_recon, hf_l2_recon]))
+
+        # Gabor residual
+        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
+        hf_l1_gabor_flat = rearrange(hf_l1_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        hf_l2_gabor_flat = rearrange(hf_l2_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        gabor_residual = self.idwt((ll_gabor_flat, [hf_l1_gabor_flat, hf_l2_gabor_flat]))
+
+        return reconstructed, gabor_residual, H, W
 
     def forward(self, x):
         # x: (B, T_in, C, H, W)
-        B, T, C, H, W = x.shape
 
-        # ============================================================
-        # 1. DWT decomposition
-        # ============================================================
-        x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
-        # print("x_flat", x_flat.shape)
-        ll, hf_list = self.dwt(x_flat)
-        # print("hf_list", len(hf_list))
+        # ---- Wavelet + Temporal processing ----
+        if self.level == 1:
+            reconstructed, gabor_residual, H, W = self._process_j1(x)
+        elif self.hf_mode == 'shared':
+            reconstructed, gabor_residual, H, W = self._process_j2_shared(x)
+        else:
+            reconstructed, gabor_residual, H, W = self._process_j2_separate(x)
 
-        # for i, ele in enumerate(hf_list):
-            # print(i, ele.shape)
-        # ll: (B*T, C, H/2^level, W/2^level)
-        # hf_list[i]: (B*T, C, 3, H_i, W_i) for i in range(level)
-        # hf_list[0] = coarsest, hf_list[-1] = finest
-
-        # ============================================================
-        # 2. Temporal processing per band
-        # ============================================================
-
-        # --- LL band ---
-        ll_t = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
-
-        # --- HF bands ---
-        hf_gabor_list = []
-        hf_fused_list = []
-        hf_mlp_list = []
-
-        for i in range(len(hf_list)):
-            hf_t = rearrange(hf_list[i], '(b t) c n h w -> b (c n) h w t', t=T)
-
-            if self.hf_mode == 'shared':
-                hf_gabor, hf_fused = self.stream_hf(hf_t)
-            else:
-                hf_gabor, hf_mlp, hf_fused = self.hf_streams[i](hf_t)
-
-            hf_gabor_list.append(hf_gabor)
-            hf_mlp_list.append(hf_mlp)
-            hf_fused_list.append(hf_fused)
-
-        # ===== VISUALIZATION (ONLY FOR DEBUG) =====
-        self.debug_data = {
-            "ll_gabor": ll_gabor.detach().cpu(),
-            "hf_gabor": [hf.detach().cpu() for hf in hf_gabor_list]
-        }
-        # ============================================================
-        # 3. IDWT reconstruction (fused path)
-        # ============================================================
-        ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
-        hf_recon_list = []
-        for hf_fused in hf_fused_list:
-            hf_recon = rearrange(hf_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
-            hf_recon_list.append(hf_recon)
-
-        reconstructed = self.idwt((ll_recon, hf_recon_list))
-
-        # ============================================================
-        # 4. IDWT reconstruction (gabor-only residual)
-        # ============================================================
-        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
-        hf_gabor_flat_list = []
-        for hf_gabor in hf_gabor_list:
-            hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
-            hf_gabor_flat_list.append(hf_gabor_flat)
-
-        gabor_residual = self.idwt((ll_gabor_flat, hf_gabor_flat_list))
-
-        # ============================================================
-        # 5. Trim, reshape, S-T Conv, residual
-        # ============================================================
+        # Trim to original spatial size
         reconstructed = reconstructed[..., :H, :W]
         gabor_residual = gabor_residual[..., :H, :W]
 
         reconstructed = rearrange(reconstructed, '(b t) c h w -> b t c h w', t=self.t_out)
         gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
 
-        # Spatio-Temporal Interaction
+        # ---- Spatio-Temporal Interaction ----
         x_st = rearrange(reconstructed, 'b t c h w -> b (t c) h w')
         x_st = self.spatial_temporal(x_st)
         x_st = rearrange(x_st, 'b (t c) h w -> b t c h w', t=self.t_out)
 
-        # Gabor residual
+        # ---- Residual from Gabor path ----
         x = x_st + gabor_residual
 
         return x
@@ -383,47 +420,31 @@ def get_model(
     return model
 
 
-
 # ============================================================
 # Self-test
 # ============================================================
 if __name__ == '__main__':
-    print("=== Wavelet-Gabor LASTOCast Self-Test (J=1 to J=4) ===\n")
 
-    # Spatial sizes at each level for 32x32 input:
-    # J=1: LL=16x16, HF=[16x16]
-    # J=2: LL=8x8,   HF=[8x8, 16x16]
-    # J=3: LL=4x4,   HF=[4x4, 8x8, 16x16]
-    # J=4: LL=2x2,   HF=[2x2, 4x4, 8x8, 16x16]
+    configs = [
+        {'level': 1, 'hf_mode': 'shared',   'label': 'J=1'},
+        {'level': 2, 'hf_mode': 'shared',   'label': 'J=2 Option A (shared)'},
+        {'level': 2, 'hf_mode': 'separate', 'label': 'J=2 Option B (separate)'},
+    ]
 
-    configs = []
-    for wave in ['db6']:
-        for level in [2, 3, 4]:
-            for hf_mode in ['shared', 'separate']:
-                configs.append({
-                    'wave': wave, 'level': level,
-                    'hf_mode': hf_mode,
-                })
+    for wave in ['haar', 'db2', 'db3', 'coif1']:
+        for cfg in configs:
+            try:
+                model = get_model(
+                    img_channels=4, dim=64,
+                    T_in=5, T_out=20,
+                    wave=wave, level=cfg['level'], hf_mode=cfg['hf_mode'],
+                )
+                x = torch.randn(2, 5, 4, 32, 32)
+                out = model(x)
+                params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
+                assert out.shape == (2, 20, 4, 32, 32)
+                print(f"  [PASS] {wave} | {cfg['label']:<25} | out={tuple(out.shape)} | {params:.2f}M")
+            except Exception as e:
+                print(f"  [FAIL] {wave} | {cfg['label']:<25} | {e}")
 
-    passed = 0
-    failed = 0
-    for cfg in configs:
-        tag = f"{cfg['wave']}_J{cfg['level']}_{cfg['hf_mode']}"
-        try:
-            model = get_model(
-                img_channels=4, dim=64,
-                T_in=5, T_out=20,
-                wave=cfg['wave'], wavelet_level=cfg['level'],
-                hf_mode=cfg['hf_mode'],
-            )
-            x = torch.randn(2, 5, 4, 32, 32)
-            out = model(x)
-            params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
-            assert out.shape == (2, 20, 4, 32, 32), f"Shape mismatch: {out.shape}"
-            print(f"  [PASS] {tag:<25} | out={tuple(out.shape)} | {params:.2f}M")
-            passed += 1
-        except Exception as e:
-            print(f"  [FAIL] {tag:<25} | {e}")
-            failed += 1
-
-    print(f"\n{passed} passed, {failed} failed out of {len(configs)} configs")
+    print("\nAll tests complete!")

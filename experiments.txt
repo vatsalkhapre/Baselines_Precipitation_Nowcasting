@@ -1,0 +1,31 @@
+1. alpha_amplinet_latent_FAL_FCL_2_3_13_2_conv_less_full_mlp_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Spatio-Temporal Conv → +Gabor residual→ Projection
+
+2. alpha_amplinet_latent_FAL_FCL_2_3_13_2_gabor_convwavelets.py
+
+        Input → Lifting → Gabor+MLP (on full resolution) → DWT → Spatio-Temporal Conv (per band) → IDWT → Projection
+
+3. alpha_amplinet_latent_FAL_FCL_2_3_13_2_gaborconvwavelets.py
+
+        Input → Lifting → DWT → [Gabor + MLP → Fusion → S-T Conv] per band → IDWT → Residual → Projection
+
+4. alpha_amplinet_latent_FAL_FCL_2_3_13_2_conv_less_full_mlp_residual_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Spatio-Temporal Conv → +MLP residual→ Projection
+
+5. alpha_amplinet_latent_FAL_FCL_2_3_13_2_afno_less_full_mlp_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → AFNO_across_spatiotemporal → +Gabor residual → Projection
+
+6. alpha_amplinet_latent_FAL_FCL_2_3_13_2_afno_hybrid_less_full_mlp_waveletsgabor2.py
+        
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → AFNO+Convolution(parallely, gemini) → +Gabor residual → Projection
+
+7. alpha_amplinet_latent_FAL_FCL_2_3_13_2_afno_hybrid_less_full_mlp_waveletsgaborv22.py
+        
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → AFNO+Convolution(parallely, gemini_modified) → +Gabor residual → Projection
+
+8. alpha_amplinet_latent_FAL_FCL_2_3_13_2_afno_tranform_hybrid_less_full_mlp_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → AFNO+Transform block(parallely) → +Gabor residual → Projection

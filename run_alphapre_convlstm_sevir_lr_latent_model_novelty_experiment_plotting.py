@@ -1022,7 +1022,8 @@ class Runner(object):
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
         
-        
+        print("frames_in", frames_in.shape)
+        print("frames_out", frames_out.shape)
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):
@@ -1125,6 +1126,8 @@ class Runner(object):
             _, radar_recon = self._sample_batch(batch)
             B, T, C, H, W = radar_recon.shape
 
+            debug_data = self.model.module.operator.debug_data \
+                if hasattr(self.model, "module") else self.model.lastocast.operator.debug_data
             # flatten time
             radar_recon_flat = radar_recon.reshape(B*T, C, H, W)
 
@@ -1138,6 +1141,21 @@ class Runner(object):
             radar_ori = radar_os_gt.cpu().numpy()
             radar_recon = radar_recon.cpu().numpy()
 
+            for b in range(B):
+
+                save_path = os.path.join(
+                    save_dir,
+                    f"viz_iter{valid_nums}_b{b}.png"
+                )
+                print("save_path", save_path)
+                exit()
+                visualize_full_sample(
+                    ll_gabor=debug_data["ll_gabor"][b],
+                    hf_gabor_list=[hf[b] for hf in debug_data["hf_gabor"]],
+                    gt_img=radar_ori[b, 0, 0],      # first timestep
+                    pred_img=radar_recon[b, 0, 0],
+                    save_path=save_path
+                )
             
             # evaluate result and save
             if self.is_main:
@@ -1207,8 +1225,77 @@ class Runner(object):
             self.test_samples(milestones[m], do_test=True)
             break
     
-    
-    
+def visualize_full_sample(ll_gabor, hf_gabor_list, gt_img, pred_img,
+                         save_path, sample_id="sample"):
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # ENERGY aggregation
+    ll_energy = (ll_gabor ** 2).mean(dim=1)  # (H,W,T)
+    hf_energy = [(hf ** 2).mean(dim=1) for hf in hf_gabor_list]
+
+    # pick center
+    H, W = ll_energy.shape[:2]
+    i, j = H // 2, W // 2
+
+    ll_signal = ll_energy[i, j, :].numpy()
+    hf_signals = [hf[i, j, :].numpy() for hf in hf_energy]
+
+    # FFT
+    def fft(x): return np.abs(np.fft.fft(x))
+
+    fft_ll = fft(ll_signal)
+    fft_hf = [fft(sig) for sig in hf_signals]
+
+    # spatial maps
+    ll_map = ll_energy.mean(dim=-1).numpy()
+    hf_maps = [hf.mean(dim=-1).numpy() for hf in hf_energy]
+
+    # -------- PLOT --------
+    fig = plt.figure(figsize=(16, 8))
+
+    # GT & Prediction
+    plt.subplot(2, 4, 1)
+    plt.imshow(gt_img, cmap='jet')
+    plt.title("Ground Truth")
+    plt.axis('off')
+
+    plt.subplot(2, 4, 2)
+    plt.imshow(pred_img, cmap='jet')
+    plt.title("Prediction")
+    plt.axis('off')
+
+    # Temporal
+    plt.subplot(2, 4, 3)
+    plt.plot(ll_signal, label="LL")
+    for k, sig in enumerate(hf_signals):
+        plt.plot(sig, label=f"HF{k}", linestyle='--')
+    plt.title("Temporal")
+    plt.legend()
+
+    # FFT
+    plt.subplot(2, 4, 4)
+    plt.plot(fft_ll, label="LL")
+    for k, sig in enumerate(fft_hf):
+        plt.plot(sig, label=f"HF{k}", linestyle='--')
+    plt.title("FFT")
+    plt.legend()
+
+    # Spatial maps
+    plt.subplot(2, 4, 5)
+    plt.imshow(ll_map, cmap='viridis')
+    plt.title("LL Energy")
+
+    for k in range(min(3, len(hf_maps))):
+        plt.subplot(2, 4, 6 + k)
+        plt.imshow(hf_maps[k], cmap='viridis')
+        plt.title(f"HF{k} Energy")
+
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
 
 def main():
     args = create_parser()

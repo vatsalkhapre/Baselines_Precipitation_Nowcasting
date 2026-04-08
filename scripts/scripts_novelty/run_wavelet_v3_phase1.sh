@@ -1,37 +1,37 @@
 #!/bin/bash
 # ============================================================
-# Phase 1: Wavelet & Level Search for Wavelet-Gabor LASTOCast
-# 12 configs × 2 datasets = 24 runs
-# Uses GPU 0 and GPU 1 in parallel
+# Wavelet LASTOCast V3: Full pipeline per band
+# Wavelets: db4, db6 | Levels: J=1, J=2 | HF mode: shared only
+# Residual: gabor, mlp, none
+# Total: 2 wavelets × 2 levels × 3 residuals = 12 runs on CIKM
+# GPU 0 → db4 (6 runs) | GPU 1 → db6 (6 runs)
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_residual_waveletsgabor2"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_gaborconvwavelets"
 SEED=0
 
-# Fixed Gabor params (default best)
-WS_LOW=1.0; A_LOW=1.0; B_LOW=1.0; F_LOW=0.5
-WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=2.0
+# Gabor params (separate for LL and HF)
+WS_LOW=1.5; A_LOW=1.0; B_LOW=1.0; F_LOW=0.5
+WS_HIGH=1.5; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=2.0
 
-# Dataset configs
-# Format: dataset|seq_len|frames_in|frames_out|ae_ckpt|exp_dir
-CIKM="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|cikm_latent_32_wavelet_search"
-SHANGHAI="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|shanghai_lr_latent_32_wavelet_search"
+# Dataset
+DATASET="cikm_latent_32"
+SEQ_LEN=15
+FRAMES_IN=5
+FRAMES_OUT=10
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
+EXP_DIR="cikm_latent_32_wavelet_v3_search"
 
 run_experiment() {
     local GPU=$1
-    local DATASET_CFG=$2
-    local WAVE=$3
-    local LEVEL=$4
-    local HF_MODE=$5
+    local WAVE=$2
+    local LEVEL=$3
+    local RES_MODE=$4
 
-    # Parse dataset config
-    IFS='|' read -r DATASET SEQ_LEN FRAMES_IN FRAMES_OUT AE_CKPT EXP_DIR <<< "${DATASET_CFG}"
-
-    local TAG="${WAVE}_J${LEVEL}_${HF_MODE}"
-    local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
+    local TAG="${WAVE}_J${LEVEL}_res${RES_MODE}"
 
     echo "=============================================="
-    echo "  GPU ${GPU} | ${DS_SHORT} | ${TAG}"
+    echo "  GPU ${GPU} | ${TAG}"
     echo "=============================================="
 
     # Train
@@ -57,11 +57,12 @@ run_experiment() {
         --freq_multiplier_high ${F_HIGH} \
         --wave ${WAVE} \
         --wavelet_level ${LEVEL} \
-        --hf_mode ${HF_MODE} \
+        --hf_mode shared \
+        --residual_mode ${RES_MODE} \
         --num_workers 8 \
         --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
-        --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
+        --run_name "${BACKBONE}_cikm_${TAG}"
 
     # Eval
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
@@ -85,44 +86,41 @@ run_experiment() {
         --freq_multiplier_high ${F_HIGH} \
         --wave ${WAVE} \
         --wavelet_level ${LEVEL} \
-        --hf_mode ${HF_MODE} \
+        --hf_mode shared \
+        --residual_mode ${RES_MODE} \
         --num_workers 8 \
         --wandb_state 'offline'
 
-    echo "  GPU ${GPU} | ${DS_SHORT} | ${TAG} complete."
+    echo "  ${TAG} complete."
     echo ""
 }
 
-# ============================================================
-# Build experiment queue
-# 12 configs: 4 wavelets × {J1, J2-shared, J2-separate}
-# Run on CIKM only, using both GPUs to split the work
-# ============================================================
-
 echo "=============================================="
-echo "  Starting Phase 1: Wavelet & Level Search"
-echo "  12 configs on CIKM"
-echo "  GPU 0 → haar + db2 | GPU 1 → db3 + coif1"
+echo "  Wavelet LASTOCast V3 — Full Pipeline Per Band"
+echo "  12 configs on CIKM (shared HF only)"
+echo "  GPU 0 → db4 | GPU 1 → db6"
 echo "=============================================="
 echo ""
 
-# GPU 0: haar and db2
+# GPU 0: db4
 run_gpu0() {
-    for WAVE in db4
+    for LEVEL in 1 2
     do
-        # run_experiment 1 "${CIKM}" ${WAVE} 1 shared
-        run_experiment 0 "${CIKM}" ${WAVE} 2 shared
-        # run_experiment 0 "${CIKM}" ${WAVE} 2 separate
+        for RES_MODE in gabor mlp none
+        do
+            run_experiment 0 db4 ${LEVEL} ${RES_MODE}
+        done
     done
 }
 
-# GPU 1: db3 and coif1
+# GPU 1: db6
 run_gpu1() {
-    for WAVE in db6
+    for LEVEL in 1 2
     do
-        # run_experiment 1 "${CIKM}" ${WAVE} 1 shared
-        run_experiment 1 "${CIKM}" ${WAVE} 2 shared
-        # run_experiment 1 "${CIKM}" ${WAVE} 2 separate
+        for RES_MODE in gabor mlp none
+        do
+            run_experiment 1 db6 ${LEVEL} ${RES_MODE}
+        done
     done
 }
 
@@ -132,16 +130,16 @@ PID_GPU0=$!
 run_gpu1 &
 PID_GPU1=$!
 
-echo "Waiting for GPU 0 (haar, db2)... PID=${PID_GPU0}"
-echo "Waiting for GPU 1 (db3, coif1)... PID=${PID_GPU1}"
+echo "Waiting for GPU 0 (db4)... PID=${PID_GPU0}"
+echo "Waiting for GPU 1 (db6)... PID=${PID_GPU1}"
 
 wait ${PID_GPU0}
-echo "GPU 0 complete!"
+echo "GPU 0 (db4) complete!"
 
 wait ${PID_GPU1}
-echo "GPU 1 complete!"
+echo "GPU 1 (db6) complete!"
 
 echo ""
 echo "=============================================="
-echo "  Phase 1 complete! All 12 runs finished."
+echo "  All 12 runs finished!"
 echo "=============================================="

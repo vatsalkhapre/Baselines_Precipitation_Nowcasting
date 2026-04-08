@@ -179,7 +179,6 @@ class WaveletGaborBlock(nn.Module):
         # ---- Spatio-Temporal Interaction ----
         self.spatial_temporal = nn.Sequential(
             TransformBlock(dim * t_out, dim * t_out),
-            TransformBlock(dim * t_out, dim * t_out),
             nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
         )
         self.viz_counter = 0

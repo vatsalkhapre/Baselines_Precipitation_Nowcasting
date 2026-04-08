@@ -5,7 +5,7 @@
 # Uses GPU 0 and GPU 1 in parallel
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_residual_waveletsgabor2"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_waveletsgabor2"
 SEED=0
 
 # Fixed Gabor params (default best)
@@ -111,8 +111,10 @@ run_gpu0() {
     for WAVE in db4
     do
         # run_experiment 1 "${CIKM}" ${WAVE} 1 shared
-        run_experiment 0 "${CIKM}" ${WAVE} 2 shared
+        # run_experiment 0 "${CIKM}" ${WAVE} 2 shared
         # run_experiment 0 "${CIKM}" ${WAVE} 2 separate
+        # run_experiment 0 "${CIKM}" ${WAVE} 3 separate
+        run_experiment 0 "${CIKM}" ${WAVE} 4 separate
     done
 }
 
@@ -121,8 +123,10 @@ run_gpu1() {
     for WAVE in db6
     do
         # run_experiment 1 "${CIKM}" ${WAVE} 1 shared
-        run_experiment 1 "${CIKM}" ${WAVE} 2 shared
-        # run_experiment 1 "${CIKM}" ${WAVE} 2 separate
+        # run_experiment 1 "${CIKM}" ${WAVE} 2 shared
+        # run_experiment 0 "${CIKM}" ${WAVE} 2 separate
+        # run_experiment 1 "${CIKM}" ${WAVE} 3 separate
+        run_experiment 1 "${CIKM}" ${WAVE} 4 separate
     done
 }
 

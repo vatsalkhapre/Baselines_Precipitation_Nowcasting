@@ -20,9 +20,129 @@ import numpy as np
 from einops import rearrange
 from pytorch_wavelets import DWTForward, DWTInverse
 from utils.utilspp import RandomScheduling
-import matplotlib.pyplot as plt
-import os
-import time
+import math
+
+class AFNO2D(nn.Module):
+    """
+    hidden_size: channel dimension size
+    num_blocks: how many blocks to use in the block diagonal weight matrices (higher => less complexity but less parameters)
+    sparsity_threshold: lambda for softshrink
+    hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
+    """
+    def __init__(self, hidden_size, num_blocks=8, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
+        super().__init__()
+        assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
+
+        self.hidden_size = hidden_size
+        self.sparsity_threshold = sparsity_threshold
+        self.num_blocks = num_blocks
+        self.block_size = self.hidden_size // self.num_blocks
+        self.hard_thresholding_fraction = hard_thresholding_fraction
+        self.hidden_size_factor = hidden_size_factor
+        self.scale = 0.02
+
+        self.w1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size, self.block_size * self.hidden_size_factor))
+        self.b1 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor))
+        self.w2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size * self.hidden_size_factor, self.block_size))
+        self.b2 = nn.Parameter(self.scale * torch.randn(2, self.num_blocks, self.block_size))
+
+    def forward(self, x, spatial_size=None):
+        bias = x
+
+        dtype = x.dtype
+        x = x.float()
+        B, C, H, W = x.shape
+
+        x = x.permute(0, 2, 3, 1)
+        x = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
+        x = x.reshape(B, x.shape[1], x.shape[2], self.num_blocks, self.block_size)
+
+        o1_real = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o1_imag = torch.zeros([B, x.shape[1], x.shape[2], self.num_blocks, self.block_size * self.hidden_size_factor], device=x.device)
+        o2_real = torch.zeros(x.shape, device=x.device)
+        o2_imag = torch.zeros(x.shape, device=x.device)
+
+        total_modes = (H*W) // 2 + 1
+        kept_modes = int(total_modes * self.hard_thresholding_fraction)
+
+        o1_real[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) - \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) + \
+            self.b1[0]
+        )
+
+        o1_imag[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) + \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) + \
+            self.b1[1]
+        )
+
+        o2_real[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) - \
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[0]
+        )
+
+        o2_imag[:, :, :kept_modes] = (
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) + \
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) + \
+            self.b2[1]
+        )
+
+        x = torch.stack([o2_real, o2_imag], dim=-1)
+        x = F.softshrink(x, lambd=self.sparsity_threshold)
+        x = torch.view_as_complex(x)
+        x = x.reshape(B, x.shape[1], x.shape[2], C)
+        x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
+        x = x.type(dtype)
+        x = x.permute(0, 3, 1, 2)
+        return x + bias
+
+class HybridSpatioTemporalBlock(nn.Module):
+    def __init__(self, dim, t_out):
+        super().__init__()
+        channels = dim * t_out  # 1280
+        
+        # 1. Global Path: Fourier processing (Expansion factor of 2 for capacity)
+        self.global_path = AFNO2D(channels, num_blocks=8, hidden_size_factor=2)
+        
+        # 2. Local Path: Depthwise-Separable Convolution 
+        # (Captures sharp spatial edges without exploding parameter count)
+        self.local_path = nn.Sequential(
+            # Depthwise (looks at 3x3 space, channel-by-channel)
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, groups=channels),
+            nn.GroupNorm(8, channels),
+            nn.SiLU()
+        )
+
+        self.pointwise_path = nn.Sequential(
+            # Pointwise (mixes the 1280 channels together)
+            nn.Conv2d(channels, channels, kernel_size=1),
+            nn.GroupNorm(8, channels),
+            nn.SiLU()
+        )
+        
+        # 3. Fusion Layer: Combines global frequencies with local features
+        self.fusion_project = nn.Conv2d(channels * 3, channels, kernel_size=1)
+        
+        self.norm = nn.GroupNorm(8, channels)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # Calculate both paths simultaneously
+        x_global = self.global_path(x)
+        x_local = self.local_path(x)
+        x_pointwise = self.pointwise_path(x)
+        # Concatenate along the channel dimension
+        fused = torch.cat([x_global, x_local, x_pointwise], dim=1)
+        
+        # Project back down to 1280 channels
+        out = self.fusion_project(fused)
+        
+        # Apply normalization, activation, and the final Residual Connection
+        out = self.act(self.norm(out))
+        return out + x
+    
 
 class GaborLayer(nn.Module):
     def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier=1.5):
@@ -98,13 +218,13 @@ class BandTemporalStream(nn.Module):
         """
         gabor_out = self.gabor(x)   # (B, C, H, W, T_out)
         mlp_out = self.mlp(x)       # (B, C, H, W, T_out)
-       
+
         # Fuse: cat along channel, permute for Conv3d
         fused = torch.cat([gabor_out, mlp_out], dim=1)  # (B, 2C, H, W, T_out)
         fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
         fused = self.fusion(fused)                        # (B, C, T_out, H, W)
 
-        return gabor_out, mlp_out, fused
+        return gabor_out, fused
 
 
 # ============================================================
@@ -177,12 +297,13 @@ class WaveletGaborBlock(nn.Module):
             
             # print("hf_streams length", len(self.hf_streams))
         # ---- Spatio-Temporal Interaction ----
-        self.spatial_temporal = nn.Sequential(
-            TransformBlock(dim * t_out, dim * t_out),
-            TransformBlock(dim * t_out, dim * t_out),
-            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
-        )
-        self.viz_counter = 0
+        # self.spatial_temporal = nn.Sequential(
+        #     TransformBlock(dim * t_out, dim * t_out),
+        #     TransformBlock(dim * t_out, dim * t_out),
+        #     nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
+        # )
+
+        self.spectral_st_block = HybridSpatioTemporalBlock(dim , t_out)
 
     def forward(self, x):
         # x: (B, T_in, C, H, W)
@@ -208,12 +329,11 @@ class WaveletGaborBlock(nn.Module):
 
         # --- LL band ---
         ll_t = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
+        ll_gabor, ll_fused = self.stream_ll(ll_t)
 
         # --- HF bands ---
         hf_gabor_list = []
         hf_fused_list = []
-        hf_mlp_list = []
 
         for i in range(len(hf_list)):
             hf_t = rearrange(hf_list[i], '(b t) c n h w -> b (c n) h w t', t=T)
@@ -221,17 +341,11 @@ class WaveletGaborBlock(nn.Module):
             if self.hf_mode == 'shared':
                 hf_gabor, hf_fused = self.stream_hf(hf_t)
             else:
-                hf_gabor, hf_mlp, hf_fused = self.hf_streams[i](hf_t)
+                hf_gabor, hf_fused = self.hf_streams[i](hf_t)
 
             hf_gabor_list.append(hf_gabor)
-            hf_mlp_list.append(hf_mlp)
             hf_fused_list.append(hf_fused)
 
-        # ===== VISUALIZATION (ONLY FOR DEBUG) =====
-        self.debug_data = {
-            "ll_gabor": ll_gabor.detach().cpu(),
-            "hf_gabor": [hf.detach().cpu() for hf in hf_gabor_list]
-        }
         # ============================================================
         # 3. IDWT reconstruction (fused path)
         # ============================================================
@@ -264,10 +378,10 @@ class WaveletGaborBlock(nn.Module):
         gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
 
         # Spatio-Temporal Interaction
+ 
         x_st = rearrange(reconstructed, 'b t c h w -> b (t c) h w')
-        x_st = self.spatial_temporal(x_st)
+        x_st = self.spectral_st_block(x_st)
         x_st = rearrange(x_st, 'b (t c) h w -> b t c h w', t=self.t_out)
-
         # Gabor residual
         x = x_st + gabor_residual
 
@@ -381,7 +495,6 @@ def get_model(
         wave=wave, level=wavelet_level, hf_mode=hf_mode,
     )
     return model
-
 
 
 # ============================================================

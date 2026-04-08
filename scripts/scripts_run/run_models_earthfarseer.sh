@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
     --exp_dir shanghai \
     --exp_note earthfarseer_on_shanghai \
@@ -8,6 +9,12 @@ CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
     --exp_note earthfarseer_on_sevir \
 >>>>>>> 1ac3643 (earthfarseer)
     --batch_size 8 \
+=======
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
+    --exp_dir sevir \
+    --exp_note earthfarseer_on_sevir \
+    --batch_size 4 \
+>>>>>>> b940383 (earthfarseer script)
     --backbone earthfarseer \
     --dataset sevir \
     --seq_len 25 \

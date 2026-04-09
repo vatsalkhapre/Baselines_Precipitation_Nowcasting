@@ -19,10 +19,10 @@ do
                                     for wavelet_level in 2
                                     do 
                                     CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
-                                        --backbone amplinet_latent_falfcl_only_2_3_13_2_afno_hybrid_less_full_mlp_waveletsgabor2 \
+                                        --backbone amplinet_latent_falfcl_only_2_3_13_2_localpath_less_full_mlp_waveletsgabor2 \
                                         --dataset cikm_latent_32 \
-                                        --exp_dir gabor_wavelet_model_plots \
-                                        --exp_note "afno_hybrid_less_full_mlp_waveletsgabor2_v2" \
+                                        --exp_dir gabor_wavelet_model \
+                                        --exp_note "localpath_less_full_mlp_waveletsgabor2" \
                                         --epochs 50 \
                                         --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
                                         --valid \
@@ -43,13 +43,13 @@ do
                                         --hf_mode 'separate' \
                                         --wandb_state 'online' \
                                         --wandb_project_name 'Alphapre' \
-                                        --run_name amplinet_latent_falfcl_only_2_3_13_2_afno_hybrid_less_full_mlp_waveletsgabor2_v2
+                                        --run_name amplinet_latent_falfcl_only_2_3_13_2_localpath_less_full_mlp_waveletsgabor2
 
                                     CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
-                                        --backbone amplinet_latent_falfcl_only_2_3_13_2_afno_hybrid_less_full_mlp_waveletsgabor2 \
+                                        --backbone amplinet_latent_falfcl_only_2_3_13_2_localpath_less_full_mlp_waveletsgabor2 \
                                         --dataset cikm_latent_32 \
-                                        --exp_dir gabor_wavelet_model_plots \
-                                        --exp_note "afno_hybrid_less_full_mlp_waveletsgabor2_v2" \
+                                        --exp_dir gabor_wavelet_model \
+                                        --exp_note "localpath_less_full_mlp_waveletsgabor2" \
                                         --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
                                         --eval \
                                         --seq_len 15 \
@@ -67,9 +67,7 @@ do
                                         --wavelet_level 2 \
                                         --num_workers 8 \
                                         --hf_mode 'separate' \
-                                        --wandb_state 'offline' \
-                                        --wandb_project_name 'Alphapre' \
-                                        --run_name amplinet_latent_falfcl_only_2_3_13_2_afno_less_full_mlp_waveletsgabor2_cikm_trial
+                                        --wandb_state 'offline' 
                                     done
                                 done
                             done

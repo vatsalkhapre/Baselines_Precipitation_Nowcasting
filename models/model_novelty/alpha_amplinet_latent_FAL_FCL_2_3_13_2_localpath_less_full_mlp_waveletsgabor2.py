@@ -103,8 +103,8 @@ class HybridSpatioTemporalBlock(nn.Module):
         super().__init__()
         channels = dim * t_out  # 1280
         
-        # 1. Global Path: Fourier processing (Expansion factor of 2 for capacity)
-        self.global_path = AFNO2D(channels, num_blocks=8, hidden_size_factor=2)
+        # # 1. Global Path: Fourier processing (Expansion factor of 2 for capacity)
+        # self.global_path = AFNO2D(channels, num_blocks=8, hidden_size_factor=2)
         
         # 2. Local Path: Depthwise-Separable Convolution 
         # (Captures sharp spatial edges without exploding parameter count)
@@ -118,24 +118,24 @@ class HybridSpatioTemporalBlock(nn.Module):
         )
         
         # 3. Fusion Layer: Combines global frequencies with local features
-        self.fusion_project = nn.Conv2d(channels * 2, channels, kernel_size=1)
+        # self.fusion_project = nn.Conv2d(channels * 2, channels, kernel_size=1)
         
         self.norm = nn.GroupNorm(8, channels)
         self.act = nn.SiLU()
 
     def forward(self, x):
         # Calculate both paths simultaneously
-        x_global = self.global_path(x)
+        # x_global = self.global_path(x)
         x_local = self.local_path(x)
         
         # Concatenate along the channel dimension
-        fused = torch.cat([x_global, x_local], dim=1)
+        # fused = torch.cat([x_global, x_local], dim=1)
         
         # Project back down to 1280 channels
-        out = self.fusion_project(fused)
+        # out = self.fusion_project(fused)
         
         # Apply normalization, activation, and the final Residual Connection
-        out = self.act(self.norm(out))
+        out = self.act(self.norm(x_local))
         return out + x
     
 

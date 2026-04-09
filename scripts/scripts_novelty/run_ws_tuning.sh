@@ -12,7 +12,7 @@
 #   UNCOMMENT AFTER PHASE A
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_convreduced_less_full_mlp_waveletsgabor2"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_waveletsgabor2"
 SEED=0
 WAVE="db4"
 LEVEL=2
@@ -27,12 +27,12 @@ A_LOW=1.0; B_LOW=1.0
 A_HIGH=1.0; B_HIGH=1.0
 
 # Dataset
-DATASET="cikm_latent_32"
-SEQ_LEN=15
+DATASET="shanghai_lr_latent_32"
+SEQ_LEN=25
 FRAMES_IN=5
-FRAMES_OUT=10
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="cikm_latent_32_ws_tuning"
+FRAMES_OUT=20
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth"
+EXP_DIR="shanghai_wavelet_variant"
 
 run_experiment() {
     local GPU=$1
@@ -73,7 +73,7 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
-        --run_name "${BACKBONE}_cikm_${TAG}"
+        --run_name "${BACKBONE}_shanghai_${TAG}"
 
     # Eval
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \

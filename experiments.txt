@@ -29,3 +29,7 @@
 8. alpha_amplinet_latent_FAL_FCL_2_3_13_2_afno_tranform_hybrid_less_full_mlp_waveletsgabor2.py
 
         Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → AFNO+Transform block(parallely) → +Gabor residual → Projection
+
+9. alpha_amplinet_latent_FAL_FCL_2_3_13_2_localpath_less_full_mlp_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → local_path(conv) → +Gabor residual → Projection

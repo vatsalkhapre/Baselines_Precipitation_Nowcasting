@@ -1,61 +1,61 @@
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm \
-    --exp_note traj_gru_on_cikm \
+    --exp_dir meteonet \
+    --exp_note traj_gru_on_meteonet \
     --batch_size 8 \
     --backbone traj_gru \
-    --dataset cikm \
-    --seq_len 15 \
-    --epochs 70 \
+    --dataset meteo \
+    --seq_len 25 \
+    --epochs 80 \
     --valid \
     --frames_in 5 \
-    --frames_out 10 \
+    --frames_out 20 \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "traj_gru_cikm" 
+    --run_name "traj_gru_meteonet" 
 
 
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm \
-    --exp_note traj_gru_on_cikm \
+    --exp_dir meteonet \
+    --exp_note traj_gru_on_meteonet \
     --batch_size 8 \
     --backbone traj_gru \
-    --dataset cikm \
-    --seq_len 15 \
+    --dataset meteo \
+    --seq_len 25 \
     --eval \
     --frames_in 5 \
-    --frames_out 10 \
-    --num_workers 8 
-
-
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai \
-    --exp_note trajgru_on_shanghai \
-    --batch_size 4 \
-    --backbone traj_gru \
-    --dataset shanghai \
-    --seq_len 25 \
-    --valid \
-    --epochs 50 \
-    --frames_in 5 \
     --frames_out 20 \
     --num_workers 8 \
-    --wandb_state 'online' \
-    --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "traj_gru_shanghai" 
+    --wandb_state 'offline' 
 
-CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai \
-    --exp_note traj_gru_on_shanghai \
-    --batch_size 4 \
-    --backbone traj_gru \
-    --dataset shanghai \
-    --seq_len 25 \
-    --valid \
-    --epochs 50 \
-    --frames_in 5 \
-    --frames_out 20 \
-    --num_workers 8 \
-    --wandb_state 'online' \
-    --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "traj_gru_shanghai" 
+# CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+#     --exp_dir shanghai \
+#     --exp_note trajgru_on_shanghai \
+#     --batch_size 4 \
+#     --backbone traj_gru \
+#     --dataset shanghai \
+#     --seq_len 25 \
+#     --valid \
+#     --epochs 50 \
+#     --frames_in 5 \
+#     --frames_out 20 \
+#     --num_workers 8 \
+#     --wandb_state 'online' \
+#     --wandb_project_name 'Alphapre_all_other_models' \
+#     --run_name "traj_gru_shanghai" 
+
+# CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
+#     --exp_dir shanghai \
+#     --exp_note traj_gru_on_shanghai \
+#     --batch_size 4 \
+#     --backbone traj_gru \
+#     --dataset shanghai \
+#     --seq_len 25 \
+#     --valid \
+#     --epochs 50 \
+#     --frames_in 5 \
+#     --frames_out 20 \
+#     --num_workers 8 \
+#     --wandb_state 'online' \
+#     --wandb_project_name 'Alphapre_all_other_models' \
+#     --run_name "traj_gru_shanghai" 

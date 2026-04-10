@@ -319,6 +319,14 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == "traj_gru":
+            from models.trajGRU import TrajGRU_model
+            kwargs = {
+                "future_seq_len": self.args.frames_out,
+                "batch_size": self.args.batch_size
+            }
+            model = TrajGRU_model(**kwargs)
+
         elif self.args.backbone == 'lastocast':
             from models.Lastocast.lastocast import get_model
             kwargs = {

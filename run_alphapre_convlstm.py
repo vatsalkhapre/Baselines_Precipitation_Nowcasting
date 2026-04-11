@@ -83,15 +83,6 @@ def create_parser():
     parser.add_argument("--warmup_steps",     type=int,   default=1000,            help="warmup steps")
     parser.add_argument("--mixed_precision",  type=str,   default='no',            help="mixed precision training")
     parser.add_argument("--grad_acc_step",    type=int,   default=8,               help="gradient accumulation step")
-    parser.add_argument("--lr",               type=float, default=1e-4,            help="learning rate")             #Check
-    parser.add_argument("--lr_beta1",         type=float, default=0.90,            help="learning rate beta 1")
-    parser.add_argument("--lr_beta2",         type=float, default=0.95,            help="learning rate beta 2")
-    parser.add_argument("--l2-norm",          type=float, default=0.0,             help="l2 norm weight decay")
-    parser.add_argument("--ema_rate",         type=float, default=0.95,            help="exponential moving average rate")
-    parser.add_argument("--scheduler",        type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
-    parser.add_argument("--warmup_steps",     type=int,   default=1000,            help="warmup steps")
-    parser.add_argument("--mixed_precision",  type=str,   default='no',            help="mixed precision training")
-    parser.add_argument("--grad_acc_step",    type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
@@ -396,6 +387,16 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == "earthfarseer":
+            from models.Earthfarseer.model import get_model
+            kwargs = {
+                "input_shape": ( self.args.img_size, self.args.img_size), 
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel, 
+                "T_in": self.args.frames_in, 
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'earthformer':
             from models.earth_former import EarthFormer_xy
             kwargs = {
@@ -405,13 +406,16 @@ class Runner(object):
                 "width":128
             }
             model = EarthFormer_xy(**kwargs)
-        
+
         elif self.args.backbone == 'mau':
-            from models.mau import get_model
+            from models.mau import MAU_SEVIR_Model
             kwargs = {
-                
+                "input_seq_len": self.args.frames_in,
+                "future_seq_len": self.args.frames_out, 
+                "in_channels": self.args.img_channel, 
+                "img_size": self.args.img_size,
             }
-            model = get_model(**kwargs)
+            model = MAU_SEVIR_Model(**kwargs)
 
         else:
             raise NotImplementedError
@@ -455,7 +459,6 @@ class Runner(object):
                 trainable_params,
                 lr=self.args.lr,
                 betas=(self.args.lr_beta1, self.args.lr_beta2),
-                weight_decay=0.00001
                 weight_decay=0.00001
             )
         if self.args.scheduler == 'constant':

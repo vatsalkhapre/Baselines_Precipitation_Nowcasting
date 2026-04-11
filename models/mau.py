@@ -241,6 +241,73 @@ class MAU_Model(nn.Module):
 
         return next_frames, loss
     
-def get_model(num_layers, num_hidden, configs):
-    model = MAU_Model(num_layers, num_hidden, configs)
-    return model 
+class AttrDict(dict):
+    """Helper class to mock the configs object expected by MAU_Model"""
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+class MAU_SEVIR_Model(nn.Module):
+    def __init__(self, input_seq_len=5, future_seq_len=20, in_channels=1, img_size=128):
+        super().__init__()
+        self.input_seq_len = input_seq_len
+        self.future_seq_len = future_seq_len
+        self.total_length = input_seq_len + future_seq_len
+        
+        # Exact MAU paper configuration for high-res predictive learning
+        self.configs = AttrDict({
+            'in_shape': (input_seq_len, in_channels, img_size, img_size),
+            'patch_size': 1,
+            'sr_size': 4,            # Shrinks 128x128 -> 64x64 -> 32x32 in the encoder
+            'filter_size': 5,
+            'stride': 1,
+            'tau': 5,                # The temporal receptive field from the paper
+            'cell_mode': 'residual',
+            'model_mode': 'recall',  # Uses skip-connections to preserve VIL details
+            'total_length': self.total_length,
+            'pre_seq_length': input_seq_len
+        })
+        
+        # Base MAU initialization: 4 layers, 64 hidden channels
+        self.net = MAU_Model(num_layers=4, num_hidden=[64, 64, 64, 64], configs=self.configs)
+        self.criterion = nn.MSELoss()
+
+    def forward(self, frames_in, frames_gt=None):
+        # NO EINOPS REARRANGEMENT HERE. 
+        # Data natively arrives as [B, input_seq_len, C, H, W]
+        B, _, C, H, W = frames_in.shape
+        device = frames_in.device
+        
+        # If no ground truth is passed (e.g., during inference), pad with dummy zeros
+        if frames_gt is None:
+            frames_gt = torch.zeros((B, self.future_seq_len, C, H, W), device=device)
+            
+        # MAU expects the full sequence length to be concatenated
+        # frames_all shape: [B, 25, C, H, W]
+        frames_all = torch.cat([frames_in, frames_gt], dim=1) 
+        
+        # mau.py specifically expects [B, Time, H, W, C] before its internal permutation
+        frames_tensor = frames_all.permute(0, 1, 3, 4, 2)
+        
+        # Scheduled sampling mask: all zeros.
+        # This explicitly disables scheduled sampling to force the network 
+        # to generate pure autoregressive predictions (fair comparison against TrajGRU).
+        mask_true = torch.zeros((B, self.future_seq_len, H, W, C), device=device)
+        
+        # Get predictions from the MAU network
+        next_frames, _ = self.net(frames_tensor, mask_true, return_loss=False)
+        
+        # next_frames returns predictions for t=1 to t=24. Shape: [B, 24, C, H, W]
+        # We slice the last 20 frames to get exactly the predicted future sequence
+        pred_future = next_frames[:, -self.future_seq_len:]
+        
+        return pred_future
+
+    def predict(self, frames_in, frames_gt=None, compute_loss=False):
+        """Standardized interface for your training loop"""
+        pred = self.forward(frames_in, frames_gt)
+        if compute_loss and frames_gt is not None:
+            loss = self.criterion(pred, frames_gt)
+            return pred, loss
+        else:
+            return pred, None

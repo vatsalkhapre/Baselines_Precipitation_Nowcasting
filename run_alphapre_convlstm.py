@@ -396,8 +396,8 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        elif self.args.backbone == "earthfarseer":
-            from models.Earthfarseer.model import get_model
+        elif self.args.backbone == 'earthformer':
+            from models.earth_former import get_model
             kwargs = {
                 "input_shape": ( self.args.img_size, self.args.img_size), 
                 "T_out": self.args.frames_out,

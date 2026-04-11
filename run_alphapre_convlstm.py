@@ -397,16 +397,6 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'earthformer':
-            from models.earth_former import get_model
-            kwargs = {
-                "input_shape": ( self.args.img_size, self.args.img_size), 
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel, 
-                "T_in": self.args.frames_in, 
-            }
-            model = get_model(**kwargs)
-
-        elif self.args.backbone == 'earthformer':
             from models.earth_former import EarthFormer_xy
             kwargs = {
                 "in_len": self.args.frames_in,
@@ -415,7 +405,7 @@ class Runner(object):
                 "width":128
             }
             model = EarthFormer_xy(**kwargs)
-
+        
         elif self.args.backbone == 'mau':
             from models.mau import get_model
             kwargs = {
@@ -465,6 +455,7 @@ class Runner(object):
                 trainable_params,
                 lr=self.args.lr,
                 betas=(self.args.lr_beta1, self.args.lr_beta2),
+                weight_decay=0.00001
                 weight_decay=0.00001
             )
         if self.args.scheduler == 'constant':

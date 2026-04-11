@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --weight_scale 1.0 \
     --alpha 1.0\
     --beta 1.0 \
-    --freq_multiplier 1.5 \
+    --freq_multiplier 2.0 \
     --eval \
     --epochs 50 \
     --frames_in 5 \

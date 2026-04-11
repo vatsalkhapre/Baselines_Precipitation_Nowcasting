@@ -1,12 +1,12 @@
 import torch
 from torch import nn
-from .modules import *
+from modules import *
 import torch.nn.functional as F
 import torch.fft
 import numpy as np
 import torch.optim as optimizer
-from .Global_Fourier_Transformer import GF_Block
-from .Local_CNN_Branch import *
+from Global_Fourier_Transformer import GF_Block
+from Local_CNN_Branch import *
 
 class FoTF(nn.Module):
     def __init__(self, shape_in, num_interactions=3):
@@ -39,15 +39,15 @@ class FoTF(nn.Module):
         lc_features = self.lc_block(x_raw)
 
         for _ in range(self.num_interactions):
-            gf_features_up = self.up(gf_features.reshape(B * T, C, H, W)).reshape(B, T, C, H, W)
-            lc_features = self.conv1x1(lc_features.reshape(B * T, C, H, W)).reshape(B, T, C, H, W)
+            gf_features_up = self.up(gf_features.view(B * T, C, H, W)).view(B, T, C, H, W)
+            lc_features = self.conv1x1(lc_features.view(B * T, C, H, W)).view(B, T, C, H, W)
             combined_features = gf_features_up + lc_features
 
             gf_features = self.gf_block(combined_features)
             lc_features = self.lc_block(combined_features)
 
-            gf_features_down = self.down(gf_features.reshape(B * T, C, H, W)).reshape(B, T, C, H, W)
-            lc_features = self.conv1x1(lc_features.reshape(B * T, C, H, W)).reshape(B, T, C, H, W)
+            gf_features_down = self.down(gf_features.view(B * T, C, H, W)).view(B, T, C, H, W)
+            lc_features = self.conv1x1(lc_features.view(B * T, C, H, W)).view(B, T, C, H, W)
             combined_features = gf_features_down + lc_features
 
             gf_features = self.gf_block(combined_features)

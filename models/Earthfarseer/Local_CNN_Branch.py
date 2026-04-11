@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from .modules import *
+from modules import *
 import torch.nn.functional as F
 import numpy as np
 import torch.optim as optimizer
@@ -16,10 +16,10 @@ class Local_CNN_Branch(nn.Module):
     def forward(self, x):
         # rearrange dimensions to: (B*T, C, H, W)
         B, T, C, H, W = x.shape
-        x = x.reshape(-1, C, H, W)
+        x = x.view(-1, C, H, W)
         x = self.upconv(x)
         # return to original dimensions: (B, T, C, H, W)
-        x = x.reshape(B, T, C, x.shape[2], x.shape[3])
+        x = x.view(B, T, C, x.shape[2], x.shape[3])
         return x
 
 if __name__ == '__main__':

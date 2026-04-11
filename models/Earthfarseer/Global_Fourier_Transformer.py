@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from .modules import *
+from modules import *
 import torch.nn.functional as F
 import torch.fft
 import numpy as np
@@ -262,7 +262,7 @@ class GF_Block(nn.Module):
         [B, T, C, H, W] -> [B*T, num_patches, embed_dim] L D
         '''
         B,T,C,H,W = x.shape
-        x = x.reshape(B*T, C, H, W)
+        x = x.view(B*T, C, H, W)
         x = self.patch_embed(x)
         #enc = LearnableFourierPositionalEncoding(768, 768, 64, 768, 10)
        # fourierpos_embed = enc(x)

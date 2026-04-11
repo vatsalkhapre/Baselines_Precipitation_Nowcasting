@@ -344,6 +344,14 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == "fourcastnet":
+            from models.fourcastnet import FourCastNet_Model
+            kwargs={
+                "input_seq_len": self.args.frames_in, 
+                "future_seq_len": self.args.frames_out
+            }
+            model = FourCastNet_Model(**kwargs)
+
         elif self.args.backbone == 'alphapre':
             from models.alphapre import get_model
             kwargs = {

@@ -64,9 +64,7 @@ class TransformBlock(nn.Module):
         super().__init__()
         self.block1 = Block(dim, dim_out, groups=groups,
                             kernel_size=kernel_size, padding_mode=padding_mode)
-        self.block
-
-2 = Block(dim_out, dim_out, groups=groups,
+        self.block2 = Block(dim_out, dim_out, groups=groups,
                             kernel_size=kernel_size, padding_mode=padding_mode)
         self.skip = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 

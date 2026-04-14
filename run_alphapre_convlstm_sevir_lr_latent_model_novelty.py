@@ -109,6 +109,12 @@ def get_model_config(backbone: str) -> dict:
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
             
+            elif "waveletafnogabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_afno_wavelet"
+
+            elif "groupedconvwaveletsgabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gc_gabor_wavelet"
+
             elif "convwavelets" in version_underscore.split("_")[-1]:
                 kwargs_type = "conv_wavelet"
 
@@ -167,7 +173,7 @@ def create_parser():
 
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
-
+    parser.add_argument("--st_conv_groups"      , type=int    ,  default=1,         help="No. of groups in spatiotemporal conv")
 
     # --------------- Gabor Parameters ---------------
     parser.add_argument("--weight_scale_low"    , type=float, default=0.00,            help="weight_scale for gabor for low freq")
@@ -651,6 +657,29 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
 
+        elif kwargs_type == "gc_gabor_wavelet":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": 64, 
+                "st_conv_groups": self.args.st_conv_groups
+            }
+
         elif kwargs_type == "gabor_wavelet":
             kwargs = {
                 "weight_scale_low": self.args.weight_scale_low,
@@ -671,6 +700,31 @@ class Runner(object):
                 "img_channels": self.args.img_channel,
                 "hf_mode" : self.args.hf_mode,
                 "dim": 64
+            }
+
+        elif kwargs_type == "gabor_afno_wavelet":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": 64, 
+                "afno_blocks": self.args.afno_blocks, 
+                "sparsity_threshold": self.args.afno_sparsity_threshold, 
+                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor
             }
 
         elif kwargs_type == "conv_wavelet":
@@ -1005,7 +1059,7 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==30:
+            if (epoch+1)==35:
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break

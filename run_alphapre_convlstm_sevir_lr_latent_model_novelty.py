@@ -108,7 +108,13 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
-            
+
+            elif "waveletgfngabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_gfn_wavelet"
+
+            elif "mlpwavelets" in version_underscore.split("_")[-1]:
+                kwargs_type = "mlp_wavelet"
+
             elif "waveletafnogabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_afno_wavelet"
 
@@ -171,6 +177,9 @@ def create_parser():
     #----------------------- MLP Parameters---------------------
     parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
 
+    #----------------------- GFN ---------------------
+    parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
+    
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
     parser.add_argument("--st_conv_groups"      , type=int    ,  default=1,         help="No. of groups in spatiotemporal conv")
@@ -702,6 +711,29 @@ class Runner(object):
                 "dim": 64
             }
 
+        elif kwargs_type == "gabor_gfn_wavelet":
+            kwargs = {
+                "num_gfn_layers": self.args.num_gfn_layers, 
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": 128
+            }
+
         elif kwargs_type == "gabor_afno_wavelet":
             kwargs = {
                 "weight_scale_low": self.args.weight_scale_low,
@@ -833,7 +865,21 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
         
-    
+        elif kwargs_type == "mlp_wavelet":
+            kwargs = {
+                "size_factor": self.args.size_factor, 
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": 64
+            }
+
         # Create model
         model = get_model(**kwargs)
         
@@ -847,7 +893,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
-
+            self.model_params = total
 
     def _build_optimizer(self):
         # =================================
@@ -1208,12 +1254,13 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results_wavelet.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/eval_results_novelty_ablations.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,
                     exp_note=self.args.exp_note,
                     dataset=self.args.dataset,
+                    model_params=self.model_params,
                 )
 
             prefix = "test" if do_test else "val"

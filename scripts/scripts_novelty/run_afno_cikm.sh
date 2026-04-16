@@ -20,21 +20,21 @@ do
                                     do 
                                         for afno_blocks in 2 
                                         do
-                                            for afno2D_hidden_size_factor in 2 3 
+                                            for afno2D_hidden_size_factor in 2 
                                             do
                                                 for sparsity_threshold in 0.005 0.01
                                                 do
                                                 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_waveletafnogabor2 \
-                                                    --dataset cikm_latent_32 \
+                                                    --dataset shanghai_lr_latent_32 \
                                                     --exp_dir gabor_afno_wavelet_model \
-                                                    --exp_note "_AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}" \
+                                                    --exp_note "AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}" \
                                                     --epochs 50 \
-                                                    --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
+                                                    --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth" \
                                                     --valid \
-                                                    --seq_len 15 \
+                                                    --seq_len 25 \
                                                     --frames_in 5 \
-                                                    --frames_out 10 \
+                                                    --frames_out 20 \
                                                     --weight_scale_low ${weight_scale1} \
                                                     --alpha_low ${a1} \
                                                     --beta_low ${b1} \
@@ -52,18 +52,18 @@ do
                                                     --hf_mode 'separate' \
                                                     --wandb_state 'online' \
                                                     --wandb_project_name 'Alphapre' \
-                                                    --run_name AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}
+                                                    --run_name shanghai_AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}
 
                                                 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_waveletafnogabor2 \
-                                                    --dataset cikm_latent_32 \
+                                                    --dataset shanghai_lr_latent_32 \
                                                     --exp_dir gabor_afno_wavelet_model \
-                                                    --exp_note "_AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}" \
-                                                    --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
+                                                    --exp_note "AFNO2D_relu_waveletafnogabor2_${afno_blocks}_${afno2D_hidden_size_factor}_${sparsity_threshold}" \
+                                                    --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth" \
                                                     --eval \
-                                                    --seq_len 15 \
+                                                    --seq_len 25 \
                                                     --frames_in 5 \
-                                                    --frames_out 10 \
+                                                    --frames_out 20 \
                                                     --weight_scale_low ${weight_scale1} \
                                                     --alpha_low ${a1} \
                                                     --beta_low ${b1} \

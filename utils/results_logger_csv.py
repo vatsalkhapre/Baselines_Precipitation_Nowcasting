@@ -46,6 +46,7 @@ class ResultsLogger:
         "Model",
         "Dataset",
         "Experiment Details",
+        "Model Params (in M)",
         "Why?",
         "CSI-M",
         "CSI-4",
@@ -180,6 +181,7 @@ class ResultsLogger:
         backbone: str,
         exp_note: str,
         dataset: str = "",
+        model_params=None,
         why: str = "",
         use_full_ip: bool = False,
         include_cuda: bool = True,
@@ -220,6 +222,7 @@ class ResultsLogger:
             backbone,                                                     # Model
             dataset,                                                      # Dataset
             exp_note,                                                     # Experiment Details
+            model_params,
             why,                                                          # Why?
             self._format_metric(res_dict, 'csi'),                        # CSI-M
             self._format_metric(res_dict, 'csi4'),                       # CSI-4

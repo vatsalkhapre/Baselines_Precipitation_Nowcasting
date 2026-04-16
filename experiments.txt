@@ -4,7 +4,7 @@
 
 2. alpha_amplinet_latent_FAL_FCL_2_3_13_2_gabor_convwavelets.py
 
-        Input → Lifting → Gabor+MLP (on full resolution) → DWT → Spatio-Temporal Conv (per band) → IDWT → Projection
+        Input → Lifting → Gabor+MLP (on original input) → DWT → Spatio-Temporal Conv (per band) → IDWT → Projection
 
 3. alpha_amplinet_latent_FAL_FCL_2_3_13_2_gaborconvwavelets.py
 
@@ -45,6 +45,9 @@
 
         Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → SpectralBlocks(afno) → +Gabor residual → Projection
 
+        Dataset      afno_blocks        afno2D_hidden_size_factor    sparsity_threshold      -       Result
+      a.      
+
 12. alpha_amplinet_latent_FAL_FCL_2_3_13_2_reduced_stconv_gabor2.py  (Model_parts_importance_latent_space)
 
         Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Reduced s-t conv → +Gabor residual → Projection
@@ -64,3 +67,25 @@
 
         Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Spatio-Temporal grouped Conv → +Gabor residual→ Projection
 
+        groups 1 (csi: 0.3312) - 18.86M
+        groups 2 (csi: 0.3225) - 11.49M
+        groups 4 (csi: 0.3148) - 7.80M
+        groups 8 (csi: 0.3171) - 5.96M
+
+15. alpha_amplinet_latent_FAL_FCL_2_3_13_2_conv_less_full_1mlpwavelets.py
+
+        Input → Lifting → DWT → 1_MLP (per band) → IDWT → Spatio-Temporal Conv → +MLP residual→ Projection
+
+16. alpha_amplinet_latent_FAL_FCL_2_3_13_2_conv_less_full_2mlpwavelets.py
+
+        Input → Lifting → DWT → 2_MLP (per band) → IDWT → Spatio-Temporal Conv → +MLP residual→ Projection
+
+17. alpha_amplinet_latent_FAL_FCL_2_3_13_2_conv_less_full_mlp_woresidual_waveletsgabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Spatio-Temporal Conv → Projection  (No residual)
+
+18. alpha_amplinet_latent_FAL_FCL_2_3_13_2_GFN_waveletafnogabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → SpectralBlocks(gfn) → +Gabor residual → Projection
+
+19. 

@@ -710,6 +710,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
+            self.model_params = total
 
 
     def _build_optimizer(self):
@@ -1066,12 +1067,13 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/eval_results_novelty_ablations_2.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,
                     exp_note=self.args.exp_note,
                     dataset=self.args.dataset,
+                    model_params=self.model_params,
                 )
 
             prefix = "test" if do_test else "val"

@@ -243,6 +243,15 @@ def create_parser():
     parser.add_argument("--plot",         action="store_true",           help="Enable plotting during testing")
     parser.add_argument("--plot_stride",  type=int,   default=4,        help="Plot every N-th test batch (offset/stride)")
 
+    # --------------- Gabor Parameters ---------------
+    parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
+    parser.add_argument("--alpha"           , type=float, default=1.00,            help="alpha for gabor")
+    parser.add_argument("--beta"            , type=float, default=1.00,            help="beta for gabor")
+    parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
@@ -486,6 +495,7 @@ class Runner(object):
         # import and create different models given model config
         # =================================
         print_log("Build Model!", self.is_main)
+        total_steps = self.args.epochs * len(self.train_loader)
         if self.args.backbone == 'simvp':
             from models.simvp import get_model
             kwargs = {
@@ -512,6 +522,39 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
+        elif self.args.backbone == 'e_lastocast_d_haar':
+            from models.model_novelty.trying_wsnet_encoder_2 import get_model
+            kwargs = {
+                "weight_scale":self.args.weight_scale, 
+                "alpha":self.args.alpha, 
+                "beta":self.args.beta, 
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'e_lastocast_d':
+            from models.model_novelty.trying_wsnet_encoder import get_model
+            kwargs = {
+                "weight_scale":self.args.weight_scale, 
+                "alpha":self.args.alpha, 
+                "beta":self.args.beta, 
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
+            }
+            model = get_model(**kwargs)
         
         elif self.args.backbone == 'phydnet':
             from models.phydnet import get_model
@@ -551,7 +594,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total/1e6), self.is_main)
-
+            self.model_params = total
     def _build_optimizer(self):
         # =================================
         # Calcutate training nums and config optimizer and learning schedule
@@ -975,6 +1018,7 @@ class Runner(object):
                     backbone=self.args.backbone,
                     exp_note=self.args.exp_note,
                     dataset=self.args.dataset,
+                    model_params=self.model_params,
                 )
 
             prefix = "test" if do_test else "val"

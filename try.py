@@ -46,7 +46,7 @@ class ResultsLogger:
         "Model",
         "Dataset",
         "Experiment Details",
-        "Model Params (in M)", 
+        "Model Params (in M)",
         "Why?",
         "CSI-M",
         "CSI-4",
@@ -221,7 +221,7 @@ class ResultsLogger:
             gpu_id,                                                       # GPU
             backbone,                                                     # Model
             dataset,                                                      # Dataset
-            exp_note,                                                                     # Experiment Details
+            exp_note,                                                     # Experiment Details
             model_params,
             why,                                                          # Why?
             self._format_metric(res_dict, 'csi'),                        # CSI-M

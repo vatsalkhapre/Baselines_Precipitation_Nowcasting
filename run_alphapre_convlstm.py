@@ -468,7 +468,8 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total/1e6), self.is_main)
-
+            self.model_params = total
+            
     def _build_optimizer(self):
         # =================================
         # Calcutate training nums and config optimizer and learning schedule
@@ -644,7 +645,10 @@ class Runner(object):
                 log_dict = dict()
                 log_dict['lr'] = lr
                 for k,v in loss_dict.items():
-                    log_dict[k] = v.item()
+                    if type(v) == float:
+                        log_dict[k] = v
+                    else:
+                        log_dict[k] = v.item()
                 self.accelerator.log(log_dict, step=self.cur_step)
              
                 state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
@@ -678,7 +682,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0:
+                if (epoch+1)%5==0 or epoch==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -788,7 +792,7 @@ class Runner(object):
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
                 
-            # self.accelerator.wait_for_everyone()
+            self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:                 # Breaks if the number of samples go above vlnum
                 break
@@ -796,6 +800,17 @@ class Runner(object):
         if self.is_main:
             
             res = eval.done()
+            if self.is_main and self.args.eval:
+                from utils.results_logger_csv import ResultsLogger
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/eval_results_novelty_ablations.csv")
+                logger.log_results(
+                    res_dict=res,
+                    backbone=self.args.backbone,
+                    exp_note=self.args.exp_note,
+                    dataset=self.args.dataset,
+                    model_params=self.model_params,
+                )
+
             prefix = "test" if do_test else "val"
             
             # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
@@ -821,7 +836,7 @@ class Runner(object):
             res["epoch"] = epoch
             # Log to wandb
             self.accelerator.log(log_data, step=self.cur_step)
-            self.accelerator.log(log_data, step=self.cur_step)
+            
 
             if self.args.valid:
                 return res['csi'] 
@@ -850,183 +865,6 @@ class Runner(object):
             break
             
     
-    
-    
-#     def generate_outputs_from_checkpoint(self, save_dir=None, data_type=None, target_ckpt=None):
-        
-
-#         if data_type == None or save_dir == None:
-#             KeyError("datatype or save_dir not defined.")
-#         checkpoint_path= target_ckpt
-
-#         device = self.device
-#         self.load(checkpoint_path)
-
-#         self.model.eval()
-
-#         latitude_range = slice(6.37081, 10.71)
-#         longitude_range = slice(74.68674, 79.02363)
-
-#         # Number of steps
-#         lat_steps = self.args.img_size
-#         lon_steps = self.args.img_size
-
-#         # Generate coordinate arrays
-#         lat_range = np.linspace(latitude_range.start, latitude_range.stop, lat_steps)
-#         lon_range = np.linspace(longitude_range.start, longitude_range.stop, lon_steps)
-
-        
-
-#         if not os.path.exists(save_dir):
-#             os.makedirs(save_dir, exist_ok=True)
-
-#         input_dir = os.path.join(save_dir, "input")
-#         gt_dir = os.path.join(save_dir, "gt")
-#         result_dir = os.path.join(save_dir, "result")
-
-#         os.makedirs(input_dir, exist_ok=True)
-#         os.makedirs(gt_dir, exist_ok=True)
-#         os.makedirs(result_dir, exist_ok=True)
-
-#         for sample_idx, batch in enumerate(self.test_loader):
-#             if sample_idx%1 == 0:
-#                 x_test, y_test = batch[:, :self.args.frames_in], batch[:, self.args.frames_in:]
-                
-#                 x_test, y_test = x_test.to(device), y_test.to(device)
-                
-#                 with torch.no_grad():
-#                     preds, _ = self.model.predict(x_test, y_test, compute_loss=False)
-
-#                 # x_test = preprocess_input(x_test)
-#                 # y_test = preprocess_input(y_test)
-           
-#                 x_np = x_test[0].squeeze(1).cpu().numpy()
-#                 y_np = y_test[0].squeeze(1).cpu().numpy()
-#                 p_np = preds[0].squeeze(1).cpu().numpy()
-
-# ###################################################################################################################################################
-#                                                 #  Convert back to normal.
-# ###################################################################################################################################################
-#                 # x_np, y_np, p_np = unnormalize(x_np, min= 0, max = 76377.62), unnormalize(y_np, min= 0, max = 76377.62), unnormalize(p_np, min= 0, max = 76377.62)
-                
-#                 if data_type.lower() == "reflectivity":
-#                     x_np, p_np, y_np = 60*x_np, 60*p_np, 60*y_np
-
-#                     vil_colors = [ "#f0f0f0", "#00b0f0", "#00ff80", "#a0f000", "#f0d000", "#f08000", "#f00000", "#c00000", "#2020ff", "#a000a0", "#000000"]
-#                     vil_cmap = ListedColormap(vil_colors, name='vil_colormap')
-#                     norm_vil = mcolors.Normalize(vmin=0, vmax=60)
-
-#                 elif data_type.lower() == "vil_vip":
-#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
-#                     VIL_COLORS = [[0, 0, 0],
-#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
-#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
-#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
-#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
-#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
-#                     [0.9607843137254902, 0.9607843137254902, 0.0],
-#                     [0.9294117647058824, 0.6745098039215687, 0.0],
-#                     [0.9411764705882353, 0.43137254901960786, 0.0],
-#                     [0.6274509803921569, 0.0, 0.0],
-#                     [0.9058823529411765, 0.0, 1.0]]
-
-#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
-#                     VIL_LEVELS = [0.0, 0.15, 0.25, 0.52, 0.77, 1.51, 3.53, 7.07, 12.13, 32.23, 81.32]
-
-#                     cols = deepcopy(VIL_COLORS)
-#                     lev = deepcopy(VIL_LEVELS)
-
-#                     nil = cols.pop(0)
-#                     under = cols[0]
-#                     # over = cols.pop()
-#                     over = cols[-1]
-#                     vil_cmap = ListedColormap(cols)
-#                     vil_cmap.set_bad(nil)
-#                     vil_cmap.set_under(under)
-#                     vil_cmap.set_over(over)
-#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
-
-#                 elif data_type.lower() == "vil":
-#                     peak_val = 5000
-#                     x_np, p_np, y_np = convert_vip_vil(x_np), convert_vip_vil(p_np), convert_vip_vil(y_np)
-#                     x_np, p_np, y_np = 255*x_np, 255*p_np, 255*y_np
-#                     VIL_COLORS = [[0, 0, 0],
-#                     [0.30196078431372547, 0.30196078431372547, 0.30196078431372547],
-#                     [0.1568627450980392, 0.7450980392156863, 0.1568627450980392],
-#                     [0.09803921568627451, 0.5882352941176471, 0.09803921568627451],
-#                     [0.0392156862745098, 0.4117647058823529, 0.0392156862745098],
-#                     [0.0392156862745098, 0.29411764705882354, 0.0392156862745098],
-#                     [0.9607843137254902, 0.9607843137254902, 0.0],
-#                     [0.9294117647058824, 0.6745098039215687, 0.0],
-#                     [0.9411764705882353, 0.43137254901960786, 0.0],
-#                     [0.6274509803921569, 0.0, 0.0],
-#                     [0.9058823529411765, 0.0, 1.0]]
-
-#                     VIL_LEVELS = [0.0, 16.0, 31.0, 59.0, 74.0, 100.0, 133.0, 160.0, 181.0, 219.0, 255.0]
-#                     VIL_LEVELS = np.linspace(0,int(peak_val), len(VIL_LEVELS))
-
-#                     cols = deepcopy(VIL_COLORS)
-#                     lev = deepcopy(VIL_LEVELS)
-
-#                     nil = cols.pop(0)
-#                     under = cols[0]
-#                     # over = cols.pop()
-#                     over = cols[-1]
-#                     vil_cmap = ListedColormap(cols)
-#                     vil_cmap.set_bad(nil)
-#                     vil_cmap.set_under(under)
-#                     vil_cmap.set_over(over)
-#                     norm_vil = BoundaryNorm(lev, vil_cmap.N)
-
-#                 lon_grid, lat_grid = np.meshgrid(lon_range, lat_range)
-                
-
-#                 # Plot inputs
-#                 fig_input, axes_input = plt.subplots(1, self.args.frames_in, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for i in range(self.args.frames_in):
-#                     im = axes_input[i].pcolormesh(lon_grid, lat_grid, x_np[i], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_input[i].set_title(f"Input {i+1}", fontsize = 25)
-#                     axes_input[i].axis("off")
-#                     axes_input[i].add_feature(cfeature.BORDERS)
-#                     axes_input[i].add_feature(cfeature.COASTLINE)
-#                     axes_input[i].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_input.tight_layout()
-#                 # fig_input.colorbar(im, ax=axes_input.ravel().tolist(), orientation='horizontal')
-#                 fig_input.savefig(os.path.join(input_dir, f"Input_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_input)
-
-#                 # Plot GT
-#                 fig_gt, axes_gt = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for j in range(10):
-#                     im = axes_gt[j].pcolormesh(lon_grid, lat_grid, y_np[j], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_gt[j].set_title(f"GT {j+1}", fontsize = 25)
-#                     axes_gt[j].axis("off")
-#                     axes_gt[j].add_feature(cfeature.BORDERS)
-#                     axes_gt[j].add_feature(cfeature.COASTLINE)
-#                     axes_gt[j].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_gt.tight_layout()
-#                 # fig_gt.colorbar(im, ax=axes_gt.ravel().tolist(), orientation='horizontal')
-#                 fig_gt.savefig(os.path.join(gt_dir, f"GT_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_gt)
-
-                
-#                 fig_result, axes_result = plt.subplots(1, 10, figsize=(50, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-#                 for k in range(10):
-#                     im = axes_result[k].pcolormesh(lon_grid, lat_grid, p_np[k], cmap=vil_cmap,norm = norm_vil, shading='auto')
-#                     axes_result[k].set_title(f"Pred_{k+1}", fontsize = 25)
-#                     axes_result[k].axis("off")
-#                     axes_result[k].add_feature(cfeature.BORDERS)
-#                     axes_result[k].add_feature(cfeature.COASTLINE)
-#                     axes_result[k].add_feature(cfeature.LAND, facecolor='none')
-
-#                 fig_result.tight_layout()
-#                 # fig_result.colorbar(im, ax=axes_result.ravel().tolist(), orientation='horizontal')
-#                 fig_result.savefig(os.path.join(result_dir, f"Pred_Sample{sample_idx}.png"), dpi=300, bbox_inches='tight')
-#                 plt.close(fig_result)
-                
-#                 print(f"Plotted at directory, {result_dir}, Sample_idx; {sample_idx}")
 
 
 def main():
@@ -1048,8 +886,7 @@ def main():
             exp.train()
             # exp.check_milestones()
         else:
-            print(args.ckpt_milestone)
-            exit()
+           
             exp.check_milestones(target_ckpt=args.ckpt_milestone)
     
 

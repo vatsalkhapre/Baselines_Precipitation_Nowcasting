@@ -50,8 +50,8 @@ def create_parser():
 
     # --------------- Gabor Parameters ---------------
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
-    parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
-    parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
+    parser.add_argument("--alpha"           , type=float, default=1.00,            help="alpha for gabor")
+    parser.add_argument("--beta"            , type=float, default=1.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
     
     #-----------------Other Parameters----------------
@@ -227,6 +227,12 @@ class Runner(object):
         os.makedirs(self.test_path, exist_ok=True)
         os.makedirs(self.log_path, exist_ok=True)
         
+        #=================Automatically generating ckpt milestone path====================
+        if self.args.eval and self.args.ckpt_milestone is None:
+            self.args.ckpt_milestone = osp.join(self.ckpt_path, "ckpt-best.pt")
+            print(f"[Auto] Using checkpoint: {self.args.ckpt_milestone}")   
+        #=================================================================================
+
         exp_params      = self.args.__dict__
         params_path     = osp.join(self.exp_dir, 'params.yaml')
         yaml.dump(exp_params, open(params_path, 'w'))
@@ -326,6 +332,40 @@ class Runner(object):
                 "batch_size": self.args.batch_size
             }
             model = TrajGRU_model(**kwargs)
+        
+        elif self.args.backbone == 'e_lastocast_d':
+            from models.model_novelty.trying_wsnet_encoder import get_model
+            kwargs = {
+                "weight_scale":self.args.weight_scale, 
+                "alpha":self.args.alpha, 
+                "beta":self.args.beta, 
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'e_lastocast_d_haar':
+            from models.model_novelty.trying_wsnet_encoder_2 import get_model
+            kwargs = {
+                "weight_scale":self.args.weight_scale, 
+                "alpha":self.args.alpha, 
+                "beta":self.args.beta, 
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
+            }
+            model = get_model(**kwargs)
 
         elif self.args.backbone == 'lastocast':
             from models.Lastocast.lastocast import get_model
@@ -638,7 +678,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%10==0:
+                if (epoch+1)%5==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -800,7 +840,6 @@ class Runner(object):
             return
         
         # In case of multiple milestones.
-       
         mils_paths = os.listdir(self.ckpt_path)
         milestones = sorted([int(m.split('-')[-1].split('.')[0]) for m in mils_paths], reverse=True)
         print_log(f"milestones: {milestones}", self.accelerator.is_main_process)
@@ -808,6 +847,7 @@ class Runner(object):
         for m in range(0, len(milestones), 1):
             self.load(milestones[m])
             self.test_samples(milestones[m], do_test=True)
+            break
             
     
     
@@ -1008,7 +1048,8 @@ def main():
             exp.train()
             # exp.check_milestones()
         else:
-            
+            print(args.ckpt_milestone)
+            exit()
             exp.check_milestones(target_ckpt=args.ckpt_milestone)
     
 

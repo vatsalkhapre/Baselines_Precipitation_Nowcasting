@@ -112,6 +112,9 @@ def get_model_config(backbone: str) -> dict:
             elif "waveletgfngabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_gfn_wavelet"
 
+            elif "convparallelwavelet" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_convparallel_wavelet"
+
             elif "mlpwavelets" in version_underscore.split("_")[-1]:
                 kwargs_type = "mlp_wavelet"
 
@@ -174,6 +177,13 @@ def create_parser():
     parser.add_argument("--afno2D_hidden_size_factor", type=int, default=1,         help="hidden size factor in afno2d")
     parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
     
+    # ---------------------- ConvParallel Args --------------------
+    parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
+    parser.add_argument("--norm_before",    type=bool  , default=False,              help="want to use the norm before in convparallel")
+    parser.add_argument("--use_residual",    type=bool  , default=False,              help="want to use the residual in convparallel setting")
+    parser.add_argument("--adaptive_fusion",    type=bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--channel_mixing",    type=bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+
     #----------------------- MLP Parameters---------------------
     parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
 
@@ -732,6 +742,36 @@ class Runner(object):
                 "img_channels": self.args.img_channel,
                 "hf_mode" : self.args.hf_mode,
                 "dim": 128
+            }
+
+        elif kwargs_type == "gabor_convparallel_wavelet":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": 64, 
+                "afno_blocks": self.args.afno_blocks, 
+                "sparsity_threshold": self.args.afno_sparsity_threshold, 
+                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor,
+                "k_spatial": self.args.conv_kernel, 
+                "norm_before": self.args.norm_before, 
+                "if_residual": self.args.use_residual, 
+                "adapt_fusion": self.args.adaptive_fusion, 
+                "channel_mixing": self.args.channel_mixing
             }
 
         elif kwargs_type == "gabor_afno_wavelet":

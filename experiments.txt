@@ -88,4 +88,10 @@
 
         Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → SpectralBlocks(gfn) → +Gabor residual → Projection
 
-19. 
+19. alpha_amplinet_latent_FAL_FCL_2_3_13_2_relu_AFNO2D_convparallelwaveletafnogabor2.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → Spectralconvblocks(convparallel) → +Gabor residual → Projection
+
+20. alpha_amplinet_latent_FAL_FCL_2_3_13_2_AFNO2D_relu_waveletafnogabor.py
+
+        Input → Lifting → DWT → Gabor+MLP (per band) → IDWT → SpectralBlocks(conv in last layer) → +Gabor residual → Projection

@@ -133,7 +133,7 @@ class FreqSelectBlock(nn.Module):
         return x
 
 class Encoder(nn.Module):
-    def __init__(self, C_in, C_hid, N_S, spatio_kernel=None, act_inplace=True):
+    def __init__(self, C_in, C_hid, N_S):
         super().__init__()
         self.stages = nn.ModuleList()
         self.stem = nn.Sequential(
@@ -154,11 +154,30 @@ class Encoder(nn.Module):
             curr_dim = next_dim
         self.final_proj = nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x, tin, tout):
+
+        B = x.shape[0] // tin
+
+        # 1. Reshape properly
+        x_seq = rearrange(x, '(b t) c h w -> b t c h w', t=tin)
+
+        # 2. Get last frame correctly
+        last_x = x_seq[:, -1:, :, :, :]   # (B, 1, C, H, W)
+
+        # 3. Extend sequence to tout
+        repeat_steps = tout - tin
+        if repeat_steps > 0:
+            last_x_repeat = last_x.repeat(1, repeat_steps, 1, 1, 1)
+            x_skip = torch.cat([x_seq, last_x_repeat], dim=1)
+        else:
+            x_skip = x_seq
+        x_skip = rearrange(x_skip, 'b t c h w -> (b t) c h w', t=tout)
+        skip_connection = x_skip 
+
         x = self.stem(x)
         for stage in self.stages:
             x = stage(x)
-        return x
+        return x, skip_connection
 
 class Decoder(nn.Module):
     def __init__(self, C_hid, C_out, N_S, spatio_kernel=None, act_inplace=True):
@@ -343,7 +362,7 @@ class LASTOCast(nn.Module):
         # x: (B, T_in, C, H, W)
 
         x = rearrange(x, 'b t c h w -> (b t) c h w')
-        x = self.encoder(x)
+        x,skip_x = self.encoder(x, self.T_in, self.T_out)
 
         # Lifting
         
@@ -358,6 +377,7 @@ class LASTOCast(nn.Module):
         x = self.projection(x)
         
         x = self.decoder(x)
+        x = x+skip_x
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.T_out)
         
         return x

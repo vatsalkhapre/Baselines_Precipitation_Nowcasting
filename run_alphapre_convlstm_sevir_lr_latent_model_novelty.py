@@ -157,6 +157,8 @@ def get_model_config(backbone: str) -> dict:
     # Not found
     return None
 
+def str2bool(v):
+    return v.lower() in ('true', '1', 'yes')
 
 def create_parser():
     # --------------- Basic ---------------
@@ -179,10 +181,10 @@ def create_parser():
     
     # ---------------------- ConvParallel Args --------------------
     parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
-    parser.add_argument("--norm_before",    type=bool  , default=False,              help="want to use the norm before in convparallel")
-    parser.add_argument("--use_residual",    type=bool  , default=False,              help="want to use the residual in convparallel setting")
-    parser.add_argument("--adaptive_fusion",    type=bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
-    parser.add_argument("--channel_mixing",    type=bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--norm_before",    type=str2bool  , default=False,              help="want to use the norm before in convparallel")
+    parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
+    parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
 
     #----------------------- MLP Parameters---------------------
     parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
@@ -1138,7 +1140,7 @@ class Runner(object):
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
                     print_log(f" ========= Finisth one Epoch ==========", self.is_main)
-                    time.sleep(30)
+                    
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
@@ -1149,6 +1151,8 @@ class Runner(object):
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break
+
+            time.sleep(10)
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)

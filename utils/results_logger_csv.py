@@ -46,7 +46,10 @@ class ResultsLogger:
         "Model",
         "Dataset",
         "Experiment Details",
+<<<<<<< HEAD
         "Model Params (in M)",
+=======
+>>>>>>> 6a4004d (first commit on new-branch)
         "Why?",
         "CSI-M",
         "CSI-4",
@@ -181,7 +184,10 @@ class ResultsLogger:
         backbone: str,
         exp_note: str,
         dataset: str = "",
+<<<<<<< HEAD
         model_params=None,
+=======
+>>>>>>> 6a4004d (first commit on new-branch)
         why: str = "",
         use_full_ip: bool = False,
         include_cuda: bool = True,
@@ -222,7 +228,10 @@ class ResultsLogger:
             backbone,                                                     # Model
             dataset,                                                      # Dataset
             exp_note,                                                     # Experiment Details
+<<<<<<< HEAD
             model_params,
+=======
+>>>>>>> 6a4004d (first commit on new-branch)
             why,                                                          # Why?
             self._format_metric(res_dict, 'csi'),                        # CSI-M
             self._format_metric(res_dict, 'csi4'),                       # CSI-4

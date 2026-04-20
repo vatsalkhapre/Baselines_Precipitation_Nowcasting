@@ -126,6 +126,8 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
+            elif "convgrpscm" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_convgrps_cm"
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
             elif "supplimentrygabor" in version_underscore.split("_")[-1]:
@@ -146,6 +148,8 @@ def get_model_config(backbone: str) -> dict:
     # Not found
     return None
 
+def str2bool(v):
+    return v.lower() in ('true', '1', 'yes')
 
 def create_parser():
     # --------------- Basic ---------------
@@ -160,6 +164,11 @@ def create_parser():
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
 
+   
+    # ---------------------- Convolution Args --------------------
+    parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--conv_groups",           type=int,   default=1,                 help='Enter the number of convgroups to be used in s-t convolutions')
+    
     # --------------- Gabor Parameters ---------------
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
@@ -646,6 +655,29 @@ class Runner(object):
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
                 "dim": self.args.hidden_dim,
+                "n_layers": self.args.layers,
+                "pha_weight": self.args.pha_weight,
+                "anet_weight": self.args.anet_weight,
+                "amp_weight": self.args.amp_weight,
+                "spec_num": self.args.spec_num,
+                "aweight_stop_steps": self.args.aw_stop_step,
+            }
+
+        elif kwargs_type == "gabor_convgrps_cm":
+            kwargs = {
+                "weight_scale": self.args.weight_scale,
+                "alpha": self.args.alpha,
+                "beta": self.args.beta,
+                "freq_multiplier": self.args.freq_multiplier,
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "conv_groups": self.args.conv_groups, 
+                "channel_mixing": self.args.channel_mixing, 
+                "dim": 64,
                 "n_layers": self.args.layers,
                 "pha_weight": self.args.pha_weight,
                 "anet_weight": self.args.anet_weight,

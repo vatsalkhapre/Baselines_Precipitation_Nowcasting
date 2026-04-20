@@ -34,8 +34,7 @@ class GaborLayer(nn.Module):
 
     
 class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier, size_factor=1.0,
-        ):
+    def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta, freq_multiplier, size_factor=1.0, conv_groups=1, channel_mixing=False):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
         self.gabor = GaborLayer(t_in, t_out, weight_scale, alpha, beta, freq_multiplier)
@@ -46,8 +45,8 @@ class AmpCell(nn.Module):
         )
    
         self.fusion = nn.Conv3d(2*dim, dim, kernel_size=1)
-        self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out),
-                                     ResnetBlock(dim*t_out, dim*t_out),
+        self.conv = nn.Sequential(ResnetBlock(dim*t_out, dim*t_out, conv_groups=conv_groups, channel_mixing=channel_mixing),
+                                     ResnetBlock(dim*t_out, dim*t_out, conv_groups=conv_groups, channel_mixing=channel_mixing),
                                      nn.Conv2d(dim*t_out, dim*t_out, kernel_size=3, padding=1, groups=2))
     def forward(self, x):
         residual = self.gabor(x.permute(0,2,3,4,1)).permute(0,4,1,2,3)
@@ -63,7 +62,7 @@ class AmpCell(nn.Module):
         return x
     
 class AmpliNet(nn.Module):
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, n_layers=1, mlp_ratio=2):
+    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, conv_groups, channel_mixing, n_layers=1, mlp_ratio=2):
         super().__init__()
         self.pre_seq_length, self.aft_seq_length = pre_seq_length, aft_seq_length
         self.dim, self.hidden_dim = dim, hidden_dim
@@ -76,7 +75,7 @@ class AmpliNet(nn.Module):
                                     ResnetBlock(hidden_dim, hidden_dim),
                                     nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1))
         self.amplist = nn.ModuleList([
-            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim, weight_scale, alpha, beta, freq_multiplier) for i in range(n_layers)
+            AmpCell(pre_seq_length if i==0 else aft_seq_length, aft_seq_length, hidden_dim, weight_scale, alpha, beta, freq_multiplier, conv_groups=conv_groups, channel_mixing=channel_mixing) for i in range(n_layers)
         ])
         self.convout = nn.Sequential(ResnetBlock(hidden_dim, hidden_dim),
                                      ResnetBlock(hidden_dim, hidden_dim),
@@ -99,11 +98,11 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, 
+    def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, conv_groups, channel_mixing
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier)
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, weight_scale, alpha, beta, freq_multiplier, conv_groups, channel_mixing)
         self.input_shape, self.input_dim = input_shape, input_dim
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num
@@ -156,22 +155,31 @@ class AlphaPre_Amplinet(nn.Module):
             return xas, None
 
 class Block(nn.Module):
-    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
+    def __init__(self, dim, dim_out, conv_groups, channel_mixing, groups = 8, kernel_size=3, padding_mode='zeros', groupnorm=True):
         super(Block, self).__init__()
-        self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size, padding = kernel_size//2, padding_mode=padding_mode, groups=2)
+        self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size, padding = kernel_size//2, padding_mode=padding_mode, groups=conv_groups)
         self.norm = nn.GroupNorm(groups, dim_out) if groupnorm else nn.BatchNorm2d(dim_out)
         self.act = nn.SiLU()
+        self.channel_mixing = channel_mixing
+        if channel_mixing:
+            self.pw = nn.Sequential(
+                nn.Conv2d(dim, dim*2, 1),
+                nn.GELU(),
+                nn.Conv2d(dim*2, dim, 1)
+            )
 
     def forward(self, x):
         x = self.proj(x)
         x = self.norm(x)
         x = self.act(x)
+        if self.channel_mixing:
+            x = self.pw(x)
         return x
 
 class ResnetBlock(nn.Module):
-    def __init__(self, dim, dim_out, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
+    def __init__(self, dim, dim_out, conv_groups=1, channel_mixing=False, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
         super().__init__()
-        self.block1 = Block(dim, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block1 = Block(dim, dim_out, conv_groups=conv_groups, channel_mixing=channel_mixing, groups=groups, kernel_size=kernel_size, padding_mode=padding_mode)
         self.block2 = Block(dim_out, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
         self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
@@ -205,6 +213,8 @@ def get_model(
     dim = 64,
     T_in = 5, 
     T_out = 20,
+    conv_groups=1, 
+    channel_mixing=False, 
     input_shape = (128,128),
     n_layers = 3,
     spec_num = 20,
@@ -215,7 +225,7 @@ def get_model(
     **kwargs
 ):
     model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
-                     hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
+                     conv_groups, channel_mixing, hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )
     

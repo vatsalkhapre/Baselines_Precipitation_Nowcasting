@@ -25,9 +25,9 @@ do
                       do
                         for sparsity_threshold in 0
                         do
-                          for conv_kernel in 3 7 
+                          for conv_kernel in 7 
                           do 
-                            for norm_before in True False
+                            for norm_before in False
                             do
                               for adapt_fusion in False
                               do

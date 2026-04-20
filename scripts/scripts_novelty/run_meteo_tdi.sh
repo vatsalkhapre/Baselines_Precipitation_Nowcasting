@@ -20,7 +20,7 @@ do
                                     do 
                                     CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                         --backbone amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_tdi_waveletsgabor2 \
-                                        --dataset meteo_le_latent_32 \
+                                        --dataset meteo_lr_latent_32 \
                                         --exp_dir gabor_wavelet_tdi_model \
                                         --exp_note "conv_less_full_mlp_tdi_waveletsgabor2_METEONET" \
                                         --epochs 50 \
@@ -47,7 +47,7 @@ do
 
                                     CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                         --backbone amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_tdi_waveletsgabor2 \
-                                        --dataset meteo_le_latent_32 \
+                                        --dataset meteo_lr_latent_32 \
                                         --exp_dir gabor_wavelet_tdi_model \
                                         --exp_note "conv_less_full_mlp_tdi_waveletsgabor2_METEONET" \
                                         --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
@@ -108,7 +108,7 @@ do
                                                 do
                                                 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_tdi_waveletafnogabor2 \
-                                                    --dataset meteo_le_latent_32 \
+                                                    --dataset meteo_lr_latent_32 \
                                                     --exp_dir gabor_wavelet_tdi_model \
                                                     --exp_note "AFNO2D_relu_tdi_waveletafnogabor2_METEONET" \
                                                     --epochs 50 \
@@ -138,7 +138,7 @@ do
 
                                                 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
                                                     --backbone amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_tdi_waveletafnogabor2 \
-                                                    --dataset meteo_le_latent_32 \
+                                                    --dataset meteo_lr_latent_32 \
                                                     --exp_dir gabor_wavelet_tdi_model \
                                                     --exp_note "AFNO2D_relu_tdi_waveletafnogabor2_METEONET" \
                                                     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \
@@ -186,7 +186,7 @@ do
             do
             CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
                 --backbone amplinet_latent_falfcl_only_2_3_13_2_tdi_gabor2 \
-                --dataset meteo_le_latent_32 \
+                --dataset meteo_lr_latent_32 \
                 --exp_dir gabor_wavelet_tdi_model \
                 --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2_tdi_gabor2_METEONET" \
                 --epochs 50 \
@@ -206,7 +206,7 @@ do
 
             CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm_sevir_lr_latent.py \
                 --backbone amplinet_latent_falfcl_only_2_3_13_2_tdi_gabor2 \
-                --dataset meteo_le_latent_32 \
+                --dataset meteo_lr_latent_32 \
                 --exp_dir gabor_wavelet_tdi_model \
                 --exp_note "amplinet_latent_falfcl_only_2_3_13_2_2_tdi_gabor2_METEONET" \
                 --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth" \

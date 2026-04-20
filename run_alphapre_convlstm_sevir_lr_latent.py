@@ -955,12 +955,13 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
+            time.sleep(10)
             
             if (epoch+1)==35:
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break
-        
+                
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]

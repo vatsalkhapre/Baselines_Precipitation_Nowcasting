@@ -80,7 +80,7 @@ class AmpliNet(nn.Module):
         self.convout = nn.Sequential(ResnetBlock(hidden_dim, hidden_dim),
                                      ResnetBlock(hidden_dim, hidden_dim),
                                      nn.Conv2d(hidden_dim, dim, kernel_size=1))
-
+    
     def forward(self, x):
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.convin(x)
@@ -98,7 +98,7 @@ class AmpliNet(nn.Module):
         return x
     
 class AlphaPre_Amplinet(nn.Module):
-    def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, conv_groups, channel_mixing
+    def __init__(self, weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length, aft_seq_length, input_shape, input_dim, conv_groups, channel_mixing,
                  hidden_dim, n_layers, spec_num=20, kernel_size=1, bias=1, 
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
@@ -116,12 +116,12 @@ class AlphaPre_Amplinet(nn.Module):
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
-
         h, w = input_shape
         spec_mask = torch.zeros(h, w//2+1)
         spec_mask[...,:spec_num,:spec_num] = 1.
         spec_mask[...,-spec_num:,:spec_num] = 1.
         self.register_buffer('spec_mask', spec_mask)
+        
         
     def forward(self, x, y, cmp_fft_loss=False): # x:[b,t,c,h,w]
         self.itr += 1
@@ -180,7 +180,7 @@ class ResnetBlock(nn.Module):
     def __init__(self, dim, dim_out, conv_groups=1, channel_mixing=False, groups = 8, kernel_size=3, padding_mode='zeros'): #'zeros', 'reflect', 'replicate' or 'circular'
         super().__init__()
         self.block1 = Block(dim, dim_out, conv_groups=conv_groups, channel_mixing=channel_mixing, groups=groups, kernel_size=kernel_size, padding_mode=padding_mode)
-        self.block2 = Block(dim_out, dim_out, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block2 = Block(dim_out, dim_out, conv_groups=conv_groups, channel_mixing=channel_mixing, groups = groups, kernel_size=kernel_size, padding_mode=padding_mode)
         self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
     def forward(self, x):
@@ -225,7 +225,7 @@ def get_model(
     **kwargs
 ):
     model = AlphaPre_Amplinet(weight_scale, alpha, beta, freq_multiplier, total_steps,const_ratio, pre_seq_length=T_in, aft_seq_length=T_out, input_shape=input_shape, input_dim=img_channels, 
-                     conv_groups, channel_mixing, hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
+                     conv_groups=conv_groups, channel_mixing=channel_mixing, hidden_dim=dim, n_layers=n_layers, spec_num=spec_num,
                      pha_weight=pha_weight, anet_weight=anet_weight, amp_weight=amp_weight, aweight_stop_steps=aweight_stop_steps,
                      )
     

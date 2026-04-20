@@ -19,20 +19,20 @@ LEVEL=2
 HF_MODE="separate"
 
 # Locked freq params (from tuning)
-F_LOW=0.75
-F_HIGH=1.0
+F_LOW=2.0
+F_HIGH=0.75
 
 # Fixed Gabor params
 A_LOW=1.0; B_LOW=1.0
 A_HIGH=1.0; B_HIGH=1.0
 
 # Dataset
-DATASET="shanghai_lr_latent_32"
+DATASET="meteo_lr_latent_32"
 SEQ_LEN=25
 FRAMES_IN=5
 FRAMES_OUT=20
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth"
-EXP_DIR="shanghai_wavelet_variant"
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
+EXP_DIR="Meteonet_wavelet_variant"
 
 run_experiment() {
     local GPU=$1
@@ -73,7 +73,7 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
-        --run_name "${BACKBONE}_shanghai_${TAG}"
+        --run_name "${BACKBONE}_meteonet_${TAG}"
 
     # Eval
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
@@ -123,7 +123,7 @@ run_experiment() {
 # }
 
 # run_phase_a_gpu1() {
-#     for WS_HIGH in 1.5 1.75 2.0 3.0 4.0
+#     for WS_HIGH in 1.5 1.75 2.0 3.0 
 #     do
 #         run_experiment 1 1.0 ${WS_HIGH} "phaseA"
 #     done
@@ -154,19 +154,26 @@ run_experiment() {
 # UNCOMMENT AFTER PHASE A
 # ============================================================
 
-BEST_WS_HIGH=0.25   # <-- UPDATE with Phase A winner
+BEST_WS_HIGH=1.0   # <-- UPDATE with Phase A winner
 
 echo "=============================================="
 echo "  PHASE B: Sweeping ws_low (ws_high=${BEST_WS_HIGH})"
 echo "=============================================="
 
-run_phase_b_gpu0() {
-    for WS_LOW in 0.1
+run_phase_b_gpu1() {
+    for WS_LOW in 0.1 0.25 0.5 0.75 1.25
     do
-        run_experiment 0 ${WS_LOW} ${BEST_WS_HIGH} "phaseB"
+        run_experiment 1 ${WS_LOW} ${BEST_WS_HIGH} "phaseB"
     done
 }
 
+
+run_phase_a_gpu0() {
+    for WS_LOW in 1.5 1.75 2.0 3.0 
+    do
+        run_experiment 0 ${WS_LOW} ${BEST_WS_HIGH} "phaseA"
+    done
+}
 
 run_phase_b_gpu0 &
 PID_B0=$!

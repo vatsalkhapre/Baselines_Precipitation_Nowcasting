@@ -24,12 +24,12 @@ WS_LOW=1.0; A_LOW=1.0; B_LOW=1.0
 WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0
 
 # Dataset
-DATASET="cikm_latent_32"
-SEQ_LEN=15
+DATASET="meteo_lr_latent_32"
+SEQ_LEN=25
 FRAMES_IN=5
-FRAMES_OUT=10
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="cikm_latent_32_freq_tuning"
+FRAMES_OUT=20
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
+EXP_DIR="meteonet_latent_32_freq_tuning"
 
 run_experiment() {
     local GPU=$1
@@ -114,16 +114,16 @@ run_experiment() {
 # echo "=============================================="
 
 # run_phase_a_gpu0() {
-#     for F_HIGH in 0.5 1.0 1.5 2.0 3.0
+#     for F_HIGH in 0.5 1.0 1.5 2.0 
 #     do
-#         run_experiment 0 2 0.5 ${F_HIGH} "phaseA"
+#         run_experiment 0 2 1.0 ${F_HIGH} "phaseA"
 #     done
 # }
 
 # run_phase_a_gpu1() {
-#     for F_HIGH in 0.5 1.0 1.5 2.0 3.0
+#     for F_HIGH in 0.75 1.25 1.75 3.0
 #     do
-#         run_experiment 1 3 0.5 ${F_HIGH} "phaseA"
+#         run_experiment 1 2 1.0 ${F_HIGH} "phaseA"
 #     done
 # }
 
@@ -155,8 +155,8 @@ run_experiment() {
 # Update the BEST values below based on Phase A results
 # ============================================================
 
-BEST_F_HIGH_J2=1.5   # <-- UPDATE with Phase A winner for J=2
-BEST_F_HIGH_J2_2=1.0   # <-- UPDATE with Phase A winner for J=3
+BEST_F_HIGH_J2=0.75   # <-- UPDATE with Phase A winner for J=2
+# BEST_F_LOW_J2=1.0   # <-- UPDATE with Phase A winner for J=3
 
 # echo "=============================================="
 # echo "  PHASE B: Sweeping freq_low"
@@ -165,16 +165,16 @@ BEST_F_HIGH_J2_2=1.0   # <-- UPDATE with Phase A winner for J=3
 # echo "=============================================="
 
 run_phase_b_gpu0() {
-    for W_S in 0.1 0.25 0.75 0.5 1.0 1.25 1.5 1.75 2.0 2.5 3.0 4.0
+    for F_LOW in 1.5
     do
-        run_experiment 0 2 ${F_LOW} ${BEST_F_HIGH_J2} "phaseB"
+        run_experiment 1 2 ${F_LOW} ${BEST_F_HIGH_J2} "phaseB"
     done
 }
 
 run_phase_b_gpu1() {
-    for F_LOW in 0.1 0.25 0.75 0.5 1.0
+    for F_LOW in 1.75
     do
-        run_experiment 1 2 ${F_LOW} ${BEST_F_HIGH_J2_2} "phaseB"
+        run_experiment 0 2 ${F_LOW} ${BEST_F_HIGH_J2} "phaseB"
     done
 }
 

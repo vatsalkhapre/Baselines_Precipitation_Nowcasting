@@ -553,6 +553,7 @@ def get_model(
         k_spatial=k_spatial, norm_before=norm_before, if_residual=if_residual, adapt_fusion=adapt_fusion, channel_mixing=channel_mixing,
         wave=wave, level=wavelet_level, hf_mode=hf_mode,
     )
+    
     return model
 
 

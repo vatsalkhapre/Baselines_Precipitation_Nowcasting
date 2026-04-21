@@ -109,6 +109,9 @@ def get_model_config(backbone: str) -> dict:
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
 
+            if version_underscore.split("_")[-1] == "final":
+                kwargs_type = "gabor_convparallel_wavelet_final"
+
             elif "waveletgfngabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_gfn_wavelet"
 
@@ -185,6 +188,10 @@ def create_parser():
     parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
     parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
     parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+
+    # ---------------------- Hidden dim --------------------
+    parser.add_argument("--hidden_dim",    type=int  , default=64,              help="Hidden dimension inside the model")
+
 
     #----------------------- MLP Parameters---------------------
     parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
@@ -776,6 +783,32 @@ class Runner(object):
                 "channel_mixing": self.args.channel_mixing
             }
 
+        elif kwargs_type == "gabor_convparallel_wavelet_final":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": self.args.hidden_dim, 
+                "afno_blocks": self.args.afno_blocks, 
+                "sparsity_threshold": self.args.afno_sparsity_threshold, 
+                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor,
+                "k_spatial": self.args.conv_kernel,
+            }
+
         elif kwargs_type == "gabor_afno_wavelet":
             kwargs = {
                 "weight_scale_low": self.args.weight_scale_low,
@@ -1147,7 +1180,7 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==35:
+            if (epoch+1)==30:
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break
@@ -1298,7 +1331,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/eval_results_novelty_ablations_2.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/final_wavelet_model_tuning.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

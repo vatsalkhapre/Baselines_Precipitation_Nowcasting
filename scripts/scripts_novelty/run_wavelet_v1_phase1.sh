@@ -5,7 +5,7 @@
 # Uses GPU 0 and GPU 1 in parallel
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_conv_less_full_mlp_waveletsgabor2"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
 SEED=0
 
 # Fixed Gabor params (default best)

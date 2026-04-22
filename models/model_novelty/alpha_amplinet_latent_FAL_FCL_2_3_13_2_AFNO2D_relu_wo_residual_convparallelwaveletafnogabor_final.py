@@ -244,7 +244,8 @@ class BandTemporalStream(nn.Module):
         fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
         fused = self.fusion(fused)                        # (B, C, T_out, H, W)
 
-        return gabor_out, mlp_out, fused
+        # return gabor_out, mlp_out, fused
+        return fused
 
 
 # ============================================================
@@ -353,30 +354,31 @@ class WaveletGaborBlock(nn.Module):
 
         # --- LL band ---
         ll_t = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
+        # ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
+        ll_fused = self.stream_ll(ll_t)
 
         # --- HF bands ---
-        hf_gabor_list = []
+        # hf_gabor_list = []
         hf_fused_list = []
-        hf_mlp_list = []
+        # hf_mlp_list = []
 
         for i in range(len(hf_list)):
             hf_t = rearrange(hf_list[i], '(b t) c n h w -> b (c n) h w t', t=T)
 
             if self.hf_mode == 'shared':
-                hf_gabor, hf_mlp, hf_fused = self.stream_hf(hf_t)
+                hf_fused = self.stream_hf(hf_t)
             else:
-                hf_gabor, hf_mlp, hf_fused = self.hf_streams[i](hf_t)
+                hf_fused = self.hf_streams[i](hf_t)
 
-            hf_gabor_list.append(hf_gabor)
-            hf_mlp_list.append(hf_mlp)
+            # hf_gabor_list.append(hf_gabor)
+            # hf_mlp_list.append(hf_mlp)
             hf_fused_list.append(hf_fused)
 
         # # ===== VISUALIZATION (ONLY FOR DEBUG) =====
         # self.debug_data = {
         #     "ll_gabor": ll_gabor.detach().cpu(),
         #     "hf_gabor": [hf.detach().cpu() for hf in hf_gabor_list]
-        }
+        # }
         # ============================================================
         # 3. IDWT reconstruction (fused path)
         # ============================================================
@@ -391,22 +393,22 @@ class WaveletGaborBlock(nn.Module):
         # ============================================================
         # 4. IDWT reconstruction (gabor-only residual)
         # ============================================================
-        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
-        hf_gabor_flat_list = []
-        for hf_gabor in hf_gabor_list:
-            hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
-            hf_gabor_flat_list.append(hf_gabor_flat)
+        # ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
+        # hf_gabor_flat_list = []
+        # for hf_gabor in hf_gabor_list:
+        #     hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
+        #     hf_gabor_flat_list.append(hf_gabor_flat)
 
-        gabor_residual = self.idwt((ll_gabor_flat, hf_gabor_flat_list))
+        # gabor_residual = self.idwt((ll_gabor_flat, hf_gabor_flat_list))
 
         # ============================================================
         # 5. Trim, reshape, S-T Conv, residual
         # ============================================================
-        reconstructed = reconstructed[..., :H, :W]
-        gabor_residual = gabor_residual[..., :H, :W]
+        # reconstructed = reconstructed[..., :H, :W]
+        # gabor_residual = gabor_residual[..., :H, :W]
 
         reconstructed = rearrange(reconstructed, '(b t) c h w -> b t c h w', t=self.t_out)
-        gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
+        # gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
 
         # Spatio-Temporal Interaction
         x_st = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
@@ -414,8 +416,8 @@ class WaveletGaborBlock(nn.Module):
         x_st = rearrange(x_st, 'b h w (t c) -> b t c h w', t=self.t_out)
 
         # Gabor residual
-        x = x_st + gabor_residual
-
+        # x = x_st + gabor_residual
+        x = x_st
         return x
 
 

@@ -13,7 +13,7 @@
 # GPU 1 → db6 (J2 shared, J2 separate, J3 shared, J3 separate)
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_wo_residual_convparallelwaveletafnogabor_final"
 SEED=0
 
 # ── Fixed AFNO params (use safe defaults for verification) ────
@@ -75,7 +75,7 @@ run_experiment() {
         --afno_sparsity_threshold ${SPARSITY} \
         --conv_kernel ${K_SPATIAL} \
         --num_workers 8 \
-        --wandb_state 'online' \
+        --wandb_state 'offline' \
         --wandb_project_name 'Alphapre' \
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
@@ -118,14 +118,14 @@ run_experiment() {
 # GPU 1 → db6: J2 shared, J2 separate, J3 shared, J3 separate
 # ─────────────────────────────────────────────────────────────
 
-run_gpu0() {
-    run_experiment 0 "${CIKM}" db4 2 separate
-    run_experiment 0 "${CIKM}" db4 3 separate
-}
+# run_gpu0() {
+#     run_experiment 0 "${CIKM}" db4 2 separate
+#     # run_experiment 0 "${CIKM}" db4 3 separate
+# }
 
 run_gpu1() {
-    run_experiment 1 "${CIKM}" db6 2 separate
-    run_experiment 1 "${CIKM}" db6 3 separate
+    run_experiment 1 "${CIKM}" db4 2 separate
+    # run_experiment 1 "${CIKM}" db6 3 separate
 }
 
 echo "=============================================="

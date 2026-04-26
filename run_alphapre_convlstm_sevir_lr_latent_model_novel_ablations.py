@@ -151,7 +151,7 @@ def get_model_config(backbone: str) -> dict:
        
             # Build module path
             module_path = f"models.Ablations_final.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
-            
+      
             return {
                 "module": module_path,
                 "kwargs_type": kwargs_type,

@@ -19,6 +19,7 @@ BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletaf
 SEED=0
 
 # ── Best wavelet config from Phase 1 (fixed) ──────────────────
+<<<<<<< HEAD
 WAVE="db6"
 LEVEL=1
 HF_MODE="separate"
@@ -27,6 +28,26 @@ K_SPATIAL=3
 # ── Best Gabor params from previous tuning (fixed) ────────────
 WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=2.0
 WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
+=======
+<<<<<<<< HEAD:scripts/scripts_final/run_cikm_final_afnoweights_tuning.sh
+WAVE="db4"
+LEVEL=2
+========
+WAVE="db6"
+LEVEL=1
+>>>>>>>> 61d12e9 (Meteonet exps):scripts/scripts_final/run_meteonet_final_model_tuning.sh
+HF_MODE="separate"
+K_SPATIAL=7
+
+# ── Best Gabor params from previous tuning (fixed) ────────────
+<<<<<<<< HEAD:scripts/scripts_final/run_cikm_final_afnoweights_tuning.sh
+WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=0.75
+WS_HIGH=0.25; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=1.0
+========
+WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=2.0
+WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
+>>>>>>>> 61d12e9 (Meteonet exps):scripts/scripts_final/run_meteonet_final_model_tuning.sh
+>>>>>>> 61d12e9 (Meteonet exps)
 
 # ── Fixed AFNO sparsity (tune separately after this sweep) ────
 SPARSITY=0.01
@@ -43,7 +64,11 @@ run_experiment() {
 
     IFS='|' read -r DATASET SEQ_LEN FRAMES_IN FRAMES_OUT AE_CKPT EXP_DIR <<< "${DATASET_CFG}"
 
+<<<<<<< HEAD
     local TAG="afno_b${AFNO_BLOCKS}_f${AFNO_FACTOR}_${WAVE}_J${LEVEL}_${HF_MODE}"
+=======
+    local TAG="afno_b${AFNO_BLOCKS}_f${AFNO_FACTOR}_${WAVE}_J${LEVEL}_${HF_MODE}_${DATASET}"
+>>>>>>> 61d12e9 (Meteonet exps)
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
@@ -124,6 +149,22 @@ run_experiment() {
 # ─────────────────────────────────────────────────────────────
 
 run_gpu0() {
+<<<<<<< HEAD
+=======
+<<<<<<<< HEAD:scripts/scripts_final/run_cikm_final_afnoweights_tuning.sh
+    # run_experiment 0 "${CIKM}" 4 3
+    # run_experiment 0 "${CIKM}" 2 1
+    # run_experiment 0 "${CIKM}" 4 1
+    run_experiment 0 "${CIKM}" 1 2
+}
+
+# run_gpu1() {
+#     # run_experiment 1 "${CIKM}" 4 6
+#     # run_experiment 1 "${CIKM}" 4 2
+#     # run_experiment 1 "${CIKM}" 4 4
+# }
+========
+>>>>>>> 61d12e9 (Meteonet exps)
     run_experiment 0 "${METEONET}" 1 1
     run_experiment 0 "${METEONET}" 2 1
     run_experiment 0 "${METEONET}" 4 1
@@ -140,6 +181,10 @@ run_gpu2() {
     run_experiment 2 "${METEONET}" 4 3
     run_experiment 2 "${METEONET}" 4 4
 }
+<<<<<<< HEAD
+=======
+>>>>>>>> 61d12e9 (Meteonet exps):scripts/scripts_final/run_meteonet_final_model_tuning.sh
+>>>>>>> 61d12e9 (Meteonet exps)
 
 echo "=============================================="
 echo "  AFNO Diversity Tuning — 6 combos on METEONET"
@@ -165,6 +210,7 @@ wait ${PID_GPU1}
 echo "GPU 1 complete: (2,2) (4,2) (4,6)"
 
 wait ${PID_GPU2}
+<<<<<<< HEAD
 echo "GPU 1 complete: (1,2) (4,3) (4,4)"
 
 echo ""
@@ -173,3 +219,13 @@ echo "  All 6 combos done. Check wandb."
 echo "  Next: fix best combo, sweep sparsity"
 echo "  in [0.001, 0.01, 0.1] on winner only."
 echo "=============================================="
+=======
+echo "GPU 2 complete: (1,2) (4,3) (4,4)"
+
+echo ""
+echo "=============================================="
+echo "  All 9 combos done. Check wandb."
+echo "  Next: fix best combo, sweep sparsity"
+echo "  in [0.001, 0.01, 0.1] on winner only."
+echo "=============================================="
+>>>>>>> 61d12e9 (Meteonet exps)

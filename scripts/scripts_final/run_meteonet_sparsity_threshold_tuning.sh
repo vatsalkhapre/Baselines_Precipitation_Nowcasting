@@ -4,7 +4,11 @@
 # Each dataset has its own best AFNO + wavelet config
 # Values: [0.001, 0.01, 0.1]
 #
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
 # GPU 0 → SHANGHAI (3 runs) then SHANGHAI (3 runs)
+========
+# GPU 0 → METEONET (3 runs) then MeteoNet (3 runs)
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
 # GPU 1 → Shanghai (3 runs)
 # ============================================================
  
@@ -14,12 +18,21 @@ SEED=0
 # ── Sparsity values to sweep ──────────────────────────────────
 SPARSITY_VALUES=(0 0.001 0.01 0.1)
  
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
 # ── UPDATE: SHANGHAI best config ──────────────────────────────
 SHANGHAI_WAVE="db6";      SHANGHAI_LEVEL=3;  SHANGHAI_HF_MODE="separate"
 SHANGHAI_BLOCKS=4;        SHANGHAI_FACTOR=3; SHANGHAI_K=9
 SHANGHAI_WS_LOW=0.1;  SHANGHAI_A_LOW=1.0;  SHANGHAI_B_LOW=1.0;  SHANGHAI_F_LOW=2.0
 SHANGHAI_WS_HIGH=1.0; SHANGHAI_A_HIGH=1.0; SHANGHAI_B_HIGH=1.0; SHANGHAI_F_HIGH=0.75
 SHANGHAI_CFG="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|sparsity_tuning_SHANGHAI"
+========
+# ── UPDATE: MeteoNet best config ──────────────────────────────
+METEONET_WAVE="db6";      METEONET_LEVEL=1;  METEONET_HF_MODE="separate"
+METEONET_BLOCKS=4;        METEONET_FACTOR=3; METEONET_K=3
+METEONET_WS_LOW=0.1;  METEONET_A_LOW=1.0;  METEONET_B_LOW=1.0;  METEONET_F_LOW=2.0
+METEONET_WS_HIGH=1.0; METEONET_A_HIGH=1.0; METEONET_B_HIGH=1.0; METEONET_F_HIGH=0.75
+METEONET_CFG="meteo_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth|sparsity_tuning_meteonet"
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
@@ -116,6 +129,7 @@ run_gpu0() {
     echo "=== GPU 0: CIKM ==="
     
     run_experiment 0 0.001 \
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
         "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
         ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
         ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
@@ -127,6 +141,19 @@ run_gpu0() {
         ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
         ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
         ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
+========
+        "${METEONET_CFG}" ${METEONET_WAVE} ${METEONET_LEVEL} ${METEONET_HF_MODE} \
+        ${METEONET_BLOCKS} ${METEONET_FACTOR} ${METEONET_K} \
+        ${METEONET_WS_LOW} ${METEONET_A_LOW} ${METEONET_B_LOW} ${METEONET_F_LOW} \
+        ${METEONET_WS_HIGH} ${METEONET_A_HIGH} ${METEONET_B_HIGH} ${METEONET_F_HIGH}
+ 
+
+    run_experiment 0 0.01 \
+        "${METEONET_CFG}" ${METEONET_WAVE} ${METEONET_LEVEL} ${METEONET_HF_MODE} \
+        ${METEONET_BLOCKS} ${METEONET_FACTOR} ${METEONET_K} \
+        ${METEONET_WS_LOW} ${METEONET_A_LOW} ${METEONET_B_LOW} ${METEONET_F_LOW} \
+        ${METEONET_WS_HIGH} ${METEONET_A_HIGH} ${METEONET_B_HIGH} ${METEONET_F_HIGH}
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
    
 }
 
@@ -135,27 +162,47 @@ run_gpu1() {
     echo "=== GPU 0: CIKM ==="
     
     run_experiment 1 0 \
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
         "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
         ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
         ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
         ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
+========
+        "${METEONET_CFG}" ${METEONET_WAVE} ${METEONET_LEVEL} ${METEONET_HF_MODE} \
+        ${METEONET_BLOCKS} ${METEONET_FACTOR} ${METEONET_K} \
+        ${METEONET_WS_LOW} ${METEONET_A_LOW} ${METEONET_B_LOW} ${METEONET_F_LOW} \
+        ${METEONET_WS_HIGH} ${METEONET_A_HIGH} ${METEONET_B_HIGH} ${METEONET_F_HIGH}
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
  
 }
 
 run_gpu2() {
     run_experiment 2 0.1 \
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
         "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
         ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
         ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
         ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
+========
+        "${METEONET_CFG}" ${METEONET_WAVE} ${METEONET_LEVEL} ${METEONET_HF_MODE} \
+        ${METEONET_BLOCKS} ${METEONET_FACTOR} ${METEONET_K} \
+        ${METEONET_WS_LOW} ${METEONET_A_LOW} ${METEONET_B_LOW} ${METEONET_F_LOW} \
+        ${METEONET_WS_HIGH} ${METEONET_A_HIGH} ${METEONET_B_HIGH} ${METEONET_F_HIGH}
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
 }
 
 
 echo "=============================================="
 echo "  Sparsity Tuning — 3 values × 3 datasets"
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
 echo "  GPU 0 → SHANGHAI"
 echo "  GPU 1 → SHANGHAI"
 echo "  GPU 0 → SHANGHAI"
+========
+echo "  GPU 0 → METEONET"
+echo "  GPU 1 → METEONET"
+echo "  GPU 0 → METEONET"
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
 echo "  Sweeping: ${SPARSITY_VALUES[*]}"
 echo "=============================================="
 echo ""
@@ -171,6 +218,7 @@ run_gpu2 &
 PID_GPU2=$!
 
 wait ${PID_GPU0}
+<<<<<<<< HEAD:scripts/scripts_final/run_shanghai_sparsity_threshold_tuning.sh
 echo "GPU 0 (SHANGHAI ) complete!"
  
 wait ${PID_GPU1}
@@ -178,6 +226,15 @@ echo "GPU 1 (SHANGHAI) complete!"
 
 wait ${PID_GPU2}
 echo "GPU 2 (SHANGHAI) complete!"
+========
+echo "GPU 0 (METEONET ) complete!"
+ 
+wait ${PID_GPU1}
+echo "GPU 1 (METEONET) complete!"
+
+wait ${PID_GPU2}
+echo "GPU 2 (METEONET) complete!"
+>>>>>>>> a817584 (cikm removed):scripts/scripts_final/run_meteonet_sparsity_threshold_tuning.sh
 
 echo ""
 echo "=============================================="

@@ -13,11 +13,7 @@
 # GPU 1 → db6 (J2 shared, J2 separate, J3 shared, J3 separate)
 # ============================================================
 
-<<<<<<< HEAD
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_seq_final"
-=======
 BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_cm_convparallelwaveletafnogabor_final"
->>>>>>> e0e87d2 (shanghai_exps)
 SEED=0
 
 # ── Fixed AFNO params (use safe defaults for verification) ────
@@ -33,7 +29,6 @@ WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
 # ── Dataset config ─────────────────────────────────────────────
 SHANGHAI="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|wavelet_verification"
 
-# ─────────────────────────────────────────────────────────────
 run_experiment() {
     local GPU=$1
     local DATASET_CFG=$2
@@ -50,7 +45,6 @@ run_experiment() {
     echo "  GPU ${GPU} | ${WAVE} J${LEVEL} ${HF_MODE}"
     echo "=============================================="
 
-    # ── Train ──
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
@@ -83,7 +77,6 @@ run_experiment() {
         --wandb_project_name 'Alphapre' \
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
-    # ── Eval ──
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
@@ -124,6 +117,7 @@ run_experiment() {
 
 <<<<<<< HEAD
 run_gpu0() {
+<<<<<<< HEAD
     run_experiment 0 "${CIKM}" db6 2 separate
     # run_experiment 0 "${CIKM}" db4 3 separate
 }
@@ -142,6 +136,14 @@ run_gpu1() {
     run_experiment 1 "${SHANGHAI}" db6 3 separate
 >>>>>>> e0e87d2 (shanghai_exps)
 }
+=======
+    run_experiment 2 "${METEONET}" db6 1 separate
+}
+
+# run_gpu1() {
+#     run_experiment 1 "${METEONET}" haar 2 separate
+# }
+>>>>>>> 61d12e9 (Meteonet exps)
 
 echo "=============================================="
 echo "  Wavelet Verification — 8 runs on SHANGHAI"

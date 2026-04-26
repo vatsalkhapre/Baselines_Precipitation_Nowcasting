@@ -219,12 +219,23 @@ class TransformBlock(nn.Module):
 # ============================================================
 
 class BandTemporalStream(nn.Module):
-    """Applies Gabor+MLP dual-stream temporal modeling to a single frequency band."""
+    """
+    ABLATION 2b: Gabor replaced by second MLP (fairer comparison).
+    GaborLayer replaced with MLP of identical structure (t_in -> t_out).
+    Fusion Conv3d(2C->C) kept for fair parameter comparison.
+    All other structure unchanged.
+    """
     def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta,
                  freq_multiplier, size_factor=1.0):
         super().__init__()
-        self.gabor = GaborLayer(t_in, t_out, weight_scale, alpha, beta, freq_multiplier)
-        self.mlp = nn.Sequential(
+        # First MLP (replaces Gabor)
+        self.mlp1 = nn.Sequential(
+            nn.Linear(t_in, int(t_out * size_factor)),
+            nn.SELU(True),
+            nn.Linear(int(t_out * size_factor), t_out),
+        )
+        # Second MLP (original MLP)
+        self.mlp2 = nn.Sequential(
             nn.Linear(t_in, int(t_out * size_factor)),
             nn.SELU(True),
             nn.Linear(int(t_out * size_factor), t_out),
@@ -234,17 +245,16 @@ class BandTemporalStream(nn.Module):
     def forward(self, x):
         """
         x: (B, C, H, W, T_in)
-        returns: gabor_out (B, C, H, W, T_out), fused_out (B, C, T_out, H, W)
+        returns: mlp1_out (plays role of gabor_out), mlp2_out, fused
         """
-        gabor_out = self.gabor(x)   # (B, C, H, W, T_out)
-        mlp_out = self.mlp(x)       # (B, C, H, W, T_out)
-       
-        # Fuse: cat along channel, permute for Conv3d
-        fused = torch.cat([gabor_out, mlp_out], dim=1)  # (B, 2C, H, W, T_out)
+        mlp1_out = self.mlp1(x)   # (B, C, H, W, T_out)  — replaces gabor
+        mlp2_out = self.mlp2(x)   # (B, C, H, W, T_out)
+
+        fused = torch.cat([mlp1_out, mlp2_out], dim=1)  # (B, 2C, H, W, T_out)
         fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
         fused = self.fusion(fused)                        # (B, C, T_out, H, W)
 
-        return gabor_out, mlp_out, fused
+        return mlp1_out, mlp2_out, fused
 
 
 # ============================================================

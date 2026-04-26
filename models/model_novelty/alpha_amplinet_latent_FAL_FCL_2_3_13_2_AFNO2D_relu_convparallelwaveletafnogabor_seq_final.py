@@ -1,13 +1,20 @@
 """
-Wavelet-Gabor LASTOCast Block (Unified)
+Wavelet-Gabor LASTOCast Block — Sequential Temporal Stream variant
 
 Supports:
-    - J=1 to J=4 with separate Gabor streams per HF level
+    - J=1 to J=4 with separate streams per HF level
     - hf_mode: 'shared' (one stream for all HF) or 'separate' (one per level)
 
 Pipeline:
-    Input → Lifting → DWT → [Gabor+MLP per band] → Fusion per band → IDWT
+    Input → Lifting → DWT → [MLP(t_in→t_out) → Gabor(t_out→t_out) per band] → IDWT
           → Spatio-Temporal Conv → + Gabor residual → Projection
+
+Key change vs parallel variant:
+    - MLP and Gabor are now sequential (not parallel)
+    - MLP does the coarse temporal expansion (t_in → t_out)
+    - Gabor refines the MLP output with frequency-selective modulation (t_out → t_out)
+    - No fusion Conv3d needed (single stream, not two to merge)
+    - Gabor residual = Gabor(MLP(x)), i.e. the full sequential output
 
 Requirements:
     pip install pytorch_wavelets
@@ -219,30 +226,37 @@ class TransformBlock(nn.Module):
 # ============================================================
 
 class BandTemporalStream(nn.Module):
-    """Applies Gabor+MLP dual-stream temporal modeling to a single frequency band."""
+    """
+    Sequential MLP → Gabor temporal modeling for a single frequency band.
+
+    MLP:   t_in  → t_out  (coarse temporal expansion)
+    Gabor: t_out → t_out  (frequency-selective refinement of MLP output)
+
+    No fusion Conv3d needed — single sequential stream.
+    The Gabor output serves as both the IDWT path and the residual path.
+    """
     def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta,
                  freq_multiplier, size_factor=1.0):
         super().__init__()
-        self.gabor = GaborLayer(t_in, t_out, weight_scale, alpha, beta, freq_multiplier)
         self.mlp = nn.Sequential(
             nn.Linear(t_in, int(t_out * size_factor)),
             nn.SELU(True),
             nn.Linear(int(t_out * size_factor), t_out),
         )
-        self.fusion = nn.Conv3d(2 * dim, dim, kernel_size=1)
+        # Gabor now operates on t_out → t_out (refining MLP output)
+        self.gabor = GaborLayer(t_out, t_out, weight_scale, alpha, beta, freq_multiplier)
 
     def forward(self, x):
         """
-        x: (B, C, H, W, T_in)
-        returns: gabor_out (B, C, H, W, T_out), fused_out (B, C, T_out, H, W)
+        x:         (B, C, H, W, T_in)
+        returns:
+            gabor_out  (B, C, H, W, T_out)  ← for Gabor residual path (IDWT)
+            fused      (B, C, T_out, H, W)  ← for main IDWT reconstruction path
         """
-        gabor_out = self.gabor(x)   # (B, C, H, W, T_out)
-        mlp_out = self.mlp(x)       # (B, C, H, W, T_out)
-       
-        # Fuse: cat along channel, permute for Conv3d
-        fused = torch.cat([gabor_out, mlp_out], dim=1)  # (B, 2C, H, W, T_out)
-        fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
-        fused = self.fusion(fused)                        # (B, C, T_out, H, W)
+        mlp_out   = self.mlp(x)           # (B, C, H, W, T_out)
+        gabor_out = self.gabor(mlp_out)   # (B, C, H, W, T_out)  — refines MLP output
+
+        fused = gabor_out.permute(0, 1, 4, 2, 3)  # (B, C, T_out, H, W)
 
         return gabor_out, mlp_out, fused
 

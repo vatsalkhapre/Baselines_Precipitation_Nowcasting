@@ -324,9 +324,7 @@ class WaveletGaborBlock(nn.Module):
         #     nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
         # )
 
-        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     AFNO2D(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor= hidden_size_factor))
+        self.conv_spectral = nn.Identity()  # ABLATION 4: removed, temporal modeling only
         self.viz_counter = 0
 
     def forward(self, x):
@@ -408,10 +406,11 @@ class WaveletGaborBlock(nn.Module):
         reconstructed = rearrange(reconstructed, '(b t) c h w -> b t c h w', t=self.t_out)
         gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
 
-        # Spatio-Temporal Interaction
-        x_st = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
-        x_st = self.conv_spectral(x_st)
-        x_st = rearrange(x_st, 'b h w (t c) -> b t c h w', t=self.t_out)
+        # Spatio-Temporal Interaction — ABLATION 4: removed entirely
+        # x_st = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
+        # x_st = self.conv_spectral(x_st)
+        # x_st = rearrange(x_st, 'b h w (t c) -> b t c h w', t=self.t_out)
+        x_st = reconstructed  # pass reconstructed directly without S-T processing
 
         # Gabor residual
         x = x_st + gabor_residual

@@ -105,52 +105,31 @@ class AFNO2D(nn.Module):
         return x + bias
 
 class SpectralBlock_2D(nn.Module):
+    """
+    ABLATION 3b: No depthwise conv (fine spatial processing removed).
+    Only AFNO (coarse) + pointwise conv (channel mixing) kept.
+    """
     def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial, groupnorm=True, groups=8):
-
         super().__init__()
-
-        pad_spatial = (k_spatial - 1) // 2
-
         self.proj = AFNO2D(dim, num_blocks, sparsity_threshold,
                            hidden_size_factor=hidden_size_factor)
-
-        self.dw_spatial = nn.Conv2d(dim, dim, kernel_size=k_spatial,
-                                   padding=pad_spatial, groups=dim, bias=False)
-
         self.norm = nn.GroupNorm(groups, dim) if groupnorm else nn.BatchNorm2d(dim)
-
-        
         self.pw = nn.Sequential(
-            nn.Conv2d(dim, dim*2, 1),
+            nn.Conv2d(dim, dim * 2, 1),
             nn.GELU(),
-            nn.Conv2d(dim*2, dim, 1))
-
+            nn.Conv2d(dim * 2, dim, 1),
+        )
         self.act = nn.SiLU()
 
     def forward(self, x):
         # x: (B, H, W, C)
-        shortcut = x
-
-        x_ = x.permute(0,3,1,2)
-    
-        x_spa = self.dw_spatial(x_)
-
-        x_spec = self.proj(x_.permute(0,2,3,1))
-        x_spec = x_spec.permute(0,3,1,2)
-        
-        x_fused = x_spa + x_spec
-
-        x_fused = self.norm(x_fused)
-
+        x_spec = self.proj(x)                      # AFNO only, no dw_spatial
+        x_spec = x_spec.permute(0, 3, 1, 2)       # (B, C, H, W)
+        x_fused = self.norm(x_spec)
         x_fused = self.act(x_fused)
-
         x_fused = self.pw(x_fused)
-
-        x_fused = x_fused.permute(0,2,3,1)
-
-        out = x_fused
-
-        return out
+        x_fused = x_fused.permute(0, 2, 3, 1)
+        return x_fused
 
 class ResneSpectralBlock(nn.Module):
     def __init__(self, dim,num_blocks, sparsity_threshold, hidden_size_factor,  k_spatial, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'

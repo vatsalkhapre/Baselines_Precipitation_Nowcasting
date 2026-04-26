@@ -1,49 +1,54 @@
 #!/bin/bash
 # ============================================================
-# Wavelet Verification: Top configs from Phase 1
-# Verifying db4 + db6 at levels 2 and 3 with new backbone
+# AFNO Diversity Tuning: 6 param-neutral combos
+# Explores block structure vs hidden width tradeoff
 #
-# Combos (4 total × shared+separate = 8 runs):
-#   db4 J2 shared/separate
-#   db4 J3 shared/separate
-#   db6 J2 shared/separate
-#   db6 J3 shared/separate
+# Combos (all param-neutral relative to baseline):
+#   (1,1) baseline
+#   (2,1) more structure, same capacity
+#   (4,1) highly structured, least capacity
+#   (2,2) same params as (1,1), richer hidden
+#   (4,2) same params as (2,1), richer hidden
+#   (4,4) same params as (1,1), max diversity + expressiveness
 #
-# GPU 0 → db4 (J2 shared, J2 separate, J3 shared, J3 separate)
-# GPU 1 → db6 (J2 shared, J2 separate, J3 shared, J3 separate)
+# GPU 0 → first 3 combos sequentially
+# GPU 1 → last 3 combos sequentially
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_seq_final"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
 SEED=0
 
-# ── Fixed AFNO params (use safe defaults for verification) ────
-AFNO_BLOCKS=2 
-AFNO_FACTOR=2
-SPARSITY=0.01
-K_SPATIAL=7
+# ── Best wavelet config from Phase 1 (fixed) ──────────────────
+WAVE="db6"
+LEVEL=1
+HF_MODE="separate"
+K_SPATIAL=3
 
-# ── Fixed Gabor params from previous best ─────────────────────
-WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=0.75
-WS_HIGH=0.25; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=1.0
+# ── Best Gabor params from previous tuning (fixed) ────────────
+WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=2.0
+WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
+
+# ── Fixed AFNO sparsity (tune separately after this sweep) ────
+SPARSITY=0.01
 
 # ── Dataset config ─────────────────────────────────────────────
-CIKM="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|wavelet_verification"
+METEONET="meteo_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth|afno_diversity_tuning"
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local GPU=$1
     local DATASET_CFG=$2
-    local WAVE=$3
-    local LEVEL=$4
-    local HF_MODE=$5
+    local AFNO_BLOCKS=$3
+    local AFNO_FACTOR=$4
 
     IFS='|' read -r DATASET SEQ_LEN FRAMES_IN FRAMES_OUT AE_CKPT EXP_DIR <<< "${DATASET_CFG}"
 
-    local TAG="${WAVE}_J${LEVEL}_${HF_MODE}_${DATASET_CFG}"
+    local TAG="afno_b${AFNO_BLOCKS}_f${AFNO_FACTOR}_${WAVE}_J${LEVEL}_${HF_MODE}"
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
-    echo "  GPU ${GPU} | ${WAVE} J${LEVEL} ${HF_MODE}"
+    echo "  GPU ${GPU} | blocks=${AFNO_BLOCKS} factor=${AFNO_FACTOR}"
+    echo "  TAG: ${TAG}"
     echo "=============================================="
 
     # ── Train ──
@@ -75,7 +80,7 @@ run_experiment() {
         --afno_sparsity_threshold ${SPARSITY} \
         --conv_kernel ${K_SPATIAL} \
         --num_workers 8 \
-        --wandb_state 'offline' \
+        --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
@@ -109,30 +114,38 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'offline'
 
-    echo "  Done: ${WAVE} J${LEVEL} ${HF_MODE}"
+    echo "  Done: blocks=${AFNO_BLOCKS} factor=${AFNO_FACTOR}"
     echo ""
 }
 
 # ─────────────────────────────────────────────────────────────
-# GPU 0 → db4: J2 shared, J2 separate, J3 shared, J3 separate
-# GPU 1 → db6: J2 shared, J2 separate, J3 shared, J3 separate
+# GPU 0 → (1,1), (2,1), (4,1)  — fixed hidden width, vary blocks
+# GPU 1 → (2,2), (4,2), (4,4)  — wider hidden, vary blocks
 # ─────────────────────────────────────────────────────────────
 
 run_gpu0() {
-    run_experiment 0 "${CIKM}" db6 2 separate
-    # run_experiment 0 "${CIKM}" db4 3 separate
+    run_experiment 0 "${METEONET}" 1 1
+    run_experiment 0 "${METEONET}" 2 1
+    run_experiment 0 "${METEONET}" 4 1
 }
 
 run_gpu1() {
-    run_experiment 1 "${CIKM}" db4 2 separate
-    # run_experiment 1 "${CIKM}" db6 3 separate
+    run_experiment 1 "${METEONET}" 2 2
+    run_experiment 1 "${METEONET}" 4 2
+    run_experiment 1 "${METEONET}" 4 6
+}
+
+run_gpu2() {
+    run_experiment 2 "${METEONET}" 1 2
+    run_experiment 2 "${METEONET}" 4 3
+    run_experiment 2 "${METEONET}" 4 4
 }
 
 echo "=============================================="
-echo "  Wavelet Verification — 8 runs on CIKM"
-echo "  GPU 0 → db4 (J2 sep, J3 sep)"
-echo "  GPU 1 → db6 (J2 sep J3 sep)"
-echo "  AFNO fixed: blocks=${AFNO_BLOCKS} factor=${AFNO_FACTOR}"
+echo "  AFNO Diversity Tuning — 6 combos on METEONET"
+echo "  GPU 0 → (1,1) (2,1) (4,1)"
+echo "  GPU 1 → (2,2) (4,2) (4,4)"
+echo "  Sparsity fixed at ${SPARSITY}"
 echo "=============================================="
 echo ""
 
@@ -142,15 +155,21 @@ PID_GPU0=$!
 run_gpu1 &
 PID_GPU1=$!
 
+run_gpu2 &
+PID_GPU2=$!
+
 wait ${PID_GPU0}
-echo "GPU 0 complete: db4 done"
+echo "GPU 0 complete: (1,1) (2,1) (4,1)"
 
 wait ${PID_GPU1}
-echo "GPU 1 complete: db6 done"
+echo "GPU 1 complete: (2,2) (4,2) (4,6)"
+
+wait ${PID_GPU2}
+echo "GPU 1 complete: (1,2) (4,3) (4,4)"
 
 echo ""
 echo "=============================================="
-echo "  Wavelet verification complete. Check wandb."
-echo "  Pick best wave+level+hf_mode, then run:"
-echo "  run_afno_diversity_tuning.sh"
+echo "  All 6 combos done. Check wandb."
+echo "  Next: fix best combo, sweep sparsity"
+echo "  in [0.001, 0.01, 0.1] on winner only."
 echo "=============================================="

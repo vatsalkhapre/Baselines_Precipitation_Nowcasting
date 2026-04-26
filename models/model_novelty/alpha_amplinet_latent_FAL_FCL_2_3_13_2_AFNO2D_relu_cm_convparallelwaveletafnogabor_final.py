@@ -105,7 +105,7 @@ class AFNO2D(nn.Module):
         return x + bias
 
 class SpectralBlock_2D(nn.Module):
-    def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial, groupnorm=True, groups=8):
+    def __init__(self, dim, channels, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial, groupnorm=True, groups=8):
 
         super().__init__()
 
@@ -119,17 +119,18 @@ class SpectralBlock_2D(nn.Module):
 
         self.norm = nn.GroupNorm(groups, dim) if groupnorm else nn.BatchNorm2d(dim)
 
+        self.channels = channels
         
         self.pw = nn.Sequential(
-            nn.Conv2d(dim, dim*2, 1),
+            nn.Conv2d(channels, channels*2, 1),
             nn.GELU(),
-            nn.Conv2d(dim*2, dim, 1))
+            nn.Conv2d(channels*2, channels, 1))
 
         self.act = nn.SiLU()
 
     def forward(self, x):
-        # x: (B, H, W, C)
-        shortcut = x
+
+        B,_,_,_ = x.shape
 
         x_ = x.permute(0,3,1,2)
     
@@ -144,7 +145,11 @@ class SpectralBlock_2D(nn.Module):
 
         x_fused = self.act(x_fused)
 
+        x_fused = rearrange(x_fused, 'b (c t) h w -> (b t) c h w', c=self.channels)
+
         x_fused = self.pw(x_fused)
+
+        x_fused = rearrange(x_fused, '(b t) c h w -> b (c t) h w', c=self.channels, b=B)
 
         x_fused = x_fused.permute(0,2,3,1)
 
@@ -153,10 +158,10 @@ class SpectralBlock_2D(nn.Module):
         return out
 
 class ResneSpectralBlock(nn.Module):
-    def __init__(self, dim,num_blocks, sparsity_threshold, hidden_size_factor,  k_spatial, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'
+    def __init__(self, dim, channels, num_blocks, sparsity_threshold, hidden_size_factor,  k_spatial, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'
         super().__init__()
-        self.block1 = SpectralBlock_2D(dim, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
-        self.block2 = SpectralBlock_2D(dim, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
+        self.block1 = SpectralBlock_2D(dim, channels, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
+        self.block2 = SpectralBlock_2D(dim, channels, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
         self.res_conv = nn.Identity()
 
     def forward(self, x):
@@ -314,18 +319,9 @@ class WaveletGaborBlock(nn.Module):
                     weight_scale_high, alpha_high, beta_high, freq_i,
                     size_factor,
                 ))
-            #     print("freq_i", freq_i)
-            
-            # print("hf_streams length", len(self.hf_streams))
-        # ---- Spatio-Temporal Interaction ----
-        # self.spatial_temporal = nn.Sequential(
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
-        # )
-
-        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
+     
+        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, dim, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
+                                     ResneSpectralBlock(dim*t_out, dim, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
                                      AFNO2D(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor= hidden_size_factor))
         self.viz_counter = 0
 

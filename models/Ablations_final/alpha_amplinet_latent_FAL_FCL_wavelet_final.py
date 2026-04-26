@@ -253,15 +253,13 @@ class BandTemporalStream(nn.Module):
 
 class WaveletGaborBlock(nn.Module):
     """
-    LASTOCast block with wavelet-decomposed dual Gabor temporal modeling.
-
-    Args:
-        level: DWT decomposition level (1, 2, 3, or 4)
-        hf_mode: 'shared' or 'separate'
-            - 'shared': single Gabor stream for all HF levels
-            - 'separate': one Gabor stream per HF level
+    ABLATION 1: No Wavelet.
+    DWT and IDWT removed. Single BandTemporalStream applied directly
+    at full resolution on the full feature map (no band decomposition).
+    Gabor residual path kept (from single stream gabor output).
+    conv_spectral unchanged.
     """
-    def __init__(self, t_in, t_out, dim, num_blocks,sparsity_threshold, hidden_size_factor,
+    def __init__(self, t_in, t_out, dim, num_blocks, sparsity_threshold, hidden_size_factor,
                  weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
                  weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                  k_spatial,
@@ -269,154 +267,40 @@ class WaveletGaborBlock(nn.Module):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
         self.dim = dim
-        self.level = level
-        self.hf_mode = hf_mode
 
-        assert level in [1, 2, 3, 4], "Levels 1-4 supported"
-        assert hf_mode in ['shared', 'separate']
-
-        # ---- Wavelet transform ----
-        self.wave = wave
-        self.dwt = DWTForward(J=level, wave=wave, mode='zero')
-        self.idwt = DWTInverse(wave=wave, mode='zero')
-
-        # ---- LL temporal stream (always present) ----
-        self.stream_ll = BandTemporalStream(
+        # Single temporal stream at full resolution (no wavelet decomposition)
+        self.stream = BandTemporalStream(
             t_in, t_out, dim,
             weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
             size_factor,
         )
 
-        # ---- HF temporal streams ----
-        if hf_mode == 'shared':
-            # Single stream shared across all HF levels
-            self.stream_hf = BandTemporalStream(
-                t_in, t_out, 3 * dim,
-                weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
-                size_factor,
-            )
-        else:
-            # Separate stream per HF level
-            # Interpolate freq_multiplier from high (coarsest) to low (finest)
-            self.hf_streams = nn.ModuleList()
-            for i in range(level):
-                if level == 1:
-                    freq_i = freq_multiplier_high
-                else:
-                    # Level 0 = coarsest (highest freq), level[-1] = finest (mid freq)
-                    # Interpolate: coarsest gets freq_high, finest gets midpoint
-                    freq_mid = (freq_multiplier_low + freq_multiplier_high) / 2
-                    alpha_interp = i / (level - 1)  # 0 for coarsest, 1 for finest
-                    freq_i = freq_multiplier_high * (1 - alpha_interp) + freq_mid * alpha_interp
-
-                self.hf_streams.append(BandTemporalStream(
-                    t_in, t_out, 3 * dim,
-                    weight_scale_high, alpha_high, beta_high, freq_i,
-                    size_factor,
-                ))
-            #     print("freq_i", freq_i)
-            
-            # print("hf_streams length", len(self.hf_streams))
-        # ---- Spatio-Temporal Interaction ----
-        # self.spatial_temporal = nn.Sequential(
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
-        # )
-
-        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     AFNO2D(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor= hidden_size_factor))
-        self.viz_counter = 0
+        self.conv_spectral = nn.Sequential(
+            ResneSpectralBlock(dim * t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
+            ResneSpectralBlock(dim * t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
+            AFNO2D(dim * t_out, num_blocks, sparsity_threshold, hidden_size_factor=hidden_size_factor),
+        )
 
     def forward(self, x):
         # x: (B, T_in, C, H, W)
         B, T, C, H, W = x.shape
 
-        # ============================================================
-        # 1. DWT decomposition
-        # ============================================================
-        x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
-        # print("x_flat", x_flat.shape)
-        ll, hf_list = self.dwt(x_flat)
-        # print("hf_list", len(hf_list))
+        # Apply single stream directly at full resolution
+        x_t = rearrange(x, 'b t c h w -> b c h w t')
+        gabor_out, mlp_out, fused = self.stream(x_t)  # fused: (B, C, T_out, H, W)
 
-        # for i, ele in enumerate(hf_list):
-            # print(i, ele.shape)
-        # ll: (B*T, C, H/2^level, W/2^level)
-        # hf_list[i]: (B*T, C, 3, H_i, W_i) for i in range(level)
-        # hf_list[0] = coarsest, hf_list[-1] = finest
+        # Gabor residual
+        gabor_residual = rearrange(gabor_out, 'b c h w t -> b t c h w')
 
-        # ============================================================
-        # 2. Temporal processing per band
-        # ============================================================
-
-        # --- LL band ---
-        ll_t = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
-
-        # --- HF bands ---
-        hf_gabor_list = []
-        hf_fused_list = []
-        hf_mlp_list = []
-
-        for i in range(len(hf_list)):
-            hf_t = rearrange(hf_list[i], '(b t) c n h w -> b (c n) h w t', t=T)
-
-            if self.hf_mode == 'shared':
-                hf_gabor, hf_mlp, hf_fused = self.stream_hf(hf_t)
-            else:
-                hf_gabor, hf_mlp, hf_fused = self.hf_streams[i](hf_t)
-
-            hf_gabor_list.append(hf_gabor)
-            hf_mlp_list.append(hf_mlp)
-            hf_fused_list.append(hf_fused)
-
-        # # ===== VISUALIZATION (ONLY FOR DEBUG) =====
-        # self.debug_data = {
-        #     "ll_gabor": ll_gabor.detach().cpu(),
-        #     "hf_gabor": [hf.detach().cpu() for hf in hf_gabor_list]
-
-        # ============================================================
-        # 3. IDWT reconstruction (fused path)
-        # ============================================================
-        ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
-        hf_recon_list = []
-        for hf_fused in hf_fused_list:
-            hf_recon = rearrange(hf_fused, 'b (c n) t h w -> (b t) c n h w', n=3)
-            hf_recon_list.append(hf_recon)
-
-        reconstructed = self.idwt((ll_recon, hf_recon_list))
-
-        # ============================================================
-        # 4. IDWT reconstruction (gabor-only residual)
-        # ============================================================
-        ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
-        hf_gabor_flat_list = []
-        for hf_gabor in hf_gabor_list:
-            hf_gabor_flat = rearrange(hf_gabor, 'b (c n) h w t -> (b t) c n h w', n=3)
-            hf_gabor_flat_list.append(hf_gabor_flat)
-
-        gabor_residual = self.idwt((ll_gabor_flat, hf_gabor_flat_list))
-
-        # ============================================================
-        # 5. Trim, reshape, S-T Conv, residual
-        # ============================================================
-        reconstructed = reconstructed[..., :H, :W]
-        gabor_residual = gabor_residual[..., :H, :W]
-
-        reconstructed = rearrange(reconstructed, '(b t) c h w -> b t c h w', t=self.t_out)
-        gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
+        # Main path
+        reconstructed = rearrange(fused, 'b c t h w -> b t c h w')
 
         # Spatio-Temporal Interaction
         x_st = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
         x_st = self.conv_spectral(x_st)
         x_st = rearrange(x_st, 'b h w (t c) -> b t c h w', t=self.t_out)
 
-        # Gabor residual
-        x = x_st + gabor_residual
-
-        return x
+        return x_st + gabor_residual
 
 
 # ============================================================

@@ -1,49 +1,40 @@
 #!/bin/bash
 # ============================================================
-# Wavelet Verification: Top configs from Phase 1
-# Verifying db4 + db6 at levels 2 and 3 with new backbone
+# Beta Tuning — CIKM
+# Sweeping beta_low + beta_high: [1.0, 10, 100]
+# Fixed: alpha=1.0, freq_multiplier=1.0 (both low and high)
+# All other params: best from sparsity tuning
 #
-# Combos (4 total × shared+separate = 8 runs):
-#   db4 J2 shared/separate
-#   db4 J3 shared/separate
-#   db6 J2 shared/separate
-#   db6 J3 shared/separate
-#
-# GPU 0 → db4 (J2 shared, J2 separate, J3 shared, J3 separate)
-# GPU 1 → db6 (J2 shared, J2 separate, J3 shared, J3 separate)
+# 3 values → GPU 0 (beta=1.0, beta=10), GPU 1 (beta=100)
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_seq_final"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
 SEED=0
 
-# ── Fixed AFNO params (use safe defaults for verification) ────
-AFNO_BLOCKS=2 
-AFNO_FACTOR=2
-SPARSITY=0.01
-K_SPATIAL=7
+# ── Fixed: best CIKM config ───────────────────────────────────
+WAVE="db4"; LEVEL=2; HF_MODE="separate"
+BLOCKS=1; FACTOR=1; K=7; SPARSITY=0.01
+WS_LOW=0.1;  WS_HIGH=0.25
+A_LOW=1.0;   A_HIGH=1.0
+F_LOW=1.0;   F_HIGH=1.0    # freq_multiplier fixed at 1.0
 
-# ── Fixed Gabor params from previous best ─────────────────────
-WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=0.75
-WS_HIGH=0.25; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=1.0
+CIKM_CFG="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|beta_tuning_cikm"
 
-# ── Dataset config ─────────────────────────────────────────────
-CIKM="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|wavelet_verification"
+# ── Beta values to sweep ──────────────────────────────────────
+BETA_VALUES=(1.0 10 100)
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local GPU=$1
-    local DATASET_CFG=$2
-    local WAVE=$3
-    local LEVEL=$4
-    local HF_MODE=$5
+    local BETA=$2
 
-    IFS='|' read -r DATASET SEQ_LEN FRAMES_IN FRAMES_OUT AE_CKPT EXP_DIR <<< "${DATASET_CFG}"
+    IFS='|' read -r DATASET SEQ_LEN FRAMES_IN FRAMES_OUT AE_CKPT EXP_DIR <<< "${CIKM_CFG}"
 
-    local TAG="${WAVE}_J${LEVEL}_${HF_MODE}_${DATASET_CFG}"
+    local TAG="beta${BETA}_${WAVE}_J${LEVEL}_${HF_MODE}_b${BLOCKS}_f${FACTOR}_sp${SPARSITY}"
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
-    echo "  GPU ${GPU} | ${WAVE} J${LEVEL} ${HF_MODE}"
+    echo "  GPU ${GPU} | ${DS_SHORT} | beta=${BETA}"
     echo "=============================================="
 
     # ── Train ──
@@ -61,21 +52,21 @@ run_experiment() {
         --frames_out ${FRAMES_OUT} \
         --weight_scale_low ${WS_LOW} \
         --alpha_low ${A_LOW} \
-        --beta_low ${B_LOW} \
+        --beta_low ${BETA} \
         --freq_multiplier_low ${F_LOW} \
         --weight_scale_high ${WS_HIGH} \
         --alpha_high ${A_HIGH} \
-        --beta_high ${B_HIGH} \
+        --beta_high ${BETA} \
         --freq_multiplier_high ${F_HIGH} \
         --wave ${WAVE} \
         --wavelet_level ${LEVEL} \
         --hf_mode ${HF_MODE} \
-        --afno_blocks ${AFNO_BLOCKS} \
-        --afno2D_hidden_size_factor ${AFNO_FACTOR} \
+        --afno_blocks ${BLOCKS} \
+        --afno2D_hidden_size_factor ${FACTOR} \
         --afno_sparsity_threshold ${SPARSITY} \
-        --conv_kernel ${K_SPATIAL} \
+        --conv_kernel ${K} \
         --num_workers 8 \
-        --wandb_state 'offline' \
+        --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
@@ -93,46 +84,45 @@ run_experiment() {
         --frames_out ${FRAMES_OUT} \
         --weight_scale_low ${WS_LOW} \
         --alpha_low ${A_LOW} \
-        --beta_low ${B_LOW} \
+        --beta_low ${BETA} \
         --freq_multiplier_low ${F_LOW} \
         --weight_scale_high ${WS_HIGH} \
         --alpha_high ${A_HIGH} \
-        --beta_high ${B_HIGH} \
+        --beta_high ${BETA} \
         --freq_multiplier_high ${F_HIGH} \
         --wave ${WAVE} \
         --wavelet_level ${LEVEL} \
         --hf_mode ${HF_MODE} \
-        --afno_blocks ${AFNO_BLOCKS} \
-        --afno2D_hidden_size_factor ${AFNO_FACTOR} \
+        --afno_blocks ${BLOCKS} \
+        --afno2D_hidden_size_factor ${FACTOR} \
         --afno_sparsity_threshold ${SPARSITY} \
-        --conv_kernel ${K_SPATIAL} \
+        --conv_kernel ${K} \
         --num_workers 8 \
         --wandb_state 'offline'
 
-    echo "  Done: ${WAVE} J${LEVEL} ${HF_MODE}"
+    echo "  Done: ${DS_SHORT} | beta=${BETA}"
     echo ""
 }
 
 # ─────────────────────────────────────────────────────────────
-# GPU 0 → db4: J2 shared, J2 separate, J3 shared, J3 separate
-# GPU 1 → db6: J2 shared, J2 separate, J3 shared, J3 separate
+# GPU 0 → beta=1.0, beta=10  (sequential)
+# GPU 1 → beta=100
 # ─────────────────────────────────────────────────────────────
 
 run_gpu0() {
-    run_experiment 0 "${CIKM}" db6 2 separate
-    # run_experiment 0 "${CIKM}" db4 3 separate
+    run_experiment 0 1.0
+    run_experiment 0 10
 }
 
 run_gpu1() {
-    run_experiment 1 "${CIKM}" db4 2 separate
-    # run_experiment 1 "${CIKM}" db6 3 separate
+    run_experiment 1 100
 }
 
 echo "=============================================="
-echo "  Wavelet Verification — 8 runs on CIKM"
-echo "  GPU 0 → db4 (J2 sep, J3 sep)"
-echo "  GPU 1 → db6 (J2 sep J3 sep)"
-echo "  AFNO fixed: blocks=${AFNO_BLOCKS} factor=${AFNO_FACTOR}"
+echo "  Beta Tuning — CIKM"
+echo "  GPU 0 → beta=1.0, beta=10"
+echo "  GPU 1 → beta=100"
+echo "  Fixed: alpha=1.0, freq_multiplier=1.0"
 echo "=============================================="
 echo ""
 
@@ -143,14 +133,12 @@ run_gpu1 &
 PID_GPU1=$!
 
 wait ${PID_GPU0}
-echo "GPU 0 complete: db4 done"
+echo "GPU 0 complete!"
 
 wait ${PID_GPU1}
-echo "GPU 1 complete: db6 done"
+echo "GPU 1 complete!"
 
 echo ""
 echo "=============================================="
-echo "  Wavelet verification complete. Check wandb."
-echo "  Pick best wave+level+hf_mode, then run:"
-echo "  run_afno_diversity_tuning.sh"
+echo "  CIKM beta tuning complete. Check wandb."
 echo "=============================================="

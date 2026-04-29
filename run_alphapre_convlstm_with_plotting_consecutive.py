@@ -583,6 +583,24 @@ class Runner(object):
                 }
             model = EarthFormer_xy(**kwargs)
 
+        elif self.args.backbone == 'mau':
+            from models.mau import MAU_SEVIR_Model
+            kwargs = {
+                "input_seq_len": self.args.frames_in,
+                "future_seq_len": self.args.frames_out, 
+                "in_channels": self.args.img_channel, 
+                "img_size": self.args.img_size,
+            }
+            model = MAU_SEVIR_Model(**kwargs)
+
+        elif self.args.backbone == "traj_gru":
+            from models.trajGRU import TrajGRU_model
+            kwargs = {
+                "future_seq_len": self.args.frames_out,
+                "batch_size": self.args.batch_size
+            }
+            model = TrajGRU_model(**kwargs)
+            
         else:
             raise NotImplementedError
             

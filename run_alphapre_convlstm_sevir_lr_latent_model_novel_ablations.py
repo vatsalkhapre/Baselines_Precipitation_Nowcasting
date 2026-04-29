@@ -86,7 +86,7 @@ ABLATION_PREFIXES = [
 ]
 
 
-def get_model_config(backbone: str) -> dict:
+def get_model_config(backbone: str, work: str) -> dict:
     """
     Get model config from registry, with automatic handling of ablation models.
     
@@ -150,8 +150,12 @@ def get_model_config(backbone: str) -> dict:
 
        
             # Build module path
-            module_path = f"models.Ablations_final.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
-      
+            if work == "ablations":
+                module_path = f"models.Ablations_final.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+
+            elif work == "incremental":
+                module_path = f"models.Incremental_model.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+
             return {
                 "module": module_path,
                 "kwargs_type": kwargs_type,
@@ -192,12 +196,14 @@ def create_parser():
     # ---------------------- Hidden dim --------------------
     parser.add_argument("--hidden_dim",    type=int  , default=64,              help="Hidden dimension inside the model")
 
-
     #----------------------- MLP Parameters---------------------
     parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
 
     #----------------------- GFN ---------------------
     parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
+
+    #-----------------------Ablation Motive-------------------
+    parser.add_argument("--work"       , type=str    ,  default='incremental',   help="incremental, ablation")
     
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
@@ -602,7 +608,7 @@ class Runner(object):
         backbone = self.args.backbone
         
         # Get config (handles dot→underscore conversion for ablation models)
-        config = get_model_config(backbone)
+        config = get_model_config(backbone, self.args.work)
         
         if config is None:
             # List available options

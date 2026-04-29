@@ -24,15 +24,11 @@ B_LOW=100;      B_HIGH=100
 F_LOW=0.1;      F_HIGH=0.1
 
 # ── Ablation backbone names ───────────────────────────────────
-ABL1="amplinet_latent_falfcl_only_wavelet_final"
-ABL2A="amplinet_latent_falfcl_only_Gabor_ablation_1_final"
-ABL2B="amplinet_latent_falfcl_only_Gabor_ablation_2_final"
-ABL3A="amplinet_latent_falfcl_only_conv_spectral_afno_final"
-ABL3B="amplinet_latent_falfcl_only_conv_spectral_grouped_cnn_final"
-ABL3C="amplinet_latent_falfcl_only_conv_spectral_cm_final"
-ABL4="amplinet_latent_falfcl_only_spatiotemporal_final"
-ABL5="amplinet_latent_falfcl_only_wavelet_spatiotemporal_final"
-ABL6="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnoconstgabor_final"
+ABL1="amplinet_latent_falfcl_only_incr1_mlp_only"
+ABL2="amplinet_latent_falfcl_only_incr2_mlp_gabor"
+ABL3="amplinet_latent_falfcl_only_incr3_mlp_gabor_wavelet"
+ABL4="amplinet_latent_falfcl_only_incr3p5_mlp_gabor_wavelet_afno_only"
+ABL5="amplinet_latent_falfcl_only_incr4_mlp_gabor_wavelet_conv"
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local BACKBONE=$1
@@ -118,15 +114,11 @@ echo "  7 ablations total"
 echo "=============================================="
 echo ""
 
-# run_experiment ${ABL1}  "abl1_no_wavelet"
-# run_experiment ${ABL2A} "abl2a_no_gabor_filter"
-# run_experiment ${ABL2B} "abl2b_gabor_replaced_mlp"
-# run_experiment ${ABL3A} "abl3a_no_afno"
-# run_experiment ${ABL3B} "abl3b_no_dwconv"
-# run_experiment ${ABL3C} "abl3c_no_pwconv"
-# run_experiment ${ABL4}  "abl4_no_conv_spectral"
-# run_experiment ${ABL5}  "abl4_no_wavelet_conv_spectral"
-run_experiment ${ABL6}  "Original_model_with_const_gabor_params"
+run_experiment ${ABL1}  "inc 1"
+run_experiment ${ABL2} "inc 2"
+run_experiment ${ABL3} "inc 3"
+run_experiment ${ABL4}  "inc 4"
+run_experiment ${ABL5}  "inc 5"
 echo "=============================================="
 echo "  CIKM ablations complete. Check wandb."
 echo "=============================================="

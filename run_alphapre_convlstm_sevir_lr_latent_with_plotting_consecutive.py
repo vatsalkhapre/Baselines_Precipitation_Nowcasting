@@ -110,6 +110,8 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
+            if version_underscore.split("_")[-1] == "final":
+                kwargs_type = "gabor_convparallel_wavelet_final"
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
             elif "supplimentrygabor" in version_underscore.split("_")[-1]:
@@ -121,7 +123,7 @@ def get_model_config(backbone: str) -> dict:
                 kwargs_type = "standared"
 
             # Build module path
-            module_path = f"models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+            module_path = f"models.model_novelty.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
             
             return {
                 "module": module_path,
@@ -324,6 +326,9 @@ def resolve_plot_dir(ckpt_milestone_path):
     plot_dir     = os.path.join(exp_dir, "plots")
     return plot_dir
 
+def str2bool(v):
+    return v.lower() in ('true', '1', 'yes')
+
 #===================================================================================================
 #                                           Args                                       #
 #===================================================================================================
@@ -345,12 +350,47 @@ def create_parser():
     # --------------- Plotting Arguments ---------------
     parser.add_argument("--plot",         action="store_true",           help="Enable plotting during testing")
     parser.add_argument("--plot_stride",  type=int,   default=4,        help="Plot every N-th test batch (offset/stride)")
+    # ---------------------- Spectral --------------------
+    parser.add_argument("--modes"           , type=int  , default=8,                help="modes for spectral")
+    parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
+    parser.add_argument("--afno2D_hidden_size_factor", type=int, default=1,         help="hidden size factor in afno2d")
+    parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
+    
+    # ---------------------- ConvParallel Args --------------------
+    parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
+    parser.add_argument("--norm_before",    type=str2bool  , default=False,              help="want to use the norm before in convparallel")
+    parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
+    parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+
+    #----------------------- GFN ---------------------
+    parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
+    
+    #----------------------- Model Specific---------------------
+    parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
+    parser.add_argument("--st_conv_groups"      , type=int    ,  default=1,         help="No. of groups in spatiotemporal conv")
 
     # --------------- Gabor Parameters ---------------
+    parser.add_argument("--weight_scale_low"    , type=float, default=0.00,            help="weight_scale for gabor for low freq")
+    parser.add_argument("--alpha_low"           , type=float, default=0.00,            help="alpha for gabor for low freq")
+    parser.add_argument("--beta_low"            , type=float, default=0.00,            help="beta for gabor for low freq")
+    parser.add_argument("--freq_multiplier_low" , type=float, default=0.00,            help="freq_multiplier for gabor for low freq")
+
+    parser.add_argument("--weight_scale_high"    , type=float, default=0.00,            help="weight_scale for gabor for high freq")
+    parser.add_argument("--alpha_high"           , type=float, default=0.00,            help="alpha for gabor for high freq")
+    parser.add_argument("--beta_high"            , type=float, default=0.00,            help="beta for gabor for high freq")
+    parser.add_argument("--freq_multiplier_high" , type=float, default=0.00,            help="freq_multiplier for gabor for high freq")
+
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    #------------------- Wavelet ----------------------
+    parser.add_argument("--wave",      type=str,    default='haar',           help="Type of wavelet transform")
+    parser.add_argument("--wavelet_level",     type=int,   default=1,         help="Wavelet level used for wavelet transform")
+    parser.add_argument("--hf_mode",        type=str,    default= 'separate',     help= "High frequency  mode" )
+
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
     parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
@@ -816,6 +856,32 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
 
+        elif kwargs_type == "gabor_convparallel_wavelet_final":
+            kwargs = {
+                "weight_scale_low": self.args.weight_scale_low,
+                "alpha_low": self.args.alpha_low,
+                "beta_low": self.args.beta_low,
+                "freq_multiplier_low": self.args.freq_multiplier_low,
+                "weight_scale_high": self.args.weight_scale_high,
+                "alpha_high": self.args.alpha_high,
+                "beta_high": self.args.beta_high,
+                "freq_multiplier_high": self.args.freq_multiplier_high,
+                "wave": self.args.wave, 
+                "wavelet_level": self.args.wavelet_level, 
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "hf_mode" : self.args.hf_mode,
+                "dim": self.args.hidden_dim, 
+                "afno_blocks": self.args.afno_blocks, 
+                "sparsity_threshold": self.args.afno_sparsity_threshold, 
+                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor,
+                "k_spatial": self.args.conv_kernel,
+            }
+
         elif kwargs_type == "gabor_supplimentry_std":
             kwargs = {
                 "weight_scale": self.args.weight_scale,
@@ -879,7 +945,7 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
         
-        
+       
         # Create model
         model = get_model(**kwargs)
         
@@ -893,7 +959,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
-
+            self.model_params = total
 
     def _build_optimizer(self):
         # =================================

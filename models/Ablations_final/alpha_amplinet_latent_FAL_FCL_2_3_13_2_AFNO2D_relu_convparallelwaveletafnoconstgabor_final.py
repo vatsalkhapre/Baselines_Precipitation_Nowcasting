@@ -168,13 +168,14 @@ class GaborLayer(nn.Module):
     def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier=1.5):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
-        self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
+        self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1, requires_grad=False)
         self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
+            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,)),
+            requires_grad=False
         )
         self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
         self.linear.bias.data.uniform_(-np.pi, np.pi)
-        self.freq = nn.Parameter(torch.rand(out_features))
+        self.freq = nn.Parameter(torch.rand(out_features), requires_grad=False)
         self.freq_multiplier = freq_multiplier
 
     def forward(self, x):
@@ -271,9 +272,10 @@ class WaveletGaborBlock(nn.Module):
         self.dim = dim
         self.level = level
         self.hf_mode = hf_mode
+
         assert level in [1, 2, 3, 4], "Levels 1-4 supported"
         assert hf_mode in ['shared', 'separate']
-        print("hf_mode", hf_mode)
+
         # ---- Wavelet transform ----
         self.wave = wave
         self.dwt = DWTForward(J=level, wave=wave, mode='zero')

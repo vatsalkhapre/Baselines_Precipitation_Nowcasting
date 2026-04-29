@@ -13,7 +13,7 @@ GPU=0
 DATASET="cikm_latent_32"
 SEQ_LEN=15; FRAMES_IN=5; FRAMES_OUT=10
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="ablations_cikm"
+EXP_DIR="Incremental_cikm"
 EPOCHS=50
 
 WAVE="db4";     LEVEL=2;    HF_MODE="separate"
@@ -24,11 +24,11 @@ B_LOW=100;      B_HIGH=100
 F_LOW=0.1;      F_HIGH=0.1
 
 # ── Ablation backbone names ───────────────────────────────────
-ABL1="amplinet_latent_falfcl_only_incr1_mlp_only"
-ABL2="amplinet_latent_falfcl_only_incr2_mlp_gabor"
-ABL3="amplinet_latent_falfcl_only_incr3_mlp_gabor_wavelet"
-ABL4="amplinet_latent_falfcl_only_incr3p5_mlp_gabor_wavelet_afno_only"
-ABL5="amplinet_latent_falfcl_only_incr4_mlp_gabor_wavelet_conv"
+ABL1="amplinet_latent_falfcl_only_incr1_mlp_only_final"
+ABL2="amplinet_latent_falfcl_only_incr2_mlp_gabor_final"
+ABL3="amplinet_latent_falfcl_only_incr3_mlp_gabor_wavelet_final"
+ABL4="amplinet_latent_falfcl_only_incr3p5_mlp_gabor_wavelet_afno_only_final"
+ABL5="amplinet_latent_falfcl_only_incr4_mlp_gabor_wavelet_conv_final"
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local BACKBONE=$1

@@ -150,7 +150,7 @@ def get_model_config(backbone: str, work: str) -> dict:
 
        
             # Build module path
-            if work == "ablations":
+            if work == "ablation":
                 module_path = f"models.Ablations_final.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
 
             elif work == "incremental":
@@ -203,7 +203,7 @@ def create_parser():
     parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
 
     #-----------------------Ablation Motive-------------------
-    parser.add_argument("--work"       , type=str    ,  default='incremental',   help="incremental, ablation")
+    parser.add_argument("--work"       , type=str    ,  default='ablation',   help="incremental, ablation")
     
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")

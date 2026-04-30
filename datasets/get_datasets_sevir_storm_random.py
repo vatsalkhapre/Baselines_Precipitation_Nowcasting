@@ -117,7 +117,15 @@ DATAPATH = {
     'vil_mosdac': '/home/vatsal/NWM/Dataset/VIL_scaled_lr_240_decluttered/full_dataset/'
 }
 
-def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stride, in_channels, out_channels, method=None, preprocess_type = None, **kwargs):
+def storm_events_filter(catalog):
+    """Filter to keep only storm events (IDs starting with 'S')"""
+    return [s[0] == 'S' for s in catalog.id]
+
+def random_events_filter(catalog):
+    """Filter to keep only random events (IDs starting with 'R')"""
+    return [s[0] == 'R' for s in catalog.id]
+
+def get_dataset(data_name, sevir_type, img_size, seq_len,file_rain_seq_add, batch_size, stride, in_channels, out_channels, method=None, preprocess_type = None, **kwargs):
     dataset_name = data_name.lower()
     train = val = test = None
 
@@ -135,21 +143,6 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         val = CIKM(DATAPATH[data_name], 'valid', img_size)
         test = CIKM(DATAPATH[data_name], 'test', img_size)
 
-    # elif data_name == 'vil':
-        
-    #     from .dataset_VIL import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
-    #     data_dir = DATAPATH[data_name]
-    #     train, val, test  = rainy_dataset(data_dir,in_channels ,out_channels, img_size = img_size, method = method, preprocessing = preprocess_type)
-
-    elif dataset_name == 'mosdac':
-        from .dataset_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
-        data_dir = DATAPATH[data_name]
-        train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add,img_size = img_size,  preprocessing = preprocess_type)
-    
-    elif dataset_name == 'vil_mosdac':
-            from .dataset_vil_mosdac import rainy_dataset, gray2color, PIXEL_SCALE, THRESHOLDS
-            data_dir = DATAPATH[data_name]
-            train, val, test  = rainy_dataset(data_dir, in_channels ,out_channels, file_rain_seq_add = file_rain_seq_add, img_size = img_size,  preprocessing = preprocess_type)
 
     elif dataset_name == 'shanghai':
         from .dataset_shanghai import Shanghai, gray2color, THRESHOLDS, PIXEL_SCALE
@@ -186,6 +179,12 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         batch_size = batch_size
         stride = stride
         
+        if sevir_type == "storm": 
+            catalog_f = storm_events_filter
+        elif sevir_type == "random": 
+            catalog_f = random_events_filter 
+        else: 
+            catalog_f = 'default'
         train = SEVIRTorchDataset(
             dataset_dir=DATAPATH[data_name],
             split_mode='uneven',
@@ -195,6 +194,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      # ?
             sample_mode='sequent',
             batch_size=batch_size,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=None, # datetime.datetime(*(2018, 6, 1)), 
@@ -214,6 +214,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      # ?
             sample_mode='sequent',
             batch_size=batch_size * 2,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=datetime.datetime(*train_valid_split),
@@ -233,6 +234,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      # ?
             sample_mode='sequent',
             batch_size=batch_size * 2,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=datetime.datetime(*valid_test_split),
@@ -252,7 +254,14 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
         test_end_date = (2019, 12, 31)
         batch_size = batch_size
         stride = stride
-        
+
+        if sevir_type == "storm": 
+            catalog_f = storm_events_filter
+        elif sevir_type == "random": 
+            catalog_f = random_events_filter 
+        else: 
+            catalog_f = 'default'
+
         train = SEVIRTorchDataset(
             dataset_dir=DATAPATH[data_name],
             split_mode='uneven',
@@ -262,6 +271,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      
             sample_mode='sequent',
             batch_size=batch_size,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=None, # datetime.datetime(*(2018, 6, 1)), 
@@ -281,6 +291,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      # ?
             sample_mode='sequent',
             batch_size=batch_size * 2,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=datetime.datetime(*train_valid_split),
@@ -300,6 +311,7 @@ def get_dataset(data_name, img_size, seq_len,file_rain_seq_add, batch_size, stri
             stride=stride,      # ?
             sample_mode='sequent',
             batch_size=batch_size * 2,
+            catalog_filter=catalog_f,
             num_shard=1,
             rank=0,
             start_date=datetime.datetime(*valid_test_split),

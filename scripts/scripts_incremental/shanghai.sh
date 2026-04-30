@@ -1,27 +1,27 @@
 #!/bin/bash
 # ============================================================
-# Ablation Study — CIKM
+# Ablation Study — SHANGHAI
 # All 7 ablations run sequentially on GPU 0
-# Best CIKM params fixed throughout
+# Best SHANGHAI params fixed throughout
 # ============================================================
 
 RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 SEED=0
 GPU=0
 
-# ── Best CIKM params ──────────────────────────────────────────
-DATASET="cikm_latent_32"
-SEQ_LEN=15; FRAMES_IN=5; FRAMES_OUT=10
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="Incremental_cikm"
+# ── Best SHANGHAI params ──────────────────────────────────────────
+DATASET="shanghai_lr_latent_32"
+SEQ_LEN=25; FRAMES_IN=5; FRAMES_OUT=20
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth"
+EXP_DIR="incremental_shanghai"
 EPOCHS=50
 
-WAVE="db4";     LEVEL=2;    HF_MODE="separate"
-BLOCKS=1;       FACTOR=1;   K=7;    SPARSITY=0.01
-WS_LOW=0.1;     WS_HIGH=0.25
+WAVE="db6";     LEVEL=3;    HF_MODE="separate"
+BLOCKS=4;       FACTOR=3;   K=3;    SPARSITY=0.01
+WS_LOW=0.1;     WS_HIGH=1.0
 A_LOW=1.0;      A_HIGH=1.0
-B_LOW=100;      B_HIGH=100
-F_LOW=0.1;      F_HIGH=0.1
+B_LOW=0.17;     B_HIGH=0.17
+F_LOW=4.0;      F_HIGH=4.0
 
 # ── Ablation backbone names ───────────────────────────────────
 ABL1="amplinet_latent_falfcl_only_incr1_mlp_only_final"
@@ -31,14 +31,15 @@ ABL4="amplinet_latent_falfcl_only_incr3p5_mlp_gabor_wavelet_afno_only_final"
 ABL5="amplinet_latent_falfcl_only_incr4_mlp_gabor_wavelet_conv_final"
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
-    local BACKBONE=$1
-    local NOTE=$2
+    local GPU=$1
+    local BACKBONE=$2
+    local NOTE=$3
 
-    local TAG="${NOTE}_${WAVE}_J${LEVEL}_${HF_MODE}"
+    local TAG="${NOTE}_${WAVE}_J${LEVEL}_${HF_MODE}_${B_LOW}_${F_LOW}"
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
-    echo "  GPU ${GPU} | CIKM | ${NOTE}"
+    echo "  GPU ${GPU} | SHANGHAI | ${NOTE}"
     echo "=============================================="
 
     # ── Train ──
@@ -104,21 +105,34 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'offline'
 
-    echo "  Done: CIKM | ${NOTE}"
+    echo "  Done: SHANGHAI | ${NOTE}"
     echo ""
 }
 
 echo "=============================================="
-echo "  Ablation Study — CIKM (GPU 0, sequential)"
+echo "  Ablation Study — SHANGHAI (GPU 0, sequential)"
 echo "  7 ablations total"
 echo "=============================================="
 echo ""
 
-run_experiment ${ABL1}  "inc 1"
-run_experiment ${ABL2} "inc 2"
-run_experiment ${ABL3} "inc 3"
-run_experiment ${ABL4}  "inc 4"
-run_experiment ${ABL5}  "inc 5"
+
+run_gpu0() {
+    run_experiment 0 ${ABL1}  "inc 1"
+    run_experiment 0 ${ABL2} "inc 2"
+    run_experiment 0 ${ABL3} "inc 3"
+}
+
+run_gpu1() {
+    run_experiment 1 ${ABL4}  "inc 4"
+    run_experiment 1 ${ABL5}  "inc 5"
+}
+
+run_gpu0 &
+PID_GPU0=$!
+
+run_gpu1 &
+PID_GPU1=$!
+
 echo "=============================================="
-echo "  CIKM ablations complete. Check wandb."
+echo "  SHANGHAI ablations complete. Check wandb."
 echo "=============================================="

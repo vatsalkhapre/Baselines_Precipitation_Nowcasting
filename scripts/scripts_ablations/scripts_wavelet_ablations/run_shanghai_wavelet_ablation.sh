@@ -75,7 +75,7 @@ run_experiment() {
 echo "=============================================="
 echo "  Shanghai Wavelet Ablation — 5 runs (GPU 1)"
 echo "  Best: db6 L3 (skipped)"
-echo "  db6 x [L1,L2,L4] | L3 x [db4,haar]"
+echo "  db6 x [L1c,L2,L4] | L3 x [db4,haar]"
 echo "=============================================="
 echo ""
 

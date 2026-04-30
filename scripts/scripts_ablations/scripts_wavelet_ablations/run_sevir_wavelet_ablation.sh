@@ -49,7 +49,7 @@ run_experiment() {
         --afno2D_hidden_size_factor ${FACTOR} \
         --afno_sparsity_threshold ${SPARSITY} \
         --conv_kernel ${K} --num_workers 8 \
-        --wandb_state 'online' --wandb_project_name 'Nowcasting_ablations' \
+        --wandb_state 'offline' --wandb_project_name 'Nowcasting_ablations' \
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
     # CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \

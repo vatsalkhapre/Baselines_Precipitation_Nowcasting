@@ -47,48 +47,16 @@ run_experiment() {
     echo "=============================================="
 
     # ── Train ──
-    CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
-        --backbone ${BACKBONE} \
-        --dataset ${DATASET} \
-        --exp_dir ${EXP_DIR} \
-        --exp_note "${TAG}" \
-        --epochs ${EPOCHS} \
-        --ae_ckpt_path "${AE_CKPT}" \
-        --valid \
-        --seq_len ${SEQ_LEN} \
-        --seed ${SEED} \
-        --frames_in ${FRAMES_IN} \
-        --frames_out ${FRAMES_OUT} \
-        --weight_scale_low ${WS_LOW} \
-        --alpha_low ${A_LOW} \
-        --beta_low ${B_LOW} \
-        --freq_multiplier_low ${F_LOW} \
-        --weight_scale_high ${WS_HIGH} \
-        --alpha_high ${A_HIGH} \
-        --beta_high ${B_HIGH} \
-        --freq_multiplier_high ${F_HIGH} \
-        --wave ${WAVE} \
-        --wavelet_level ${LEVEL} \
-        --hf_mode ${HF_MODE} \
-        --afno_blocks ${BLOCKS} \
-        --afno2D_hidden_size_factor ${FACTOR} \
-        --afno_sparsity_threshold ${SPARSITY} \
-        --conv_kernel ${K} \
-        --num_workers 8 \
-        --wandb_state 'online' \
-        --wandb_project_name 'Nowcasting_ablations' \
-        --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
-
-    # ── Eval ──
     # CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
     #     --backbone ${BACKBONE} \
     #     --dataset ${DATASET} \
     #     --exp_dir ${EXP_DIR} \
     #     --exp_note "${TAG}" \
+    #     --epochs ${EPOCHS} \
     #     --ae_ckpt_path "${AE_CKPT}" \
-    #     --eval \
-    #     --seed ${SEED} \
+    #     --valid \
     #     --seq_len ${SEQ_LEN} \
+    #     --seed ${SEED} \
     #     --frames_in ${FRAMES_IN} \
     #     --frames_out ${FRAMES_OUT} \
     #     --weight_scale_low ${WS_LOW} \
@@ -107,7 +75,39 @@ run_experiment() {
     #     --afno_sparsity_threshold ${SPARSITY} \
     #     --conv_kernel ${K} \
     #     --num_workers 8 \
-    #     --wandb_state 'offline'
+    #     --wandb_state 'online' \
+    #     --wandb_project_name 'Nowcasting_ablations' \
+    #     --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
+
+    # ── Eval ──
+    CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
+        --backbone ${BACKBONE} \
+        --dataset ${DATASET} \
+        --exp_dir ${EXP_DIR} \
+        --exp_note "${TAG}" \
+        --ae_ckpt_path "${AE_CKPT}" \
+        --eval \
+        --seed ${SEED} \
+        --seq_len ${SEQ_LEN} \
+        --frames_in ${FRAMES_IN} \
+        --frames_out ${FRAMES_OUT} \
+        --weight_scale_low ${WS_LOW} \
+        --alpha_low ${A_LOW} \
+        --beta_low ${B_LOW} \
+        --freq_multiplier_low ${F_LOW} \
+        --weight_scale_high ${WS_HIGH} \
+        --alpha_high ${A_HIGH} \
+        --beta_high ${B_HIGH} \
+        --freq_multiplier_high ${F_HIGH} \
+        --wave ${WAVE} \
+        --wavelet_level ${LEVEL} \
+        --hf_mode ${HF_MODE} \
+        --afno_blocks ${BLOCKS} \
+        --afno2D_hidden_size_factor ${FACTOR} \
+        --afno_sparsity_threshold ${SPARSITY} \
+        --conv_kernel ${K} \
+        --num_workers 8 \
+        --wandb_state 'offline'
 
     echo "  Done: SEVIR | ${NOTE}"
     echo ""

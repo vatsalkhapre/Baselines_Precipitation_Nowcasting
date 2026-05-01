@@ -39,49 +39,16 @@ run_experiment() {
     echo "=============================================="
 
     # ── Train ──
-    CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
-        --backbone ${BACKBONE} \
-        --dataset ${DATASET} \
-        --exp_dir ${EXP_DIR} \
-        --exp_note "${TAG}" \
-        --epochs ${EPOCHS} \
-        --ae_ckpt_path "${AE_CKPT}" \
-        --valid \
-        --seq_len ${SEQ_LEN} \
-        --seed ${SEED} \
-        --frames_in ${FRAMES_IN} \
-        --frames_out ${FRAMES_OUT} \
-        --weight_scale_low ${WS_LOW} \
-        --alpha_low ${A_LOW} \
-        --beta_low ${B_LOW} \
-        --freq_multiplier_low ${F_LOW} \
-        --weight_scale_high ${WS_HIGH} \
-        --alpha_high ${A_HIGH} \
-        --beta_high ${B_HIGH} \
-        --freq_multiplier_high ${F_HIGH} \
-        --wave ${WAVE} \
-        --wavelet_level ${LEVEL} \
-        --hf_mode ${HF_MODE} \
-        --afno_blocks ${BLOCKS} \
-        --sevir_dataset_type ${SEVIR_TYPE} \
-        --afno2D_hidden_size_factor ${FACTOR} \
-        --afno_sparsity_threshold ${SPARSITY} \
-        --conv_kernel ${K} \
-        --num_workers 8 \
-        --wandb_state 'online' \
-        --wandb_project_name 'Nowcasting_ablations' \
-        --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
-
-    # ── Eval ──
     # CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
     #     --backbone ${BACKBONE} \
     #     --dataset ${DATASET} \
     #     --exp_dir ${EXP_DIR} \
     #     --exp_note "${TAG}" \
+    #     --epochs ${EPOCHS} \
     #     --ae_ckpt_path "${AE_CKPT}" \
-    #     --eval \
-    #     --seed ${SEED} \
+    #     --valid \
     #     --seq_len ${SEQ_LEN} \
+    #     --seed ${SEED} \
     #     --frames_in ${FRAMES_IN} \
     #     --frames_out ${FRAMES_OUT} \
     #     --weight_scale_low ${WS_LOW} \
@@ -101,7 +68,40 @@ run_experiment() {
     #     --afno_sparsity_threshold ${SPARSITY} \
     #     --conv_kernel ${K} \
     #     --num_workers 8 \
-    #     --wandb_state 'offline'
+    #     --wandb_state 'online' \
+    #     --wandb_project_name 'Nowcasting_ablations' \
+    #     --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
+
+    # ── Eval ──
+    CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
+        --backbone ${BACKBONE} \
+        --dataset ${DATASET} \
+        --exp_dir ${EXP_DIR} \
+        --exp_note "${TAG}" \
+        --ae_ckpt_path "${AE_CKPT}" \
+        --eval \
+        --seed ${SEED} \
+        --seq_len ${SEQ_LEN} \
+        --frames_in ${FRAMES_IN} \
+        --frames_out ${FRAMES_OUT} \
+        --weight_scale_low ${WS_LOW} \
+        --alpha_low ${A_LOW} \
+        --beta_low ${B_LOW} \
+        --freq_multiplier_low ${F_LOW} \
+        --weight_scale_high ${WS_HIGH} \
+        --alpha_high ${A_HIGH} \
+        --beta_high ${B_HIGH} \
+        --freq_multiplier_high ${F_HIGH} \
+        --wave ${WAVE} \
+        --wavelet_level ${LEVEL} \
+        --hf_mode ${HF_MODE} \
+        --afno_blocks ${BLOCKS} \
+        --sevir_dataset_type ${SEVIR_TYPE} \
+        --afno2D_hidden_size_factor ${FACTOR} \
+        --afno_sparsity_threshold ${SPARSITY} \
+        --conv_kernel ${K} \
+        --num_workers 8 \
+        --wandb_state 'offline'
 
     echo "  Done: SEVIR | ${CFG_NAME}"
     echo ""
@@ -127,7 +127,7 @@ run_experiment 0 "Storm_configC" "Sevir_Storm" \
     'storm' &
 PID_STORM_C=$!
 
-run_experiment 0 "Storm_configA" "Sevir_Storm" \
+run_experiment 1 "Storm_configA" "Sevir_Storm" \
     db6 2 separate \
     4 4 3 0.01 \
     0.1 1.0 \
@@ -137,28 +137,30 @@ run_experiment 0 "Storm_configA" "Sevir_Storm" \
     'storm' &
 PID_STORM_A=$!
 
+
 # ─────────────────────────────────────────────────────────────
 # GPU 1 Runs
 # ─────────────────────────────────────────────────────────────
-run_experiment 1 "Random_configC" "Sevir_Random" \
-    db6 2 separate \
-    4 4 3 0.01 \
-    0.1 1.0 \
-    1.0 1.0 \
-    0.17 0.17 \
-    4.0 4.0 \
-    'random' &
-PID_RANDOM_C=$!
 
-run_experiment 1 "Random_configA" "Sevir_Random" \
-    db6 2 separate \
-    4 4 3 0.01 \
-    0.1 1.0 \
-    1.0 1.0 \
-    100 100 \
-    0.1 0.1 \
-    'random' &
-PID_RANDOM_A=$!
+# run_experiment 1 "Random_configC" "Sevir_Random" \
+#     db6 2 separate \
+#     4 4 3 0.01 \
+#     0.1 1.0 \
+#     1.0 1.0 \
+#     0.17 0.17 \
+#     4.0 4.0 \
+#     'random' &
+# PID_RANDOM_C=$!
+
+# run_experiment 1 "Random_configA" "Sevir_Random" \
+#     db6 2 separate \
+#     4 4 3 0.01 \
+#     0.1 1.0 \
+#     1.0 1.0 \
+#     100 100 \
+#     0.1 0.1 \
+#     'random' &
+# PID_RANDOM_A=$!
 
 # ─────────────────────────────────────────────────────────────
 # Wait for all processes to finish
@@ -167,9 +169,9 @@ wait ${PID_STORM_C}
 wait ${PID_STORM_A}
 echo "GPU 0 runs complete!"
 
-wait ${PID_RANDOM_C}
-wait ${PID_RANDOM_A}
-echo "GPU 1 runs complete!"
+# wait ${PID_RANDOM_C}
+# wait ${PID_RANDOM_A}
+# echo "GPU 1 runs complete!"
 
 echo ""
 echo "=============================================="

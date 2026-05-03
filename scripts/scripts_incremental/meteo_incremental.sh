@@ -15,6 +15,7 @@ RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 SEED=0
 GPU=0
 
+<<<<<<< HEAD
 <<<<<<<< HEAD:scripts/scripts_incremental/shanghai.sh
 # ── Best SHANGHAI params ──────────────────────────────────────────
 DATASET="shanghai_lr_latent_32"
@@ -37,12 +38,13 @@ SEQ_LEN=15; FRAMES_IN=5; FRAMES_OUT=10
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
 EXP_DIR="Incremental_cikm"
 =======
+=======
+>>>>>>> e5e9701 (ablations)
 # ── Best Meteonet params ──────────────────────────────────────────
 DATASET="meteo_lr_latent_32"
 SEQ_LEN=25; FRAMES_IN=5; FRAMES_OUT=20
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
 EXP_DIR="ablations_meteonet"
->>>>>>> 982623b (Ablations):scripts/scripts_incremental/meteo_incremental.sh
 EPOCHS=50
 
 

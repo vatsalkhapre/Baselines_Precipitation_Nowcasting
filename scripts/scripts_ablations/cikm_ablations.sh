@@ -33,6 +33,7 @@ ABL3C="amplinet_latent_falfcl_only_conv_spectral_cm_final"
 ABL4="amplinet_latent_falfcl_only_spatiotemporal_final"
 ABL5="amplinet_latent_falfcl_only_wavelet_spatiotemporal_final"
 ABL6="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnoconstgabor_final"
+ABL7="amplinet_latent_falfcl_only_IAMAF_final"
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local BACKBONE=$1
@@ -126,7 +127,8 @@ echo ""
 # run_experiment ${ABL3C} "abl3c_no_pwconv"
 # run_experiment ${ABL4}  "abl4_no_conv_spectral"
 # run_experiment ${ABL5}  "abl4_no_wavelet_conv_spectral"
-run_experiment ${ABL6}  "Original_model_with_const_gabor_params"
+# run_experiment ${ABL6}  "Original_model_with_const_gabor_params"
+run_experiment ${ABL7}  "abl7_no_IAMAF_module"
 echo "=============================================="
 echo "  CIKM ablations complete. Check wandb."
 echo "=============================================="

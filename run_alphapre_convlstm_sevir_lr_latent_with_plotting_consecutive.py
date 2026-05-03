@@ -123,7 +123,7 @@ def get_model_config(backbone: str) -> dict:
                 kwargs_type = "standared"
 
             # Build module path
-            module_path = f"models.model_novelty.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+            module_path = f"models.Incremental_model.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
             
             return {
                 "module": module_path,
@@ -227,14 +227,14 @@ def resolve_plot_dir(ckpt_milestone_path):
     Logic: parent of ckpt file -> 'checkpoints' dir -> parent is <exp_name>,
            one more parent -> <exp_dir>, create plots/ there.
     """
-    if os.path.isfile(ckpt_milestone_path):
-        ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
-    else:
-        ckpt_dir = ckpt_milestone_path
+    # if os.path.isfile(ckpt_milestone_path):
+    #     ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    # else:
+    ckpt_dir = ckpt_milestone_path
 
-    exp_name_dir = os.path.dirname(ckpt_dir)                   # .../<exp_name>/
+    # exp_name_dir = os.path.dirname(ckpt_dir)                   # .../<exp_name>/
          
-    plot_dir     = os.path.join(exp_name_dir, "plots")
+    plot_dir     = os.path.join(ckpt_dir, "plots")
     return plot_dir
 
 
@@ -321,9 +321,8 @@ def resolve_plot_dir(ckpt_milestone_path):
     else:
         ckpt_dir = ckpt_milestone_path
 
-    exp_name_dir = os.path.dirname(ckpt_dir)                   # .../<exp_name>/
-    exp_dir      = os.path.dirname(exp_name_dir)                # .../<exp_dir>/
-    plot_dir     = os.path.join(exp_dir, "plots")
+    exp_name_dir = os.path.dirname(ckpt_dir)              # .../<exp_name>/
+    plot_dir     = os.path.join(exp_name_dir, "plots")    # .../<exp_name>/plots
     return plot_dir
 
 def str2bool(v):
@@ -1251,7 +1250,7 @@ class Runner(object):
             if self.args.ckpt_milestone is not None:                              # <<< PLOT
                 plot_base = resolve_plot_dir(self.args.ckpt_milestone)            # <<< PLOT
             else:                                                                 # <<< PLOT
-                plot_base = osp.join(self.exp_dir, '..', 'plots')                # <<< PLOT
+                plot_base = osp.join(self.exp_dir, 'plots')                # <<< PLOT
             plot_base = os.path.abspath(plot_base)                                # <<< PLOT
                                                                                 # <<< PLOT
             input_dir  = osp.join(plot_base, "Input")                             # <<< PLOT

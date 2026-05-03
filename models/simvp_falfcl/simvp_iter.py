@@ -2,6 +2,7 @@
 import torch
 from torch import nn
 from omegaconf import OmegaConf
+from utils.utilspp import RandomScheduling
 # from timm.models.layers import trunc_normal_
 
 
@@ -229,7 +230,7 @@ class SimVP_Model(nn.Module):
 
     """
 
-    def __init__(self, in_shape, T_in, T_out,  **kwargs):
+    def __init__(self,total_steps, in_shape, T_in, T_out,  **kwargs):
         super(SimVP_Model, self).__init__()
         C, H, W = in_shape  # T is pre_seq_length
         self.T_in, self.T_out = T_in, T_out
@@ -245,7 +246,7 @@ class SimVP_Model(nn.Module):
 
         self.hid = MidIncepNet(self.T_in*hid_S, hid_T, N_T)
 
-        self.MSE_criterion = nn.MSELoss()
+        self.MSE_criterion = RandomScheduling(total_steps, 1, 0.1 )
 
     def forward(self, x_raw, **kwargs):
         B, T, C, H, W = x_raw.shape
@@ -292,8 +293,8 @@ configs = OmegaConf.create(config_dict)
 
     
 
-def get_model(in_shape, T_in, T_out, **kwargs):
-    return SimVP_Model(in_shape, T_in=T_in, T_out=T_out, **kwargs)
+def get_model(total_steps, in_shape, T_in, T_out, **kwargs):
+    return SimVP_Model(total_steps, in_shape, T_in=T_in, T_out=T_out, **kwargs)
 
 
 if __name__ == "__main__":

@@ -325,6 +325,16 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == 'simvp_falfcl':
+            from models.simvp_falfcl import get_model
+            kwargs = {
+                "total_steps": total_steps, 
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == "traj_gru":
             from models.trajGRU import TrajGRU_model
             kwargs = {
@@ -427,6 +437,7 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+
         elif self.args.backbone == "earthfarseer":
             from models.Earthfarseer.model import get_model
             kwargs = {
@@ -447,9 +458,31 @@ class Runner(object):
             }
             model = EarthFormer_xy(**kwargs)
 
+        elif self.args.backbone == 'earthformer_falfcl':
+            from models.earth_former_falfcl import EarthFormer_xy
+            kwargs = {
+                "total_steps": total_steps,
+                "in_len": self.args.frames_in,
+                "out_len": self.args.frames_out,
+                "height":128,
+                "width":128
+            }
+            model = EarthFormer_xy(**kwargs)
+
         elif self.args.backbone == 'mau':
             from models.mau import MAU_SEVIR_Model
             kwargs = {
+                "input_seq_len": self.args.frames_in,
+                "future_seq_len": self.args.frames_out, 
+                "in_channels": self.args.img_channel, 
+                "img_size": self.args.img_size,
+            }
+            model = MAU_SEVIR_Model(**kwargs)
+        
+        elif self.args.backbone == 'mau_falfcl':
+            from models.mau_falfcl import MAU_SEVIR_Model
+            kwargs = {
+                "total_steps": total_steps,
                 "input_seq_len": self.args.frames_in,
                 "future_seq_len": self.args.frames_out, 
                 "in_channels": self.args.img_channel, 
@@ -802,7 +835,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/eval_results_novelty_ablations.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/models_falfcl.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

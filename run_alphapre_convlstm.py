@@ -377,6 +377,23 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == 'dawncast':
+            from models.DAWNCast.dawncast import get_model
+            kwargs = {
+                "afno_blocks": 1,
+                "sparsity_threshold": 0.01, 
+                "afno_hidden_size_factor": 1, 
+                "weight_scale_low":0.1, 
+                "alpha_low": 1.0,
+                "beta_low": 100, 
+                "freq_multiplier_low": 0.1, 
+                "weight_scale_high": 0.25, 
+                "alpha_high": 1.0, 
+                "beta_high": 100, 
+                "freq_multiplier_high": 0.1, 
+                "k_spatial": 7
+            }
+
         elif self.args.backbone == 'lastocast':
             from models.Lastocast.lastocast import get_model
             kwargs = {

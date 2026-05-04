@@ -1,27 +1,26 @@
 #!/bin/bash
 # ============================================================
-# Ablation Study — CIKM
-# All 7 ablations run sequentially on GPU 0
-# Best CIKM params fixed throughout
+# Ablation Study — MeteoNet
+# Best MeteoNet params fixed throughout
 # ============================================================
 
 RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 SEED=0
 GPU=0
 
-# ── Best CIKM params ──────────────────────────────────────────
-DATASET="cikm_latent_32"
-SEQ_LEN=15; FRAMES_IN=5; FRAMES_OUT=10
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="ablations_cikm"
+# ── Best MeteoNet params ──────────────────────────────────────
+DATASET="meteo_lr_latent_32"
+SEQ_LEN=25; FRAMES_IN=5; FRAMES_OUT=20
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
+EXP_DIR="ablations_meteonet"
 EPOCHS=50
 
-WAVE="db4";     LEVEL=2;    HF_MODE="separate"
-BLOCKS=1;       FACTOR=1;   K=7;    SPARSITY=0.01
-WS_LOW=0.1;     WS_HIGH=0.25
+WAVE="db6";     LEVEL=1;    HF_MODE="separate"
+BLOCKS=4;       FACTOR=4;   K=3;    SPARSITY=0.01
+WS_LOW=0.1;     WS_HIGH=1.0
 A_LOW=1.0;      A_HIGH=1.0
-B_LOW=100;      B_HIGH=100
-F_LOW=0.1;      F_HIGH=0.1
+B_LOW=0.17;     B_HIGH=0.17
+F_LOW=0.1;      F_HIGH=4.0
 
 # ── Ablation backbone names ───────────────────────────────────
 ABL1="amplinet_latent_falfcl_only_wavelet_final"
@@ -45,7 +44,7 @@ run_experiment() {
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
-    echo "  GPU ${GPU} | CIKM | ${NOTE}"
+    echo "  GPU ${GPU} | MeteoNet | ${NOTE}"
     echo "=============================================="
 
     # ── Train ──
@@ -111,13 +110,12 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'offline'
 
-    echo "  Done: CIKM | ${NOTE}"
+    echo "  Done: MeteoNet | ${NOTE}"
     echo ""
 }
 
 echo "=============================================="
-echo "  Ablation Study — CIKM (GPU 0, sequential)"
-echo "  7 ablations total"
+echo "  Ablation Study — MeteoNet (GPU ${GPU}, sequential)"
 echo "=============================================="
 echo ""
 
@@ -134,5 +132,5 @@ run_experiment ${ABL7}  "abl7_no_IAMAF_module"
 # run_experiment ${ABL8}  "abl8_no_lf_wavelet_comp"
 # run_experiment ${ABL9}  "abl9_no_hf_wavelet_comp"
 echo "=============================================="
-echo "  CIKM ablations complete. Check wandb."
+echo "  MeteoNet ablations complete. Check wandb."
 echo "=============================================="

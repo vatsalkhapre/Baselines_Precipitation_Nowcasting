@@ -69,6 +69,7 @@ run_experiment() {
         --beta_high ${B_HIGH} \
         --freq_multiplier_high ${F_HIGH} \
         --wave ${WAVE} \
+        --res_opt \
         --wavelet_level ${LEVEL} \
         --hf_mode ${HF_MODE} \
         --afno_blocks ${BLOCKS} \

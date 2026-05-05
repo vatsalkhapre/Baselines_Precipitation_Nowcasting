@@ -1,0 +1,3 @@
+In the .py files 
+
+alpha_amplinet_latent_FAL_FCL_{Written the name of the ablated part}.py

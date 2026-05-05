@@ -33,6 +33,7 @@ ABL3C="amplinet_latent_falfcl_only_conv_spectral_cm_final"
 ABL4="amplinet_latent_falfcl_only_spatiotemporal_final"
 ABL5="amplinet_latent_falfcl_only_wavelet_spatiotemporal_final"
 ABL6="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnoconstgabor_final"
+ABL10="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_mse_final"
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
@@ -120,14 +121,14 @@ echo ""
 
 # run_experiment ${ABL1}  "abl1_no_wavelet"
 # run_experiment ${ABL2A} "abl2a_no_gabor_filter"
-run_experiment ${ABL2B} "abl2b_gabor_replaced_mlp"
+# run_experiment ${ABL2B} "abl2b_gabor_replaced_mlp"
 # run_experiment ${ABL3A} "abl3a_no_afno"
 # run_experiment ${ABL3B} "abl3b_no_dwconv"
 # run_experiment ${ABL3C} "abl3c_no_pwconv"
 # run_experiment ${ABL4}  "abl4_no_conv_spectral"
 # run_experiment ${ABL5}  "abl5_no_wavelet_conv_spectral"
 # run_experiment ${ABL6}  "Original_model_with_const_gabor_params"
-
+run_experiment ${ABL10}  "abl10_model_mse"
 echo "=============================================="
 echo "  SEVIR ablations complete. Check wandb."
 echo "=============================================="

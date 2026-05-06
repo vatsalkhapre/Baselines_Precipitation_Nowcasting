@@ -377,26 +377,6 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        # elif self.args.backbone == 'dawncast':
-        #     from models.DAWNCast.dawncast import get_model
-        #     kwargs = {
-        #         "afno_blocks": 1,
-        #         "sparsity_threshold": 0.01, 
-        #         "afno_hidden_size_factor": 1, 
-        #         "weight_scale_low":0.1, 
-        #         "alpha_low": 1.0,
-        #         "beta_low": 100, 
-        #         "freq_multiplier_low": 0.1, 
-        #         "weight_scale_high": 0.25,  
-        #         "alpha_high": 1.0, 
-        #         "beta_high": 100, 
-        #         "freq_multiplier_high": 0.1, 
-        #         "k_spatial": 7, 
-        #         "wave": "db4", 
-        #         "wavelet_level": 2, 
-        #         "hf_mode": 'separate'
-        #     }
-        #     model = get_model(**kwargs)
         
         elif self.args.backbone == 'dawncast':
             from models.DAWNCast.dawncast import get_model
@@ -649,12 +629,19 @@ class Runner(object):
             print_log(f"Load checkpoint {milestone} from {self.ckpt_path}", self.is_main)
         
         model = self.accelerator.unwrap_model(self.model)
-        model.load_state_dict(data['model'])
+        try:
+            model.load_state_dict(data['model'])
+        except:
+            model.load_state_dict(data['model']['EarthFormer_xy'])
         self.model = self.accelerator.prepare(model)
         if self.args.res_opt:
             try:
-                self.optimizer.load_state_dict(data['opt'])
-                self.scheduler.load_state_dict(data['scheduler'])
+                if self.args.backbone == 'earthformer':
+                    self.optimizer.load_state_dict(data['optimizer'])   # was data['opt']
+                    self.scheduler.load_state_dict(data['lr_scheduler'])
+                else:
+                    self.optimizer.load_state_dict(data['opt'])
+                    self.scheduler.load_state_dict(data['scheduler'])
             except:
                 print_log(f"No optimizer", self.is_main)
             try:
@@ -670,14 +657,15 @@ class Runner(object):
                 print_log(f"No record step", self.is_main)
             
         if self.is_main:
-            ema_dict = data['ema']
-            for key, value in ema_dict.items():
-                # If the checkpoint has a scalar (size []), but we need a vector (size [1])
-                if value.dim() == 0:
-                    ema_dict[key] = value.unsqueeze(0)
+            if 'ema' in data:
+                ema_dict = data['ema']
+                for key, value in ema_dict.items():
+                    # If the checkpoint has a scalar (size []), but we need a vector (size [1])
+                    if value.dim() == 0:
+                        ema_dict[key] = value.unsqueeze(0)
 
-            # 3. Load the fixed dictionary
-            self.ema.load_state_dict(ema_dict)
+                # 3. Load the fixed dictionary
+                self.ema.load_state_dict(ema_dict)
 
 
     def train(self):
@@ -877,7 +865,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/models_falfcl.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/models_all_eval.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

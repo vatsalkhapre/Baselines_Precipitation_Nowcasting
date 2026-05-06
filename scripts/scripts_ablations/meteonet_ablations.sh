@@ -35,6 +35,11 @@ ABL6="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnoco
 ABL7="amplinet_latent_falfcl_only_IAMAF_final"
 ABL8="amplinet_latent_falfcl_only_lf_final"
 ABL9="amplinet_latent_falfcl_only_hf_final"
+<<<<<<< HEAD
+=======
+ABL10="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_mse_final"
+
+>>>>>>> a243aae (abl)
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
     local BACKBONE=$1
@@ -128,9 +133,17 @@ echo ""
 # run_experiment ${ABL4}  "abl4_no_conv_spectral"
 # run_experiment ${ABL5}  "abl4_no_wavelet_conv_spectral"
 # run_experiment ${ABL6}  "Original_model_with_const_gabor_params"
+<<<<<<< HEAD
 run_experiment ${ABL7}  "abl7_no_IAMAF_module"
 # run_experiment ${ABL8}  "abl8_no_lf_wavelet_comp"
 # run_experiment ${ABL9}  "abl9_no_hf_wavelet_comp"
+=======
+# run_experiment ${ABL7}  "abl7_no_IAMAF_module"
+# run_experiment ${ABL8}  "abl8_no_lf_wavelet_comp"
+# run_experiment ${ABL9}  "abl9_no_hf_wavelet_comp"
+run_experiment ${ABL10}  "abl10_model_mse"
+
+>>>>>>> a243aae (abl)
 echo "=============================================="
 echo "  MeteoNet ablations complete. Check wandb."
 echo "=============================================="

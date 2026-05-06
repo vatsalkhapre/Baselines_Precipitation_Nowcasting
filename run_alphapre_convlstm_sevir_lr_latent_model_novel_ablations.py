@@ -203,7 +203,7 @@ def create_parser():
     parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
 
     #-----------------------Ablation Motive-------------------
-    parser.add_argument("--work"       , type=str    ,  default='incremental',   help="incremental, ablation")
+    parser.add_argument("--work"       , type=str    ,  default='ablation',   help="incremental, ablation")
     
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
@@ -1187,10 +1187,10 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==30:
-                self.accelerator.wait_for_everyone()
-                self.accelerator.end_training()
-                break
+            # if (epoch+1)==30:
+            #     self.accelerator.wait_for_everyone()
+            #     self.accelerator.end_training()
+            #     break
 
             time.sleep(10)
         

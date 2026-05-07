@@ -8,7 +8,7 @@
 # UPDATE: ckpt paths below before running
 # ============================================================
 
-RUNNER="run_alphapre_convlstm_sevir_lr_latent_with_plotting_consecutive.py"
+RUNNER="run_alphapre_convlstm_sevir_lr_latent_with_plotting_consecutive_only5.py"
 PLOT_STRIDE=20
 
 # ── Backbone names ────────────────────────────────────────────
@@ -120,21 +120,21 @@ run_plot() {
 # GPU 1 → MeteoNet (5 models) then SEVIR (5 models)
 # ─────────────────────────────────────────────────────────────
 
-run_gpu0() {
-    echo "=== GPU 0: CIKM ==="
-    run_plot 0 ${ABL1} ${CKPT_CIKM_1} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc1_cikm"
-    run_plot 0 ${ABL2} ${CKPT_CIKM_2} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc2_cikm"
-    run_plot 0 ${ABL3} ${CKPT_CIKM_3} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc3_cikm"
-    run_plot 0 ${ABL4} ${CKPT_CIKM_4} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc4_cikm"
-    run_plot 0 ${ABL5} ${CKPT_CIKM_5} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc5_cikm"
+# run_gpu0() {
+#     echo "=== GPU 0: CIKM ==="
+#     run_plot 0 ${ABL1} ${CKPT_CIKM_1} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc1_cikm"
+#     run_plot 0 ${ABL2} ${CKPT_CIKM_2} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc2_cikm"
+#     run_plot 0 ${ABL3} ${CKPT_CIKM_3} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc3_cikm"
+#     run_plot 0 ${ABL4} ${CKPT_CIKM_4} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc4_cikm"
+#     run_plot 0 ${ABL5} ${CKPT_CIKM_5} ${AE_CIKM} cikm_latent_32    15 5 10 db4 2 1 1 0.01 7 0.1 0.25 1.0 1.0 100  100  0.1 0.1 "inc5_cikm"
 
-    echo "=== GPU 0: Shanghai ==="
-    run_plot 0 ${ABL1} ${CKPT_SHANGHAI_1} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc1_shanghai"
-    run_plot 0 ${ABL2} ${CKPT_SHANGHAI_2} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc2_shanghai"
-    run_plot 0 ${ABL3} ${CKPT_SHANGHAI_3} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc3_shanghai"
-    run_plot 0 ${ABL4} ${CKPT_SHANGHAI_4} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc4_shanghai"
-    run_plot 0 ${ABL5} ${CKPT_SHANGHAI_5} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc5_shanghai"
-}
+#     echo "=== GPU 0: Shanghai ==="
+#     run_plot 0 ${ABL1} ${CKPT_SHANGHAI_1} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc1_shanghai"
+#     run_plot 0 ${ABL2} ${CKPT_SHANGHAI_2} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc2_shanghai"
+#     run_plot 0 ${ABL3} ${CKPT_SHANGHAI_3} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc3_shanghai"
+#     run_plot 0 ${ABL4} ${CKPT_SHANGHAI_4} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc4_shanghai"
+#     run_plot 0 ${ABL5} ${CKPT_SHANGHAI_5} ${AE_SHANGHAI} shanghai_lr_latent_32 25 5 20 db6 3 4 3 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 4.0 4.0 "inc5_shanghai"
+# }
 
 run_gpu1() {
     echo "=== GPU 1: MeteoNet ==="
@@ -144,12 +144,12 @@ run_gpu1() {
     run_plot 1 ${ABL4} ${CKPT_METEONET_4} ${AE_METEONET} meteo_lr_latent_32   25 5 20 db6 1 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc4_meteonet"
     run_plot 1 ${ABL5} ${CKPT_METEONET_5} ${AE_METEONET} meteo_lr_latent_32   25 5 20 db6 1 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc5_meteonet"
 
-    echo "=== GPU 1: SEVIR ==="
-    run_plot 1 ${ABL1} ${CKPT_SEVIR_1} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc1_sevir"
-    run_plot 1 ${ABL2} ${CKPT_SEVIR_2} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc2_sevir"
-    run_plot 1 ${ABL3} ${CKPT_SEVIR_3} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc3_sevir"
-    run_plot 1 ${ABL4} ${CKPT_SEVIR_4} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc4_sevir"
-    run_plot 1 ${ABL5} ${CKPT_SEVIR_5} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc5_sevir"
+    # echo "=== GPU 1: SEVIR ==="
+    # run_plot 1 ${ABL1} ${CKPT_SEVIR_1} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc1_sevir"
+    # run_plot 1 ${ABL2} ${CKPT_SEVIR_2} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc2_sevir"
+    # run_plot 1 ${ABL3} ${CKPT_SEVIR_3} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc3_sevir"
+    # run_plot 1 ${ABL4} ${CKPT_SEVIR_4} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc4_sevir"
+    # run_plot 1 ${ABL5} ${CKPT_SEVIR_5} ${AE_SEVIR} sevir_lr_latent_32    25 5 20 db6 2 4 4 0.01 3 0.1 1.0 1.0 1.0 0.17 0.17 0.1 4.0 "inc5_sevir"
 }
 
 echo "=============================================="
@@ -165,8 +165,8 @@ PID_GPU0=$!
 run_gpu1 &
 PID_GPU1=$!
 
-wait ${PID_GPU0}
-echo "GPU 0 complete! (CIKM + Shanghai)"
+# wait ${PID_GPU0}
+# echo "GPU 0 complete! (CIKM + Shanghai)"
 
 wait ${PID_GPU1}
 echo "GPU 1 complete! (MeteoNet + SEVIR)"

@@ -8,6 +8,8 @@ import yaml
 from tqdm import tqdm
 from datetime import timedelta
 import numpy as np
+# import cartopy.crs as ccrs
+# import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, TwoSlopeNorm, BoundaryNorm
 import matplotlib.colors as mcolors
@@ -108,50 +110,20 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
-
             if version_underscore.split("_")[-1] == "final":
                 kwargs_type = "gabor_convparallel_wavelet_final"
-
-            elif "waveletgfngabor" in version_underscore.split("_")[-1]:
-                kwargs_type = "gabor_gfn_wavelet"
-
-            elif "convparallelwavelet" in version_underscore.split("_")[-1]:
-                kwargs_type = "gabor_convparallel_wavelet"
-
-            elif "mlpwavelets" in version_underscore.split("_")[-1]:
-                kwargs_type = "mlp_wavelet"
-
-            elif "waveletafnogabor" in version_underscore.split("_")[-1]:
-                kwargs_type = "gabor_afno_wavelet"
-
-            elif "groupedconvwaveletsgabor" in version_underscore.split("_")[-1]:
-                kwargs_type = "gc_gabor_wavelet"
-
-            elif "convwavelets" in version_underscore.split("_")[-1]:
-                kwargs_type = "conv_wavelet"
-
-            elif "waveletsgabor" in version_underscore.split("_")[-1] or "gaborconvwavelets" in version_underscore.split("_")[-1]:
-                kwargs_type = "gabor_wavelet"
-
             elif "gaborhybrid" in version_underscore.split("_")[-1]:
                 kwargs_type = "gaborhybrid"
-
-            elif "afnogabor" in version_underscore.split("_")[-1]:
-                kwargs_type = "afno_gabor_standared"
+            elif "supplimentrygabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_supplimentry_std"
                 
-            elif "spectralgabor" in version_underscore.split("_")[-1]:
-                kwargs_type = "spectralgabor"
-
             elif "gabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_standared"
-
             else:
                 kwargs_type = "standared"
 
-       
             # Build module path
-    
-            module_path = f"models.model_novelty.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+            module_path = f"models.Incremental_model.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
             
             return {
                 "module": module_path,
@@ -161,8 +133,207 @@ def get_model_config(backbone: str) -> dict:
     # Not found
     return None
 
+#===================================================================================================
+#                                           PLOTTING CODE                                          #
+#===================================================================================================
+
+def plot_image_sequence_colored(images_colored, path_save_imgs, 
+                                title_prefix="t", 
+                                cmap=None, norm=None, label=None):
+    """
+    Plot a sequence of pre-colored RGBA images. Optionally add a colorbar
+    if cmap and norm are provided.
+
+    Args:
+        images_colored : np.ndarray of shape (T, H, W, 4), RGBA float64 from gray2color.
+        path_save_imgs : str, full path to save the figure.
+        title_prefix   : str, prefix for subplot titles.
+        cmap           : matplotlib colormap (optional, for colorbar).
+        norm           : matplotlib norm (optional, for colorbar).
+        label          : str, colorbar label.
+    """
+    T = images_colored.shape[0]
+
+    if T <= 10:
+        nrows, ncols = 1, T
+        fig_w = 2 * T
+        fig_h = 2.8
+    else:
+        nrows, ncols = 2, (T + 1) // 2
+        fig_w = 2 * ncols
+        fig_h = 5.0
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(fig_w, fig_h), constrained_layout=True)
+    if T == 1:
+        axes = np.array([axes])
+    axes_flat = axes.flatten()
+
+    for i in range(T):
+        axes_flat[i].imshow(images_colored[i], interpolation='nearest')
+        axes_flat[i].axis("off")
+
+    # Hide extra axes (if T is odd and nrows=2)
+    for j in range(T, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    # Add colorbar if cmap and norm are provided
+    if cmap is not None and norm is not None:
+        # Create a ScalarMappable for the colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(
+            sm, ax=axes_flat[:T].tolist(),
+            orientation='horizontal',
+            fraction=0.05, pad=0.08, aspect=40
+        )
+        cbar.ax.tick_params(labelsize=7)
+        if label:
+            cbar.set_label(label, fontsize=9)
+
+    fig.savefig(path_save_imgs, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+def denorm_and_colorize(seq, pixel_scale, gray2color_fn, data_type='vil'):
+    """
+    Denormalize a sequence and apply the dataset-specific gray2color.
+
+    Args:
+        seq            : np.ndarray, shape (T, H, W), values in [0, 1] float.
+        pixel_scale    : float (e.g. 255 for VIL).
+        gray2color_fn  : callable, the gray2color function from the dataset.
+        data_type      : str, passed to gray2color if needed.
+
+    Returns:
+        colored : np.ndarray, shape (T, H, W, 4), RGBA float64.
+        denormed: np.ndarray, shape (T, H, W), denormalized uint8 values.
+    """
+    seq_clipped = np.clip(seq, 0, 1)
+    denormed = (seq_clipped * pixel_scale).astype(np.uint8)
+    colored = np.array(
+        [gray2color_fn(denormed[i], data_type=data_type) for i in range(len(denormed))],
+        dtype=np.float64
+    )
+    return colored
+
+
+# Helper to resolve the plot directory from ckpt_milestone path
+# =============================================================================
+
+def resolve_plot_dir(ckpt_milestone_path):
+    """
+    Given ckpt_milestone (e.g. /path/to/Exps/<exp_dir>/<exp_name>/checkpoints/ckpt-best.pt)
+    return /path/to/Exps/<exp_dir>/plots/
+
+    Logic: parent of ckpt file -> 'checkpoints' dir -> parent is <exp_name>,
+           one more parent -> <exp_dir>, create plots/ there.
+    """
+    # if os.path.isfile(ckpt_milestone_path):
+    #     ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    # else:
+    ckpt_dir = ckpt_milestone_path
+
+    # exp_name_dir = os.path.dirname(ckpt_dir)                   # .../<exp_name>/
+         
+    plot_dir     = os.path.join(ckpt_dir, "plots")
+    return plot_dir
+
+
+#Extract cmap and norm from gray2color for colorbar
+# =============================================================================
+
+def extract_cmap_norm_from_gray2color(gray2color_fn):
+    """
+    gray2color internally builds:
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+
+    We replicate that here by calling gray2color's closure variables.
+
+    If gray2color is a simple function that uses module-level COLOR_MAP and BOUNDS,
+    you can import those directly:
+        from <your_module> import COLOR_MAP, BOUNDS
+
+    Otherwise, the safest approach is to reconstruct from the function's globals
+    or __code__. But the EASIEST solution is just to import them.
+    
+    ---
+    
+    RECOMMENDED: In your gray2color module, expose COLOR_MAP and BOUNDS as module 
+    attributes, then do:
+    
+        from <module> import COLOR_MAP, BOUNDS
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+        return cmap, norm
+    
+    Below is a fallback that tries to extract from gray2color's globals:
+    """
+    try:
+        # Try to get COLOR_MAP and BOUNDS from gray2color's global scope
+        g = gray2color_fn.__globals__
+        COLOR_MAP = g.get('COLOR_MAP')
+        BOUNDS = g.get('BOUNDS')
+        
+        if COLOR_MAP is not None and BOUNDS is not None:
+            cmap = colors.ListedColormap(COLOR_MAP)
+            norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+            return cmap, norm
+    except AttributeError:
+        pass
+    
+    # Fallback: return None (colorbar won't be drawn)
+    print("[Plot Warning] Could not extract cmap/norm from gray2color. "
+          "Colorbar will be skipped. To fix, expose COLOR_MAP and BOUNDS "
+          "as module-level variables in your gray2color module.")
+    return None, None
+
+def subsample_frames(seq, target_count=5):
+    """
+    Subsample `target_count` frames from a sequence using a fixed stride
+    starting at index 0.
+
+    For 20 frames, target_count=5 -> indices [0, 4, 8, 12, 16]
+    For 10 frames, target_count=5 -> indices [0, 2, 4, 6, 8]
+    For sequences with T <= target_count, all frames are returned as-is.
+
+    Args:
+        seq          : np.ndarray, shape (T, ...).
+        target_count : int, desired number of frames.
+
+    Returns:
+        np.ndarray of shape (target_count, ...) or (T, ...) if T <= target_count.
+    """
+    T = seq.shape[0]
+    if T <= target_count:
+        return seq
+    stride = T // target_count                         # 20 // 5 = 4
+    indices = list(range(0, T, stride))[:target_count] # [0, 4, 8, 12, 16]
+    return seq[indices]
+
+
+def resolve_plot_dir(ckpt_milestone_path):
+    """
+    Given ckpt_milestone path, return <grandparent>/plots/.
+    
+    e.g. .../Exps/<exp_dir>/<exp_name>/checkpoints/ckpt-best.pt
+         -> .../Exps/<exp_dir>/plots/
+    """
+    if os.path.isfile(ckpt_milestone_path):
+        ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    else:
+        ckpt_dir = ckpt_milestone_path
+
+    exp_name_dir = os.path.dirname(ckpt_dir)              # .../<exp_name>/
+    plot_dir     = os.path.join(exp_name_dir, "plots")    # .../<exp_name>/plots
+    return plot_dir
+
 def str2bool(v):
     return v.lower() in ('true', '1', 'yes')
+
+#===================================================================================================
+#                                           Args                                       #
+#===================================================================================================
+
 
 def create_parser():
     # --------------- Basic ---------------
@@ -170,13 +341,16 @@ def create_parser():
     
     parser.add_argument('--backbone',       type=str,   default='alpha_afnoamplinet_latent_falfcl',        help='backbone model for deterministic prediction (alphapre/convlstm_paper/simvp)')
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
-    parser.add_argument("--exp_dir",        type=str,   default='meteo_lr_latent_32',      help="experiment directory")
-    parser.add_argument("--exp_note",       type=str,   default='Testing_Integrity_with_afno_amplinet_0.01_1.0',              help="additional note for experiment")
+    parser.add_argument("--exp_dir",        type=str,   default='',      help="experiment directory")
+    parser.add_argument("--exp_note",       type=str,   default='',              help="additional note for experiment")
 
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
 
+    # --------------- Plotting Arguments ---------------
+    parser.add_argument("--plot",         action="store_true",           help="Enable plotting during testing")
+    parser.add_argument("--plot_stride",  type=int,   default=4,        help="Plot every N-th test batch (offset/stride)")
     # ---------------------- Spectral --------------------
     parser.add_argument("--modes"           , type=int  , default=8,                help="modes for spectral")
     parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
@@ -189,13 +363,6 @@ def create_parser():
     parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
     parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
     parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
-
-    # ---------------------- Hidden dim --------------------
-    parser.add_argument("--hidden_dim",    type=int  , default=64,              help="Hidden dimension inside the model")
-
-
-    #----------------------- MLP Parameters---------------------
-    parser.add_argument("--size_factor",    type=float  , default=1.0,              help="Hidden size factor for MLP")
 
     #----------------------- GFN ---------------------
     parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
@@ -223,8 +390,11 @@ def create_parser():
     #------------------- Wavelet ----------------------
     parser.add_argument("--wave",      type=str,    default='haar',           help="Type of wavelet transform")
     parser.add_argument("--wavelet_level",     type=int,   default=1,         help="Wavelet level used for wavelet transform")
-    parser.add_argument("--hf_mode",        type=str,    default= 'seperate',     help= "High frequency  mode" )
+    parser.add_argument("--hf_mode",        type=str,    default= 'separate',     help= "High frequency  mode" )
 
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
@@ -533,6 +703,7 @@ class Runner(object):
         )
         
         self.visiual_save_fn = color_save_fn
+        self.gray2color_fn   = color_save_fn.keywords['gray2color']
         self.thresholds      = THRESHOLDS
         self.scale_value     = PIXEL_SCALE
         
@@ -686,104 +857,6 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
 
-        elif kwargs_type == "gc_gabor_wavelet":
-            kwargs = {
-                "weight_scale_low": self.args.weight_scale_low,
-                "alpha_low": self.args.alpha_low,
-                "beta_low": self.args.beta_low,
-                "freq_multiplier_low": self.args.freq_multiplier_low,
-                "weight_scale_high": self.args.weight_scale_high,
-                "alpha_high": self.args.alpha_high,
-                "beta_high": self.args.beta_high,
-                "freq_multiplier_high": self.args.freq_multiplier_high,
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 64, 
-                "st_conv_groups": self.args.st_conv_groups
-            }
-
-        elif kwargs_type == "gabor_wavelet":
-            kwargs = {
-                "weight_scale_low": self.args.weight_scale_low,
-                "alpha_low": self.args.alpha_low,
-                "beta_low": self.args.beta_low,
-                "freq_multiplier_low": self.args.freq_multiplier_low,
-                "weight_scale_high": self.args.weight_scale_high,
-                "alpha_high": self.args.alpha_high,
-                "beta_high": self.args.beta_high,
-                "freq_multiplier_high": self.args.freq_multiplier_high,
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 64
-            }
-
-        elif kwargs_type == "gabor_gfn_wavelet":
-            kwargs = {
-                "num_gfn_layers": self.args.num_gfn_layers, 
-                "weight_scale_low": self.args.weight_scale_low,
-                "alpha_low": self.args.alpha_low,
-                "beta_low": self.args.beta_low,
-                "freq_multiplier_low": self.args.freq_multiplier_low,
-                "weight_scale_high": self.args.weight_scale_high,
-                "alpha_high": self.args.alpha_high,
-                "beta_high": self.args.beta_high,
-                "freq_multiplier_high": self.args.freq_multiplier_high,
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 128
-            }
-
-        elif kwargs_type == "gabor_convparallel_wavelet":
-            kwargs = {
-                "weight_scale_low": self.args.weight_scale_low,
-                "alpha_low": self.args.alpha_low,
-                "beta_low": self.args.beta_low,
-                "freq_multiplier_low": self.args.freq_multiplier_low,
-                "weight_scale_high": self.args.weight_scale_high,
-                "alpha_high": self.args.alpha_high,
-                "beta_high": self.args.beta_high,
-                "freq_multiplier_high": self.args.freq_multiplier_high,
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 64, 
-                "afno_blocks": self.args.afno_blocks, 
-                "sparsity_threshold": self.args.afno_sparsity_threshold, 
-                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor,
-                "k_spatial": self.args.conv_kernel, 
-                "norm_before": self.args.norm_before, 
-                "if_residual": self.args.use_residual, 
-                "adapt_fusion": self.args.adaptive_fusion, 
-                "channel_mixing": self.args.channel_mixing
-            }
-
         elif kwargs_type == "gabor_convparallel_wavelet_final":
             kwargs = {
                 "weight_scale_low": self.args.weight_scale_low,
@@ -810,65 +883,20 @@ class Runner(object):
                 "k_spatial": self.args.conv_kernel,
             }
 
-        elif kwargs_type == "gabor_afno_wavelet":
+        elif kwargs_type == "gabor_supplimentry_std":
             kwargs = {
-                "weight_scale_low": self.args.weight_scale_low,
-                "alpha_low": self.args.alpha_low,
-                "beta_low": self.args.beta_low,
-                "freq_multiplier_low": self.args.freq_multiplier_low,
-                "weight_scale_high": self.args.weight_scale_high,
-                "alpha_high": self.args.alpha_high,
-                "beta_high": self.args.beta_high,
-                "freq_multiplier_high": self.args.freq_multiplier_high,
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
+                "weight_scale": self.args.weight_scale,
+                "alpha": self.args.alpha,
+                "beta": self.args.beta,
+                "freq_multiplier": self.args.freq_multiplier,
+                "size_factor": self.args.size_factor,
                 "total_steps": total_steps,
                 "const_ratio": 0.1,
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 64, 
-                "afno_blocks": self.args.afno_blocks, 
-                "sparsity_threshold": self.args.afno_sparsity_threshold, 
-                "afno_hidden_size_factor": self.args.afno2D_hidden_size_factor
-            }
-
-        elif kwargs_type == "conv_wavelet":
-            kwargs = {
-                "weight_scale": self.args.weight_scale,
-                "alpha": self.args.alpha,
-                "beta": self.args.beta,
-                "freq_multiplier": self.args.freq_multiplier,
-                "wave": self.args.wave, 
-                "size_factor": self.args.size_factor, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "residual_mode": self.args.residual_mode, 
-                "dim": 64,
-            }
-
-        elif kwargs_type == "afno_gabor_standared":
-            kwargs = {
-                "weight_scale": self.args.weight_scale,
-                "alpha": self.args.alpha,
-                "beta": self.args.beta,
-                "freq_multiplier": self.args.freq_multiplier,
-                "afno_blocks": self.args.afno_blocks, 
-                "afno2D_hidden_size_factor": self.args.afno2D_hidden_size_factor, 
-                "afno_sparsity_threshold": self.args.afno_sparsity_threshold,
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "dim": 64,
+                "dim": self.args.hidden_dim,
                 "n_layers": self.args.layers,
                 "pha_weight": self.args.pha_weight,
                 "anet_weight": self.args.anet_weight,
@@ -876,33 +904,10 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
-
         elif kwargs_type == "gaborhybrid":
             kwargs = {
                 "lambda1": self.args.mse_weight,
                 "lambda2": self.args.falfcl_weight,
-                "weight_scale": self.args.weight_scale,
-                "alpha": self.args.alpha,
-                "beta": self.args.beta,
-                "freq_multiplier": self.args.freq_multiplier,
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "dim": 64,
-                "n_layers": self.args.layers,
-                "pha_weight": self.args.pha_weight,
-                "anet_weight": self.args.anet_weight,
-                "amp_weight": self.args.amp_weight,
-                "spec_num": self.args.spec_num,
-                "aweight_stop_steps": self.args.aw_stop_step,
-            }
-        
-        elif kwargs_type == "spectralgabor":
-            kwargs = {
-                "modes": self.args.modes,
                 "weight_scale": self.args.weight_scale,
                 "alpha": self.args.alpha,
                 "beta": self.args.beta,
@@ -941,21 +946,7 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
         
-        elif kwargs_type == "mlp_wavelet":
-            kwargs = {
-                "size_factor": self.args.size_factor, 
-                "wave": self.args.wave, 
-                "wavelet_level": self.args.wavelet_level, 
-                "total_steps": total_steps,
-                "const_ratio": 0.1,
-                "input_shape": (self.args.img_size, self.args.img_size),
-                "T_in": self.args.frames_in,
-                "T_out": self.args.frames_out,
-                "img_channels": self.args.img_channel,
-                "hf_mode" : self.args.hf_mode,
-                "dim": 64
-            }
-
+       
         # Create model
         model = get_model(**kwargs)
         
@@ -1174,19 +1165,14 @@ class Runner(object):
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
                     print_log(f" ========= Finisth one Epoch ==========", self.is_main)
-                    
+                    time.sleep(30)
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
-
-            if (epoch+1)==30:
-                self.accelerator.wait_for_everyone()
-                self.accelerator.end_training()
-                break
-
-            time.sleep(10)
+        self.accelerator.wait_for_everyone()
+        self.accelerator.end_training()
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
@@ -1196,10 +1182,8 @@ class Runner(object):
         radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
         std_val = frames_in.std()
-    
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
-        
         
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
@@ -1253,13 +1237,35 @@ class Runner(object):
         return radar_gt, radar_pred
     
     
-    def test_samples(self, milestone, epoch=None, do_test=False):
-        if do_test==False:
+    def test_samples_with_plotting(self, milestone, epoch=None, do_test=False):
+        """Drop-in replacement for Runner.test_samples with optional plotting."""
+
+        if do_test == False:
             print("Validation")
-        if do_test==True:
+        if do_test == True:
             print("Testing")
             self.ae = self.load_autoencoder(self.ae_model, self.ae_ckpt, "cuda")
-       
+
+        # ---- plotting setup ----                                               # <<< PLOT
+        do_plot = getattr(self.args, 'plot', False) and do_test                  # <<< PLOT
+        if do_plot:                                                               # <<< PLOT
+            if self.args.ckpt_milestone is not None:                              # <<< PLOT
+                plot_base = resolve_plot_dir(self.args.ckpt_milestone)            # <<< PLOT
+            else:                                                                 # <<< PLOT
+                plot_base = osp.join(self.exp_dir, 'plots')                # <<< PLOT
+            plot_base = os.path.abspath(plot_base)                                # <<< PLOT
+                                                                                # <<< PLOT
+            input_dir  = osp.join(plot_base, "Input")                             # <<< PLOT
+            gt_dir     = osp.join(plot_base, "Ground_truth")                      # <<< PLOT
+            pred_dir   = osp.join(plot_base, "Predicted")                         # <<< PLOT
+            os.makedirs(input_dir,  exist_ok=True)                                # <<< PLOT
+            os.makedirs(gt_dir,     exist_ok=True)                                # <<< PLOT
+            os.makedirs(pred_dir,   exist_ok=True)                                # <<< PLOT
+                                                                                # <<< PLOT
+            plot_stride = getattr(self.args, 'plot_stride', 4)                    # <<< PLOT
+            print(f"[Plot] Saving plots to: {plot_base}")                         # <<< PLOT
+            print(f"[Plot] Plot stride: every {plot_stride} batches")             # <<< PLOT
+
         save_vis = True
         # init test data loader
         if do_test:
@@ -1270,10 +1276,10 @@ class Runner(object):
         # init sampling method
         self.model.eval()
         # init test dir config
-
-        save_dir = osp.join(self.test_path, f"sample-{milestone}") if do_test else osp.join(self.valid_path, f"sample-{milestone}")
+        save_dir = osp.join(self.test_path, f"sample-{milestone}") if do_test \
+                else osp.join(self.valid_path, f"sample-{milestone}")
         os.makedirs(save_dir, exist_ok=True)
-        # if self.is_main:
+
         if do_test:
             from utils.metrics import Evaluator
             eval = Evaluator(
@@ -1290,81 +1296,116 @@ class Runner(object):
                 thresholds=self.thresholds,
                 save_path=save_dir,
             )
-            
+
         # start test loop
         valid_nums = 0
-        assert len(self.test_loader) == len(self.test_os_loader), "Mismatch in lengths of test_loader and test_os_loader (might be due to batch size)"
+        assert len(self.test_loader) == len(self.test_os_loader), \
+            "Mismatch in lengths of test_loader and test_os_loader (might be due to batch size)"
         total = len(self.test_loader)
-        for (batch, os_batch) in tqdm(data_loaders, total=total):
-            
+
+        sample_counter = 0                                                        # <<< PLOT
+
+        for batch_idx, (batch, os_batch) in enumerate(tqdm(data_loaders, total=total)):
+
             radar_os_batch = self._get_seq_data(os_batch)
-            radar_os_gt = radar_os_batch[:,self.args.frames_in:]
+            radar_os_input = radar_os_batch[:, :self.args.frames_in]              # <<< PLOT  (B, T_in, C, 128, 128)
+            radar_os_gt    = radar_os_batch[:, self.args.frames_in:]
 
             _, radar_recon = self._sample_batch(batch)
             B, T, C, H, W = radar_recon.shape
 
-            # flatten time
-            radar_recon_flat = radar_recon.reshape(B*T, C, H, W)
+            # decode prediction back to 128x128 pixel space
+            radar_recon_flat = radar_recon.reshape(B * T, C, H, W)
+            radar_recon_dec  = self.decode_stage(self.ae, radar_recon_flat, 1.0)
+            radar_recon      = radar_recon_dec.view(B, T, 1, 128, 128)
 
-            # decode once
-            radar_recon_dec = self.decode_stage(self.ae, radar_recon_flat, 1.0)
-
-            # reshape back
-            radar_recon = radar_recon_dec.view(B, T, 1, 128, 128)
-
-
-            radar_ori = radar_os_gt.cpu().numpy()
+            radar_ori   = radar_os_gt.cpu().numpy()
             radar_recon = radar_recon.cpu().numpy()
 
-            
             # evaluate result and save
             if self.is_main:
                 eval.evaluate(radar_ori, radar_recon)
 
+            # ===================== PLOTTING =====================                # <<< PLOT
+            if do_plot and self.is_main and (batch_idx % plot_stride == 0):       # <<< PLOT
+                radar_os_input_np = radar_os_input.cpu().numpy()                  # <<< PLOT
+                                                                                # <<< PLOT
+                for b in range(B):                                                # <<< PLOT
+                    sid = sample_counter + b                                       # <<< PLOT
+                                                                                # <<< PLOT
+                    # --- Input: (T_in, C, H, W) -> (T_in, H, W) ---             # <<< PLOT
+                    inp = radar_os_input_np[b].squeeze(1)  # (5, 128, 128)       # <<< PLOT
+                    inp_colored = denorm_and_colorize(                            # <<< PLOT
+                        inp, self.scale_value, self.gray2color_fn                 # <<< PLOT
+                    )                                                              # <<< PLOT
+                    plot_image_sequence_colored(                                   # <<< PLOT
+                        inp_colored,                                               # <<< PLOT
+                        osp.join(input_dir, f"Sample_{sid}.png"),                  # <<< PLOT
+                    )                                                              # <<< PLOT
+                                                                                # <<< PLOT
+                    # --- Ground Truth: subsample 10 from 20 ---                  # <<< PLOT
+                    gt = radar_ori[b].squeeze(1)
+                    gt_sub = subsample_frames(gt, target_count=5)        # <-- changed
+                    gt_colored = denorm_and_colorize(
+                        gt_sub, self.scale_value, self.gray2color_fn
+                    )
+                    plot_image_sequence_colored(
+                        gt_colored,
+                        osp.join(gt_dir, f"Sample_{sid}.png"),
+                    )
+
+                    # --- Predicted: subsample 5 from 20 ---
+                    pred = radar_recon[b].squeeze(1)
+                    pred_sub = subsample_frames(pred, target_count=5)    # <-- changed
+                    pred_colored = denorm_and_colorize(
+                        pred_sub, self.scale_value, self.gray2color_fn
+                    )
+                    plot_image_sequence_colored(
+                        pred_colored,
+                        osp.join(pred_dir, f"Sample_{sid}.png"),
+                    )                                                     # <<< PLOT
+                                                                                # <<< PLOT
+                print(f"[Plot] Saved batch {batch_idx} "                          # <<< PLOT
+                    f"(samples {sample_counter}–{sample_counter+B-1})")         # <<< PLOT
+            # ===================== END PLOTTING =================                # <<< PLOT
+
+            sample_counter += B                                                   # <<< PLOT
 
             self.accelerator.wait_for_everyone()
             valid_nums += 1
             if not do_test and self.args.valid_limit and valid_nums >= self.args.vlnum:
                 break
+
         # test done
         if self.is_main:
-            
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/statistical_analysis.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,
                     exp_note=self.args.exp_note,
                     dataset=self.args.dataset,
-                    model_params=self.model_params,
                 )
 
             prefix = "test" if do_test else "val"
-            
-            # Create a new dictionary with prefixed keys (e.g., 'val/csi', 'test/mse')
             log_data = {f"{prefix}/{k}": v for k, v in res.items()}
-            
-            # Add epoch/step info if needed (WandB handles step automatically via the 'step' arg, 
-            # but sometimes it's nice to have epoch as an explicit metric)
-            log_data[f"{prefix}/epoch"] = epoch 
-            
+            log_data[f"{prefix}/epoch"] = epoch
+
             if do_test:
                 print_log(f"Test Results: {res}")
             else:
                 print_log(f"Valid Results: {res}")
-            print_log("="*30)
+            print_log("=" * 30)
 
-            # Log the PREFIXED data
             self.accelerator.log(log_data, step=self.cur_step)
-        
-            # --- END FIX ---
 
             if self.args.valid:
                 return res['csi']
         else:
             return None
+
 
         
     def check_milestones(self, target_ckpt=None):
@@ -1372,7 +1413,7 @@ class Runner(object):
         if target_ckpt is not None:
             self.load(target_ckpt)
             saved_dir_name = target_ckpt.split('/')[-1].split('.')[0]
-            self.test_samples(saved_dir_name, do_test=True)
+            self.test_samples_with_plotting(saved_dir_name, do_test=True)
             print("Testing done")
             return
         
@@ -1383,7 +1424,7 @@ class Runner(object):
 
         for m in range(0, len(milestones), 1):
             self.load(milestones[m])
-            self.test_samples(milestones[m], do_test=True)
+            self.test_samples_with_plotting(milestones[m], do_test=True)
             break
     
     

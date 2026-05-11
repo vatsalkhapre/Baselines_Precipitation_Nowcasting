@@ -1,24 +1,17 @@
 [
   {
-    "model": "LASTOCast (Ours)",
-    "params_M": 74.02,
-    "flops_G": 79.4,
-    "gpu_memory_GB": 0.39,
-    "throughput_samples_per_sec": 194.9
+    "model": "DAWNCast (latent)",
+    "params_M": 51.41,
+    "flops_G": 58.74,
+    "gpu_memory_GB": 0.32,
+    "throughput_samples_per_sec": 50.9
   },
   {
-    "model": "LASTOCast (pixel)",
-    "params_M": 74.02,
-    "flops_G": 1270.11,
-    "gpu_memory_GB": 2.08,
-    "throughput_samples_per_sec": 10.5
-  },
-  {
-    "model": "LASTOCast (e2e)",
-    "params_M": 129.34,
-    "flops_G": 1880.48,
-    "gpu_memory_GB": 1.67,
-    "throughput_samples_per_sec": 7.9
+    "model": "DAWNCast (e2e pixel)",
+    "params_M": 106.73,
+    "flops_G": null,
+    "gpu_memory_GB": null,
+    "throughput_samples_per_sec": null
   },
   {
     "model": "AlphaPre",
@@ -28,10 +21,38 @@
     "throughput_samples_per_sec": 6.6
   },
   {
+    "model": "PhyDNet",
+    "params_M": 3.09,
+    "flops_G": 76.59,
+    "gpu_memory_GB": 0.04,
+    "throughput_samples_per_sec": 19.8
+  },
+  {
+    "model": "SimVP",
+    "params_M": 11.06,
+    "flops_G": 205.72,
+    "gpu_memory_GB": 0.18,
+    "throughput_samples_per_sec": 14.8
+  },
+  {
+    "model": "EarthFarseer",
+    "params_M": 148.57,
+    "flops_G": 753.32,
+    "gpu_memory_GB": 1.7,
+    "throughput_samples_per_sec": 8.7
+  },
+  {
+    "model": "EarthFormer",
+    "params_M": 8.65,
+    "flops_G": 35.24,
+    "gpu_memory_GB": 0.29,
+    "throughput_samples_per_sec": 82.9
+  },
+  {
     "model": "DiffCast",
     "params_M": 49.36,
     "flops_G": null,
-    "gpu_memory_GB": 0.34,
+    "gpu_memory_GB": 0.33,
     "throughput_samples_per_sec": 0.1
   },
   {
@@ -39,34 +60,6 @@
     "params_M": 34.9,
     "flops_G": 17.61,
     "gpu_memory_GB": 0.31,
-    "throughput_samples_per_sec": 59.4
-  },
-  {
-    "model": "EarthFarseer",
-    "params_M": 148.57,
-    "flops_G": 767.87,
-    "gpu_memory_GB": 1.7,
-    "throughput_samples_per_sec": 7.9
-  },
-  {
-    "model": "EarthFormer",
-    "params_M": 8.65,
-    "flops_G": 35.24,
-    "gpu_memory_GB": 0.29,
-    "throughput_samples_per_sec": 83.6
-  },
-  {
-    "model": "PhyDNet",
-    "params_M": 3.09,
-    "flops_G": null,
-    "gpu_memory_GB": null,
-    "throughput_samples_per_sec": null
-  },
-  {
-    "model": "Simvp",
-    "params_M": 11.06,
-    "flops_G": 51.43,
-    "gpu_memory_GB": 0.18,
-    "throughput_samples_per_sec": 58.7
+    "throughput_samples_per_sec": 55.1
   }
 ]

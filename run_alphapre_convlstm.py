@@ -44,6 +44,7 @@ def create_parser():
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
+
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
@@ -54,6 +55,14 @@ def create_parser():
     parser.add_argument("--beta"            , type=float, default=1.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
     
+    # exPreCast specific arguments
+    parser.add_argument('--embed_dim', type=int, default=96, help='embedding dimension for exPreCast')
+    parser.add_argument('--depths', type=str, default='2,6,2,2', help='depths for each stage (comma-separated)')
+    parser.add_argument('--num_heads', type=str, default='3,6,12,24', help='number of heads (comma-separated)')
+    parser.add_argument('--skip_connection', type=str, default='add', choices=['add', 'concat'], help='skip connection type')
+    parser.add_argument('--drop_path_rate', type=float, default=0, help='drop path rate')
+    parser.add_argument('--use_checkpoint', action='store_true', help='use gradient checkpointing')
+
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
     parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
@@ -325,6 +334,31 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == 'exPreCast':
+            from models.exPreCast.exPreCast import get_model
+
+            is_long_term = (self.args.frames_out >= 36)  # only KMA 6h
+
+            kwargs = {
+                'input_frames':     self.args.frames_in,
+                'output_frames':    self.args.frames_out,
+                'in_chans':         self.args.img_channel,
+                'out_chans':        self.args.img_channel,
+                'patch_embed_size': (2, 4, 4),
+                'patch_expan_size': (1, 4, 4) if is_long_term else (2, 4, 4),
+                'upsampling_scale': (2, 2, 2) if is_long_term else (1, 2, 2),
+                'downsampling_scale': (1, 2, 2),
+                'embed_dim':        self.args.embed_dim,
+                'depths':           [int(x) for x in self.args.depths.split(',')],
+                'num_heads':        [int(x) for x in self.args.num_heads.split(',')],
+                'window_size':      (2, 7, 7),
+                'drop_path_rate':   self.args.drop_path_rate,
+                'skip_connection':  'concat' if is_long_term else 'add',
+                'use_checkpoint':   self.args.use_checkpoint,
+                'total_steps':      total_steps,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'simvp_falfcl':
             from models.simvp_falfcl import get_model
             kwargs = {
@@ -377,26 +411,48 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        
         elif self.args.backbone == 'dawncast':
             from models.DAWNCast.dawncast import get_model
             kwargs = {
-                "afno_blocks": 4,
+                "afno_blocks": 1,
                 "sparsity_threshold": 0.01, 
-                "afno_hidden_size_factor": 3, 
+                "afno_hidden_size_factor": 1, 
                 "weight_scale_low":0.1, 
                 "alpha_low": 1.0,
-                "beta_low": 0.17, 
-                "freq_multiplier_low": 4.0, 
-                "weight_scale_high": 1.0,  
+                "beta_low": 100, 
+                "freq_multiplier_low": 0.1, 
+                "weight_scale_high": 0.25,  
                 "alpha_high": 1.0, 
-                "beta_high": 0.17, 
-                "freq_multiplier_high": 4.0, 
-                "k_spatial": 3, 
-                "wave": "db6", 
-                "wavelet_level": 3, 
-                "hf_mode": 'separate'
+                "beta_high": 100, 
+                "freq_multiplier_high": 0.1, 
+                "k_spatial": 7, 
+                "wave": "db4", 
+                "wavelet_level": 2, 
+                "hf_mode": 'separate',
+                "T_out":self.args.frames_out, 
+                "T_in":self.args.frames_in
             }
+            model = get_model(**kwargs)
+        
+        # elif self.args.backbone == 'dawncast':
+        #     from models.DAWNCast.dawncast import get_model
+        #     kwargs = {
+        #         "afno_blocks": 4,
+        #         "sparsity_threshold": 0.01, 
+        #         "afno_hidden_size_factor": 3, 
+        #         "weight_scale_low":0.1, 
+        #         "alpha_low": 1.0,
+        #         "beta_low": 0.17, 
+        #         "freq_multiplier_low": 4.0, 
+        #         "weight_scale_high": 1.0,  
+        #         "alpha_high": 1.0, 
+        #         "beta_high": 0.17, 
+        #         "freq_multiplier_high": 4.0, 
+        #         "k_spatial": 3, 
+        #         "wave": "db6", 
+        #         "wavelet_level": 3, 
+        #         "hf_mode": 'separate'
+        #     }
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'lastocast':
@@ -550,6 +606,14 @@ class Runner(object):
             alpha=self.args.lr_beta1,
             weight_decay=self.args.l2_norm
             )
+        elif self.args.backbone == 'exPreCast':
+            # Paper: AdamW, lr=1e-3, warm-up cosine, warmup_ratio=0.2
+            self.optimizer = torch.optim.AdamW(
+                trainable_params,
+                lr=self.args.lr if self.args.lr is not None else 1e-3,
+                betas=(0.9, 0.999),       # AdamW defaults as paper doesn't specify custom betas
+                weight_decay=0.00001
+            )
         else:
             self.optimizer = torch.optim.AdamW(
                 trainable_params,
@@ -664,8 +728,8 @@ class Runner(object):
                     if value.dim() == 0:
                         ema_dict[key] = value.unsqueeze(0)
 
-                # 3. Load the fixed dictionary
-                self.ema.load_state_dict(ema_dict)
+            # 3. Load the fixed dictionary
+            self.ema.load_state_dict(ema_dict)
 
 
     def train(self):
@@ -865,7 +929,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/models_all_eval.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/models_falfcl.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

@@ -18,7 +18,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \
     --num_workers 8 \
     --ae_ckpt_path "/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth" \
     --wandb_state 'online' \
-    --wandb_project_name 'Alphapre' \
+    --wandb_project_name 'Lastocast' \
     --run_name "lastocast_mse_cikm_latent_space" 
 
 CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm_sevir_lr_latent.py \

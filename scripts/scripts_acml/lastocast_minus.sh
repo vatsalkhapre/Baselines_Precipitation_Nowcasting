@@ -41,26 +41,27 @@ AE_CKPT_CIKM="${AE_CKPT_BASE}/autoencoder_checkpoint_32_CIKM.pth"
 # =============================================================================
 # 1. SEVIR  (frames_in=5, frames_out=20)
 # =============================================================================
-echo "============================================================"
-echo " Running: sevir_lr_latent_32"
-echo "============================================================"
-CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
-    --backbone          "${BACKBONE}" \
-    --dataset           sevir_lr_latent_32 \
-    --img_size          ${IMG_SIZE} \
-    --img_channel       ${IMG_CHANNEL} \
-    --frames_in         5 \
-    --frames_out        20 \
-    --exp_dir           "${EXP_DIR}" \
-    --exp_note          sevir_lr_latent_32 \
-    --epochs            ${EPOCHS} \
-    --batch_size        ${BATCH_SIZE} \
-    --wandb_state       ${WANDB_STATE} \
-    --wandb_project_name "${WANDB_PROJECT}" \
-    --run_name          "lastocast_minus_mse_sevir" \
-    --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
-    --valid \
-    --seed 0
+# echo "============================================================"
+# echo " Running: sevir_lr_latent_32"
+# echo "============================================================"
+# python3 "${RUN_FILE}" \
+#     --backbone          "${BACKBONE}" \
+#     --dataset           sevir_lr_latent_32 \
+#     --img_size          ${IMG_SIZE} \
+#     --gpu_use           1 \
+#     --img_channel       ${IMG_CHANNEL} \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --exp_dir           "${EXP_DIR}" \
+#     --exp_note          sevir_lr_latent_32 \
+#     --epochs            ${EPOCHS} \
+#     --batch_size        ${BATCH_SIZE} \
+#     --wandb_state       ${WANDB_STATE} \
+#     --wandb_project_name "${WANDB_PROJECT}" \
+#     --run_name          "lastocast_minus_mse_sevir" \
+#     --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
+#     --valid \
+#     --seed 0
 
 
 # =============================================================================
@@ -69,10 +70,11 @@ CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
 echo "============================================================"
 echo " Running: shanghai_lr_latent_32"
 echo "============================================================"
-CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
+python3 "${RUN_FILE}" \
     --backbone          "${BACKBONE}" \
     --dataset           shanghai_lr_latent_32 \
     --img_size          ${IMG_SIZE} \
+    --gpu_use           1 \
     --img_channel       ${IMG_CHANNEL} \
     --frames_in         5 \
     --frames_out        20 \
@@ -91,26 +93,27 @@ CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
 # =============================================================================
 # 3. MeteoNet  (frames_in=5, frames_out=20)
 # =============================================================================
-echo "============================================================"
-echo " Running: meteo_lr_latent_32"
-echo "============================================================"
-CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
-    --backbone          "${BACKBONE}" \
-    --dataset           meteo_lr_latent_32 \
-    --img_size          ${IMG_SIZE} \
-    --img_channel       ${IMG_CHANNEL} \
-    --frames_in         5 \
-    --frames_out        20 \
-    --exp_dir           "${EXP_DIR}" \
-    --exp_note          meteo_lr_latent_32 \
-    --epochs            ${EPOCHS} \
-    --batch_size        ${BATCH_SIZE} \
-    --wandb_state       ${WANDB_STATE} \
-    --wandb_project_name "${WANDB_PROJECT}" \
-    --run_name          "lastocast_minus_mse_meteo" \
-    --ae_ckpt_path      "${AE_CKPT_METEO}" \
-    --valid \
-    --seed 0
+# echo "============================================================"
+# echo " Running: meteo_lr_latent_32"
+# echo "============================================================"
+# python3 "${RUN_FILE}" \
+#     --backbone          "${BACKBONE}" \
+#     --dataset           meteo_lr_latent_32 \
+#     --img_size          ${IMG_SIZE} \
+#     --gpu_use           1 \
+#     --img_channel       ${IMG_CHANNEL} \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --exp_dir           "${EXP_DIR}" \
+#     --exp_note          meteo_lr_latent_32 \
+#     --epochs            ${EPOCHS} \
+#     --batch_size        ${BATCH_SIZE} \
+#     --wandb_state       ${WANDB_STATE} \
+#     --wandb_project_name "${WANDB_PROJECT}" \
+#     --run_name          "lastocast_minus_mse_meteo" \
+#     --ae_ckpt_path      "${AE_CKPT_METEO}" \
+#     --valid \
+#     --seed 0
 
 
 # =============================================================================
@@ -119,10 +122,11 @@ CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
 echo "============================================================"
 echo " Running: cikm_latent_32"
 echo "============================================================"
-CUDA_VISIBLE_DEVICES=1 python3 "${RUN_FILE}" \
+python3 "${RUN_FILE}" \
     --backbone          "${BACKBONE}" \
     --dataset           cikm_latent_32 \
     --img_size          ${IMG_SIZE} \
+    --gpu_use           1 \
     --img_channel       ${IMG_CHANNEL} \
     --frames_in         5 \
     --frames_out        10 \

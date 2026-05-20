@@ -1055,7 +1055,7 @@ def main():
     args = create_parser()
     if args.gpu_use:
         gpu_list = ','.join(args.gpu_use)
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list   # set before CUDA init
         print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
     exp = Runner(args)
 

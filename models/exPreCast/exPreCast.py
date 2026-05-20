@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 import numpy as np
 from timm.layers import DropPath, trunc_normal_
-from utils.utilspp import RandomScheduling
+from utils.facl_exprecast import FACL
 from functools import reduce, lru_cache
 from operator import mul
 from einops import rearrange
@@ -627,7 +627,7 @@ class exPreCast(nn.Module):
         self.downsampling_scale = downsampling_scale
         self.skip_connection = skip_connection
 
-        self.falfcl = RandomScheduling(total_steps, 1, 0.1)
+        self.falfcl = FACL(total_steps, const_ratio=0.0)
 
         self.itr = 0               # tracks how many training predict() calls have happened
         self.total_steps = total_steps
@@ -783,7 +783,7 @@ class exPreCast(nn.Module):
         x = self.bottleneck_upscale(x)
         x = rearrange(x, 'n d h w c -> n c d h w')
 
-        print('After 1 CDU:', x.shape)
+        # print('After 1 CDU:', x.shape)
 
         for i, layer in enumerate(self.decoder):
             if self.skip_connection == 'concat':
@@ -794,11 +794,11 @@ class exPreCast(nn.Module):
                 except Exception as e:
                     raise RuntimeError(f"Skip connection should be 'concat'")
 
-            print(f'SwinBlock {i+1} input shape: {x.shape}')
+            # print(f'SwinBlock {i+1} input shape: {x.shape}')
             x, _ = layer(x.contiguous())
 
         x = self.patch_expand3d(x)
-        print(f'After PatchExpanding3D: {x.shape}')
+        # print(f'After PatchExpanding3D: {x.shape}')
 
         if self.last_time_dim != self.output_frames:
             x = rearrange(x, 'B C T H W -> B T H W C')
@@ -836,48 +836,37 @@ class exPreCast(nn.Module):
         # and passes it to Evaluator which expects (B, T_out, C, H, W).
         # The accelerator.gather also expects consistent shape with frames_gt.
         pred_out = pred.permute(0, 2, 1, 3, 4).contiguous()
+        # print("Pred out shape", pred_out.shape)
 
         # ── Step 4: Inference path (no loss) ─────────────────────────────────
         if not compute_loss:
             return pred_out, None
 
-        # ── Step 5: Advance training counter ─────────────────────────────────
-        # Only increment on actual training calls so eval passes don't corrupt
-        # the P(t) schedule. itr counts gradient steps, matching the paper's n/N.
-        self.itr += 1
-
-        # ── Step 6: Compute P(t) for linear FACL ─────────────────────────────
-        # P(t) = 1 - n/N  (paper eq. 17)
-        # At step 0:        P = 1.0  → loss = FCL only  (learn structure first)
-        # At step N:        P = 0.0  → loss = FAL only  (learn intensity fidelity)
-        # clip to [0,1] guards against resume-from-checkpoint edge cases
-        P_t = float(np.clip(1.0 - self.itr / max(self.total_steps, 1), 0.0, 1.0))
-
-        # ── Step 7: Compute FAL and FCL ───────────────────────────────────────
-        # Import matches the utils pattern used by other models in this codebase.
-        # RandomScheduling in dawncast wraps these same two losses stochastically;
-        # here we combine them deterministically per the paper.
+        # Pre-compute FFT (passed to fal/fcl separately for logging)
         fft_pred = torch.fft.fftn(pred_out, dim=[-1,-2], norm='ortho')
-        fft_gt = torch.fft.fftn(frames_gt, dim=[-1,-2], norm='ortho')
+        fft_gt   = torch.fft.fftn(frames_gt, dim=[-1,-2], norm='ortho')
 
-        fal_loss = self.falfcl.fal(fft_pred, fft_gt)   # Fourier Amplitude Loss
-        fcl_loss = self.falfcl.fcl(fft_pred, fft_gt)   # Fourier Correlation Loss
+        fal_loss = self.falfcl.fal(fft_pred, fft_gt)
+        fcl_loss = self.falfcl.fcl(fft_pred, fft_gt)
 
-        # ── Step 8: Linear combination (paper eq. 16) ─────────────────────────
-        # FACL(ŷ, y, t) = (1 − P(t)) · FAL + P(t) · FCL
-        total_loss = (1.0 - P_t) * fal_loss + P_t * fcl_loss
+        # FACL's get_thres() advances the internal step counter and returns
+        # current FAL weight: starts at 0 (pure FCL), ends at 1 (pure FAL)
+        # This matches paper: early training learns structure, late learns intensity
+        prob = self.falfcl.get_thres()
 
-        # ── Step 9: Return dict with 'total_loss' key ─────────────────────────
-        # _train_batch checks: if 'total_loss' in loss → return loss
-        # It then does: self.accelerator.backward(loss_dict['total_loss'])
-        # total_loss must remain a live tensor (not .item()) for backward to work.
-        # FAL and FCL are logged as floats for wandb — they're detached scalars.
+        # Apply spatial weight — normalises loss across different image sizes
+        H, W = pred_out.shape[-2:]
+        weight = float(np.sqrt(H * W))
+
+        total_loss = (prob * fal_loss + (1.0 - prob) * fcl_loss) * weight
+
         return pred_out, {
             'total_loss': total_loss,
             'FAL':        fal_loss.item(),
             'FCL':        fcl_loss.item(),
-            'P_t':        P_t,
+            'prob':       prob,          # tracks schedule progress in wandb
         }
+    
     
 def get_model(
     input_frames=7,

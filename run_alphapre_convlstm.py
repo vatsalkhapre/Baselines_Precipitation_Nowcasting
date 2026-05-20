@@ -638,6 +638,7 @@ class Runner(object):
             alpha=self.args.lr_beta1,
             weight_decay=self.args.l2_norm
             )
+
         elif self.args.backbone == 'exPreCast':
             # Paper: AdamW, lr=1e-3, warm-up cosine, warmup_ratio=0.2
             self.optimizer = torch.optim.AdamW(
@@ -646,14 +647,7 @@ class Runner(object):
                 betas=(0.9, 0.999),       # AdamW defaults as paper doesn't specify custom betas
                 weight_decay=0.00001
             )
-        elif self.args.backbone == 'exPreCast':
-            # Paper: AdamW, lr=1e-3, warm-up cosine, warmup_ratio=0.2
-            self.optimizer = torch.optim.AdamW(
-                trainable_params,
-                lr=self.args.lr if self.args.lr is not None else 1e-3,
-                betas=(0.9, 0.999),       # AdamW defaults as paper doesn't specify custom betas
-                weight_decay=0.00001
-            )
+
         else:
             self.optimizer = torch.optim.AdamW(
                 trainable_params,
@@ -896,7 +890,7 @@ class Runner(object):
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
-        
+
         
         return batch[:, :self.args.frames_out + self.args.frames_in]       # [B, T, C, H, W]
     

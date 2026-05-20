@@ -1053,12 +1053,13 @@ class Runner(object):
 
 def main():
     args = create_parser()
-    exp = Runner(args)
-
     if args.gpu_use:
         gpu_list = ','.join(args.gpu_use)
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list
         print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+    exp = Runner(args)
+
+    
     
     if args.generate_outputs:
         # When just evaluating and visualizing

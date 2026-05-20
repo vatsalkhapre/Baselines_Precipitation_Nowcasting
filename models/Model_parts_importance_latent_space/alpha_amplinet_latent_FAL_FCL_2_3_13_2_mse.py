@@ -114,10 +114,8 @@ class AmpliNet(nn.Module):
         )
 
         # --- Core Operator Blocks ---
-        self.amplist = nn.ModuleList([
-            AmpCell(pre_seq_length if i == 0 else aft_seq_length, aft_seq_length, hidden_dim)
-            for i in range(n_layers)
-        ])
+        self.ampcell = AmpCell(pre_seq_length , aft_seq_length, hidden_dim)
+
 
         # --- Projection (Hidden-to-Output Feature Projector) ---
         self.convout = nn.Sequential(
@@ -133,8 +131,7 @@ class AmpliNet(nn.Module):
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.pre_seq_length)
 
         # Core operator
-        for ampcell in self.amplist:
-            x = ampcell(x)
+        x = self.ampcell(x)
 
         # Projection
         x = rearrange(x, 'b t c h w -> (b t) c h w')
@@ -163,7 +160,7 @@ class AlphaPre_Amplinet(nn.Module):
         self.amp_weight = amp_weight
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
+        self.criterion = nn.MSELoss()
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate = self.amp_weight / self.aweight_stop_steps
@@ -196,8 +193,8 @@ class AlphaPre_Amplinet(nn.Module):
             # xas_abs = torch.abs(xas_fft)
             # amp_loss = self.criterion(xas_abs, frames_abs)
             # loss += self.amp_weight*amp_loss
-            falfcl_loss = self.criterion(xas, frames_gt)
-            loss = {'total_loss': falfcl_loss}
+            mse_loss = self.criterion(xas, frames_gt)
+            loss = {'total_loss': mse_loss}
             return xas, loss
         else:
             return xas, None

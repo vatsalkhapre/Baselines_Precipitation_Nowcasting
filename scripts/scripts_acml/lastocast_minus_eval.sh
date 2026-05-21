@@ -16,18 +16,18 @@ AE_CKPT_BASE="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_
 # -----------------------------------------------------------------------------
 # Fixed config
 # -----------------------------------------------------------------------------
-BACKBONE="amplinet_latent_falfcl_only_2.3.13.2.mse.BC"
+BACKBONE="amplinet_latent_falfcl_only_2.3.13.2.mse"
 IMG_SIZE=32
 IMG_CHANNEL=4
-EXP_DIR="2_3_13_2_mse_BC_runs"
-EPOCHS=50
+EXP_DIR="2_3_13_2_mse_runs"
+EPOCHS=100
 BATCH_SIZE=4
 GRAD_ACC=8
 LR=1e-4
 WARMUP=1000
 SCHEDULER="cosine"
 WANDB_PROJECT="Alphapre"
-WANDB_STATE="online"
+WANDB_STATE="offline"
 
 # -----------------------------------------------------------------------------
 # Dataset-specific AE checkpoints — fill these in if they differ
@@ -38,34 +38,11 @@ AE_CKPT_METEO="${AE_CKPT_BASE}/autoencoder_checkpoint_32_METEONET.pth"
 AE_CKPT_CIKM="${AE_CKPT_BASE}/autoencoder_checkpoint_32_CIKM.pth"
 
 
-# =============================================================================
-# 1. SEVIR  (frames_in=5, frames_out=20)
-# =============================================================================
-# echo "============================================================"
-# echo " Running: sevir_lr_latent_32"
-# echo "============================================================"
-# python3 "${RUN_FILE}" \
-#     --backbone          "${BACKBONE}" \
-#     --dataset           sevir_lr_latent_32 \
-#     --img_size          ${IMG_SIZE} \
-#     --gpu_use           1 \
-#     --img_channel       ${IMG_CHANNEL} \
-#     --frames_in         5 \
-#     --frames_out        20 \
-#     --exp_dir           "${EXP_DIR}" \
-#     --exp_note          sevir_lr_latent_32 \
-#     --epochs            ${EPOCHS} \
-#     --batch_size        ${BATCH_SIZE} \
-#     --wandb_state       ${WANDB_STATE} \
-#     --wandb_project_name "${WANDB_PROJECT}" \
-#     --run_name          "lastocast_minus_mse_sevir" \
-#     --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
-#     --valid \
-#     --seed 0
+
 
 
 # =============================================================================
-# 2. Shanghai  (frames_in=5, frames_out=20)
+# 1. Shanghai  (frames_in=5, frames_out=20)
 # =============================================================================
 # echo "============================================================"
 # echo " Running: shanghai_lr_latent_32"
@@ -86,9 +63,34 @@ AE_CKPT_CIKM="${AE_CKPT_BASE}/autoencoder_checkpoint_32_CIKM.pth"
 #     --wandb_project_name "${WANDB_PROJECT}" \
 #     --run_name          "lastocast_minus_mse_shanghai" \
 #     --ae_ckpt_path      "${AE_CKPT_SHANGHAI}" \
-#     --valid \
+#     --eval \
 #     --seed 0
 
+
+# # =============================================================================
+# # 2. SEVIR  (frames_in=5, frames_out=20)
+# # =============================================================================
+# echo "============================================================"
+# echo " Running: sevir_lr_latent_32"
+# echo "============================================================"
+# python3 "${RUN_FILE}" \
+#     --backbone          "${BACKBONE}" \
+#     --dataset           sevir_lr_latent_32 \
+#     --img_size          ${IMG_SIZE} \
+#     --gpu_use           1 \
+#     --img_channel       ${IMG_CHANNEL} \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --exp_dir           "${EXP_DIR}" \
+#     --exp_note          sevir_lr_latent_32 \
+#     --epochs            ${EPOCHS} \
+#     --batch_size        ${BATCH_SIZE} \
+#     --wandb_state       ${WANDB_STATE} \
+#     --wandb_project_name "${WANDB_PROJECT}" \
+#     --run_name          "lastocast_minus_mse_sevir" \
+#     --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
+#     --eval \
+#     --seed 0
 
 # =============================================================================
 # 3. MeteoNet  (frames_in=5, frames_out=20)
@@ -112,29 +114,9 @@ python3 "${RUN_FILE}" \
     --wandb_project_name "${WANDB_PROJECT}" \
     --run_name          "lastocast_minus_mse_meteo" \
     --ae_ckpt_path      "${AE_CKPT_METEO}" \
-    --valid \
-    --seed 0
-echo "============================================================"
-echo " Running: meteo_lr_latent_32_EVAL"
-echo "============================================================"
-python3 "${RUN_FILE}" \
-    --backbone          "${BACKBONE}" \
-    --dataset           meteo_lr_latent_32 \
-    --img_size          ${IMG_SIZE} \
-    --gpu_use           1 \
-    --img_channel       ${IMG_CHANNEL} \
-    --frames_in         5 \
-    --frames_out        20 \
-    --exp_dir           "${EXP_DIR}" \
-    --exp_note          meteo_lr_latent_32 \
-    --epochs            ${EPOCHS} \
-    --batch_size        ${BATCH_SIZE} \
-    --wandb_state       ${WANDB_STATE} \
-    --wandb_project_name "${WANDB_PROJECT}" \
-    --run_name          "lastocast_minus_mse_meteo" \
-    --ae_ckpt_path      "${AE_CKPT_METEO}" \
     --eval \
     --seed 0
+
 
 # =============================================================================
 # 4. CIKM  (frames_in=5, frames_out=10)
@@ -158,7 +140,7 @@ python3 "${RUN_FILE}" \
 #     --wandb_project_name "${WANDB_PROJECT}" \
 #     --run_name          "lastocast_minus_mse_cikm" \
 #     --ae_ckpt_path      "${AE_CKPT_CIKM}" \
-#     --valid \
+#     --eval \
 #     --seed 0
 
 

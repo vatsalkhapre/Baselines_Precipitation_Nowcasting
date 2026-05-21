@@ -112,8 +112,11 @@ python3 "${RUN_FILE}" \
     --wandb_project_name "${WANDB_PROJECT}" \
     --run_name          "lastocast_minus_mse_meteo" \
     --ae_ckpt_path      "${AE_CKPT_METEO}" \
+    --mlp_size_factor    1 \
+    --hidden_dim         64 \
     --valid \
     --seed 0
+    
 echo "============================================================"
 echo " Running: meteo_lr_latent_32_EVAL"
 echo "============================================================"

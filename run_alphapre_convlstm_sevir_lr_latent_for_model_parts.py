@@ -141,6 +141,10 @@ def create_parser():
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
 
+    # -----------------Other Parameters --------------------
+    parser.add_argument("--mlp_size_factor"    , type=float, default=1.0,            help="mlp size factor for hidden layer")
+    parser.add_argument("--hidden_dim"    , type=int, default=64,            help="hidden dimension size for expressiveness")
+
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
@@ -565,7 +569,8 @@ class Runner(object):
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
-                "dim": 64,
+                "dim": self.args.hidden_dim,
+                "mlp_size_factor": self.args.mlp_size_factor
             }
 
         elif kwargs_type == "gabor_standared":

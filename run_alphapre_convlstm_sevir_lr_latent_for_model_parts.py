@@ -1006,6 +1006,7 @@ class Runner(object):
                     backbone=self.args.backbone,
                     exp_note=self.args.exp_note,
                     dataset=self.args.dataset,
+                    model_params=self.model_params,
                 )
 
             prefix = "test" if do_test else "val"

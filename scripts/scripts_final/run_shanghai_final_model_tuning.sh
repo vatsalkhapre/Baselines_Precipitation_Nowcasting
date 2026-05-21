@@ -19,6 +19,7 @@ BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletaf
 SEED=0
 
 # ── Best wavelet config from Phase 1 (fixed) ──────────────────
+<<<<<<<< HEAD:scripts/scripts_final/run_cikm_final_afnoweights_tuning.sh
 WAVE="db4"
 LEVEL=2
 HF_MODE="separate"
@@ -27,12 +28,22 @@ K_SPATIAL=7
 # ── Best Gabor params from previous tuning (fixed) ────────────
 WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=0.75
 WS_HIGH=0.25; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=1.0
+========
+WAVE="db6"
+LEVEL=3
+HF_MODE="separate"
+K_SPATIAL=9
+
+# ── Best Gabor params from previous tuning (fixed) ────────────
+WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=2.0
+WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
+>>>>>>>> e0e87d2 (shanghai_exps):scripts/scripts_final/run_shanghai_final_model_tuning.sh
 
 # ── Fixed AFNO sparsity (tune separately after this sweep) ────
 SPARSITY=0.01
 
 # ── Dataset config ─────────────────────────────────────────────
-CIKM="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|afno_diversity_tuning"
+SHANGHAI="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|afno_diversity_tuning"
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
@@ -82,7 +93,7 @@ run_experiment() {
         --num_workers 8 \
         --wandb_state 'online' \
         --wandb_project_name 'Alphapre' \
-        --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
+        --run_name "${BACKBONE}_${DS_SHORT}_${TAG}_${DATASET}"
 
     # ── Eval ──
     CUDA_VISIBLE_DEVICES=${GPU} python3 run_alphapre_convlstm_sevir_lr_latent_model_novelty.py \
@@ -123,6 +134,7 @@ run_experiment() {
 # GPU 1 → (2,2), (4,2), (4,4)  — wider hidden, vary blocks
 # ─────────────────────────────────────────────────────────────
 
+<<<<<<<< HEAD:scripts/scripts_final/run_cikm_final_afnoweights_tuning.sh
 run_gpu0() {
     # run_experiment 0 "${CIKM}" 4 3
     # run_experiment 0 "${CIKM}" 2 1
@@ -135,11 +147,31 @@ run_gpu0() {
 #     # run_experiment 1 "${CIKM}" 4 2
 #     # run_experiment 1 "${CIKM}" 4 4
 # }
+========
+# run_gpu0() {
+#     run_experiment 0 "${SHANGHAI}" 1 1
+#     run_experiment 0 "${SHANGHAI}" 2 1
+#     run_experiment 0 "${SHANGHAI}" 4 1
+# }
+
+# run_gpu1() {
+#     run_experiment 1 "${SHANGHAI}" 2 2
+#     run_experiment 1 "${SHANGHAI}" 4 2
+#     run_experiment 1 "${SHANGHAI}" 4 4
+
+# }
+
+run_gpu2() {
+    # run_experiment 2 "${SHANGHAI}" 1 2
+    run_experiment 2 "${SHANGHAI}" 4 3
+    # run_experiment 2 "${SHANGHAI}" 4 6
+}
+>>>>>>>> e0e87d2 (shanghai_exps):scripts/scripts_final/run_shanghai_final_model_tuning.sh
 
 echo "=============================================="
-echo "  AFNO Diversity Tuning — 6 combos on CIKM"
+echo "  AFNO Diversity Tuning — 6 combos on SHANGHAI"
 echo "  GPU 0 → (1,1) (2,1) (4,1)"
-echo "  GPU 1 → (2,2) (4,2) (4,4)"
+echo "  GPU 1 → (2,2) (4,2) (4,3) (4,4)"
 echo "  Sparsity fixed at ${SPARSITY}"
 echo "=============================================="
 echo ""
@@ -150,11 +182,17 @@ PID_GPU0=$!
 run_gpu1 &
 PID_GPU1=$!
 
+run_gpu2 &
+PID_GPU2=$!
+
 wait ${PID_GPU0}
-echo "GPU 0 complete: (1,1) (2,1) (4,1)"
+echo "GPU 0 complete: (1,1) (2,1) (4,1) (1 2)"
 
 wait ${PID_GPU1}
-echo "GPU 1 complete: (2,2) (4,2) (4,4)"
+echo "GPU 1 complete: (2,2) (4,2) (4,3) (4,4) (4 6)"
+
+wait ${PID_GPU2}
+echo "GPU 1 complete: (2,2) (4,2) (4,3) (4,4) (4 6)"
 
 echo ""
 echo "=============================================="

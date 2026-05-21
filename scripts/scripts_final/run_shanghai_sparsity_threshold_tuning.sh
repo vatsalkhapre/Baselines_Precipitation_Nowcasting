@@ -4,7 +4,7 @@
 # Each dataset has its own best AFNO + wavelet config
 # Values: [0.001, 0.01, 0.1]
 #
-# GPU 0 → CIKM (3 runs) then MeteoNet (3 runs)
+# GPU 0 → SHANGHAI (3 runs) then SHANGHAI (3 runs)
 # GPU 1 → Shanghai (3 runs)
 # ============================================================
  
@@ -14,12 +14,12 @@ SEED=0
 # ── Sparsity values to sweep ──────────────────────────────────
 SPARSITY_VALUES=(0 0.001 0.01 0.1)
  
-# ── UPDATE: CIKM best config ──────────────────────────────────
-CIKM_WAVE="db4";      CIKM_LEVEL=2;  CIKM_HF_MODE="separate"
-CIKM_BLOCKS=1;        CIKM_FACTOR=1; CIKM_K=7
-CIKM_WS_LOW=0.1;  CIKM_A_LOW=1.0;  CIKM_B_LOW=1.0;  CIKM_F_LOW=0.75
-CIKM_WS_HIGH=0.25; CIKM_A_HIGH=1.0; CIKM_B_HIGH=1.0; CIKM_F_HIGH=1.0
-CIKM_CFG="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|sparsity_tuning_cikm"
+# ── UPDATE: SHANGHAI best config ──────────────────────────────
+SHANGHAI_WAVE="db6";      SHANGHAI_LEVEL=3;  SHANGHAI_HF_MODE="separate"
+SHANGHAI_BLOCKS=4;        SHANGHAI_FACTOR=3; SHANGHAI_K=9
+SHANGHAI_WS_LOW=0.1;  SHANGHAI_A_LOW=1.0;  SHANGHAI_B_LOW=1.0;  SHANGHAI_F_LOW=2.0
+SHANGHAI_WS_HIGH=1.0; SHANGHAI_A_HIGH=1.0; SHANGHAI_B_HIGH=1.0; SHANGHAI_F_HIGH=0.75
+SHANGHAI_CFG="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|sparsity_tuning_SHANGHAI"
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
@@ -111,26 +111,22 @@ run_experiment() {
     echo ""
 }
 
-# ─────────────────────────────────────────────────────────────
-# GPU 0 → CIKM (3 runs) then MeteoNet (3 runs)
-# GPU 1 → Shanghai (3 runs)
-# ─────────────────────────────────────────────────────────────
 
 run_gpu0() {
     echo "=== GPU 0: CIKM ==="
     
     run_experiment 0 0.001 \
-        "${CIKM_CFG}" ${CIKM_WAVE} ${CIKM_LEVEL} ${CIKM_HF_MODE} \
-        ${CIKM_BLOCKS} ${CIKM_FACTOR} ${CIKM_K} \
-        ${CIKM_WS_LOW} ${CIKM_A_LOW} ${CIKM_B_LOW} ${CIKM_F_LOW} \
-        ${CIKM_WS_HIGH} ${CIKM_A_HIGH} ${CIKM_B_HIGH} ${CIKM_F_HIGH}
+        "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
+        ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
+        ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
+        ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
  
 
     run_experiment 0 0.01 \
-        "${CIKM_CFG}" ${CIKM_WAVE} ${CIKM_LEVEL} ${CIKM_HF_MODE} \
-        ${CIKM_BLOCKS} ${CIKM_FACTOR} ${CIKM_K} \
-        ${CIKM_WS_LOW} ${CIKM_A_LOW} ${CIKM_B_LOW} ${CIKM_F_LOW} \
-        ${CIKM_WS_HIGH} ${CIKM_A_HIGH} ${CIKM_B_HIGH} ${CIKM_F_HIGH}
+        "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
+        ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
+        ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
+        ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
    
 }
 
@@ -139,24 +135,27 @@ run_gpu1() {
     echo "=== GPU 0: CIKM ==="
     
     run_experiment 1 0 \
-        "${CIKM_CFG}" ${CIKM_WAVE} ${CIKM_LEVEL} ${CIKM_HF_MODE} \
-        ${CIKM_BLOCKS} ${CIKM_FACTOR} ${CIKM_K} \
-        ${CIKM_WS_LOW} ${CIKM_A_LOW} ${CIKM_B_LOW} ${CIKM_F_LOW} \
-        ${CIKM_WS_HIGH} ${CIKM_A_HIGH} ${CIKM_B_HIGH} ${CIKM_F_HIGH}
+        "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
+        ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
+        ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
+        ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
  
-
-    run_experiment 1 0.1 \
-        "${CIKM_CFG}" ${CIKM_WAVE} ${CIKM_LEVEL} ${CIKM_HF_MODE} \
-        ${CIKM_BLOCKS} ${CIKM_FACTOR} ${CIKM_K} \
-        ${CIKM_WS_LOW} ${CIKM_A_LOW} ${CIKM_B_LOW} ${CIKM_F_LOW} \
-        ${CIKM_WS_HIGH} ${CIKM_A_HIGH} ${CIKM_B_HIGH} ${CIKM_F_HIGH}
-    
-
 }
+
+run_gpu2() {
+    run_experiment 2 0.1 \
+        "${SHANGHAI_CFG}" ${SHANGHAI_WAVE} ${SHANGHAI_LEVEL} ${SHANGHAI_HF_MODE} \
+        ${SHANGHAI_BLOCKS} ${SHANGHAI_FACTOR} ${SHANGHAI_K} \
+        ${SHANGHAI_WS_LOW} ${SHANGHAI_A_LOW} ${SHANGHAI_B_LOW} ${SHANGHAI_F_LOW} \
+        ${SHANGHAI_WS_HIGH} ${SHANGHAI_A_HIGH} ${SHANGHAI_B_HIGH} ${SHANGHAI_F_HIGH}
+}
+
+
 echo "=============================================="
 echo "  Sparsity Tuning — 3 values × 3 datasets"
-echo "  GPU 0 → CIKM"
-echo "  GPU 1 → CIKM"
+echo "  GPU 0 → SHANGHAI"
+echo "  GPU 1 → SHANGHAI"
+echo "  GPU 0 → SHANGHAI"
 echo "  Sweeping: ${SPARSITY_VALUES[*]}"
 echo "=============================================="
 echo ""
@@ -167,13 +166,19 @@ PID_GPU0=$!
  
 run_gpu1 &
 PID_GPU1=$!
- 
+
+run_gpu2 &
+PID_GPU2=$!
+
 wait ${PID_GPU0}
-echo "GPU 0 (CIKM ) complete!"
+echo "GPU 0 (SHANGHAI ) complete!"
  
 wait ${PID_GPU1}
-echo "GPU 1 (CIKM) complete!"
- 
+echo "GPU 1 (SHANGHAI) complete!"
+
+wait ${PID_GPU2}
+echo "GPU 2 (SHANGHAI) complete!"
+
 echo ""
 echo "=============================================="
 echo "  Sparsity tuning complete. Check wandb."

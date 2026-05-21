@@ -13,21 +13,25 @@
 # GPU 1 → db6 (J2 shared, J2 separate, J3 shared, J3 separate)
 # ============================================================
 
+<<<<<<< HEAD
 BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_seq_final"
+=======
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_cm_convparallelwaveletafnogabor_final"
+>>>>>>> e0e87d2 (shanghai_exps)
 SEED=0
 
 # ── Fixed AFNO params (use safe defaults for verification) ────
-AFNO_BLOCKS=2 
-AFNO_FACTOR=2
-SPARSITY=0.01
-K_SPATIAL=7
+AFNO_BLOCKS=4
+AFNO_FACTOR=3
+SPARSITY=0
+K_SPATIAL=9
 
 # ── Fixed Gabor params from previous best ─────────────────────
-WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=0.75
-WS_HIGH=0.25; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=1.0
+WS_LOW=0.1;  A_LOW=1.0;  B_LOW=1.0;  F_LOW=2.0
+WS_HIGH=1.0; A_HIGH=1.0; B_HIGH=1.0; F_HIGH=0.75
 
 # ── Dataset config ─────────────────────────────────────────────
-CIKM="cikm_latent_32|15|5|10|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth|wavelet_verification"
+SHANGHAI="shanghai_lr_latent_32|25|5|20|/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth|wavelet_verification"
 
 # ─────────────────────────────────────────────────────────────
 run_experiment() {
@@ -118,6 +122,7 @@ run_experiment() {
 # GPU 1 → db6: J2 shared, J2 separate, J3 shared, J3 separate
 # ─────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 run_gpu0() {
     run_experiment 0 "${CIKM}" db6 2 separate
     # run_experiment 0 "${CIKM}" db4 3 separate
@@ -126,10 +131,20 @@ run_gpu0() {
 run_gpu1() {
     run_experiment 1 "${CIKM}" db4 2 separate
     # run_experiment 1 "${CIKM}" db6 3 separate
+=======
+# run_gpu0() {
+#     run_experiment 0 "${SHANGHAI}" db4 2 separate
+#     run_experiment 0 "${SHANGHAI}" db4 3 separate
+# }
+
+run_gpu1() {
+    # run_experiment 1 "${SHANGHAI}" db6 2 separate
+    run_experiment 1 "${SHANGHAI}" db6 3 separate
+>>>>>>> e0e87d2 (shanghai_exps)
 }
 
 echo "=============================================="
-echo "  Wavelet Verification — 8 runs on CIKM"
+echo "  Wavelet Verification — 8 runs on SHANGHAI"
 echo "  GPU 0 → db4 (J2 sep, J3 sep)"
 echo "  GPU 1 → db6 (J2 sep J3 sep)"
 echo "  AFNO fixed: blocks=${AFNO_BLOCKS} factor=${AFNO_FACTOR}"

@@ -27,7 +27,7 @@ LR=1e-4
 WARMUP=1000
 SCHEDULER="cosine"
 WANDB_PROJECT="Alphapre"
-WANDB_STATE="offline"
+WANDB_STATE="online"
 
 # -----------------------------------------------------------------------------
 # Dataset-specific AE checkpoints — fill these in if they differ
@@ -38,37 +38,8 @@ AE_CKPT_METEO="${AE_CKPT_BASE}/autoencoder_checkpoint_32_METEONET.pth"
 AE_CKPT_CIKM="${AE_CKPT_BASE}/autoencoder_checkpoint_32_CIKM.pth"
 
 
-
-
-
 # =============================================================================
-# 1. Shanghai  (frames_in=5, frames_out=20)
-# =============================================================================
-echo "============================================================"
-echo " Running: shanghai_lr_latent_32"
-echo "============================================================"
-python3 "${RUN_FILE}" \
-    --backbone          "${BACKBONE}" \
-    --dataset           shanghai_lr_latent_32 \
-    --img_size          ${IMG_SIZE} \
-    --gpu_use           1 \
-    --img_channel       ${IMG_CHANNEL} \
-    --frames_in         5 \
-    --frames_out        20 \
-    --exp_dir           "${EXP_DIR}" \
-    --exp_note          shanghai_lr_latent_32 \
-    --epochs            ${EPOCHS} \
-    --batch_size        ${BATCH_SIZE} \
-    --wandb_state       ${WANDB_STATE} \
-    --wandb_project_name "${WANDB_PROJECT}" \
-    --run_name          "lastocast_minus_mse_shanghai" \
-    --ae_ckpt_path      "${AE_CKPT_SHANGHAI}" \
-    --eval \
-    --seed 0
-
-
-# =============================================================================
-# 2. SEVIR  (frames_in=5, frames_out=20)
+# 1. SEVIR  (frames_in=5, frames_out=20)
 # =============================================================================
 echo "============================================================"
 echo " Running: sevir_lr_latent_32"
@@ -89,8 +60,35 @@ python3 "${RUN_FILE}" \
     --wandb_project_name "${WANDB_PROJECT}" \
     --run_name          "lastocast_minus_mse_sevir" \
     --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
-    --eval \
+    --valid \
     --seed 0
+
+
+# =============================================================================
+# 2. Shanghai  (frames_in=5, frames_out=20)
+# =============================================================================
+# echo "============================================================"
+# echo " Running: shanghai_lr_latent_32"
+# echo "============================================================"
+# python3 "${RUN_FILE}" \
+#     --backbone          "${BACKBONE}" \
+#     --dataset           shanghai_lr_latent_32 \
+#     --img_size          ${IMG_SIZE} \
+#     --gpu_use           1 \
+#     --img_channel       ${IMG_CHANNEL} \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --exp_dir           "${EXP_DIR}" \
+#     --exp_note          shanghai_lr_latent_32 \
+#     --epochs            ${EPOCHS} \
+#     --batch_size        ${BATCH_SIZE} \
+#     --wandb_state       ${WANDB_STATE} \
+#     --wandb_project_name "${WANDB_PROJECT}" \
+#     --run_name          "lastocast_minus_mse_shanghai" \
+#     --ae_ckpt_path      "${AE_CKPT_SHANGHAI}" \
+#     --valid \
+#     --seed 0
+
 
 # =============================================================================
 # 3. MeteoNet  (frames_in=5, frames_out=20)
@@ -114,13 +112,13 @@ python3 "${RUN_FILE}" \
 #     --wandb_project_name "${WANDB_PROJECT}" \
 #     --run_name          "lastocast_minus_mse_meteo" \
 #     --ae_ckpt_path      "${AE_CKPT_METEO}" \
-#     --eval \
+#     --valid \
 #     --seed 0
 
 
-# =============================================================================
-# 4. CIKM  (frames_in=5, frames_out=10)
-# =============================================================================
+# # =============================================================================
+# # 4. CIKM  (frames_in=5, frames_out=10)
+# # =============================================================================
 # echo "============================================================"
 # echo " Running: cikm_latent_32"
 # echo "============================================================"
@@ -140,7 +138,7 @@ python3 "${RUN_FILE}" \
 #     --wandb_project_name "${WANDB_PROJECT}" \
 #     --run_name          "lastocast_minus_mse_cikm" \
 #     --ae_ckpt_path      "${AE_CKPT_CIKM}" \
-#     --eval \
+#     --valid \
 #     --seed 0
 
 

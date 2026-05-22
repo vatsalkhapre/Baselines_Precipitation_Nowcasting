@@ -16,7 +16,9 @@ AE_CKPT_BASE="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_
 # -----------------------------------------------------------------------------
 # Fixed config
 # -----------------------------------------------------------------------------
-BACKBONE="amplinet_latent_falfcl_only_2.3.13.2.mse.BC"
+BACKBONE1="amplinet_latent_falfcl_only_2.3.13.2.BC"
+BACKBONE2="amplinet_latent_falfcl_only_2.3.13.2.mse.BC"
+BACKBONE3="amplinet_latent_falfcl_only_2.3.13.2.mse.BC"
 IMG_SIZE=32
 IMG_CHANNEL=4
 EXP_DIR="2_3_13_2_mse_BC_runs"
@@ -93,27 +95,27 @@ AE_CKPT_CIKM="${AE_CKPT_BASE}/autoencoder_checkpoint_32_CIKM.pth"
 # =============================================================================
 # 3. MeteoNet  (frames_in=5, frames_out=20)
 # =============================================================================
-# echo "============================================================"
-# echo " Running: cikm_latent_32"
-# echo "============================================================"
-# python3 "${RUN_FILE}" \
-#     --backbone          "${BACKBONE}" \
-#     --dataset           cikm_latent_32 \
-#     --img_size          ${IMG_SIZE} \
-#     --gpu_use           1 \
-#     --img_channel       ${IMG_CHANNEL} \
-#     --frames_in         5 \
-#     --frames_out        10 \
-#     --exp_dir           "${EXP_DIR}" \
-#     --exp_note          cikm_latent_32 \
-#     --epochs            ${EPOCHS} \
-#     --batch_size        ${BATCH_SIZE} \
-#     --wandb_state       ${WANDB_STATE} \
-#     --wandb_project_name "${WANDB_PROJECT}" \
-#     --run_name          "lastocast_minus_mse_cikm" \
-#     --ae_ckpt_path      "${AE_CKPT_CIKM}" \
-#     --valid \
-#     --seed 0
+echo "============================================================"
+echo " Running: meteo_lr_latent_32"
+echo "============================================================"
+python3 "${RUN_FILE}" \
+    --backbone          "${BACKBONE}" \
+    --dataset           meteo_lr_latent_32 \
+    --img_size          ${IMG_SIZE} \
+    --gpu_use           1 \
+    --img_channel       ${IMG_CHANNEL} \
+    --frames_in         5 \
+    --frames_out        20 \
+    --exp_dir           "${EXP_DIR}" \
+    --exp_note          meteo_lr_latent_32 \
+    --epochs            ${EPOCHS} \
+    --batch_size        ${BATCH_SIZE} \
+    --wandb_state       ${WANDB_STATE} \
+    --wandb_project_name "${WANDB_PROJECT}" \
+    --run_name          "lastocast_minus_mse_meteo" \
+    --ae_ckpt_path      "${AE_CKPT_METEO}" \
+    --valid \
+    --seed 0
 
 
 echo "============================================================"

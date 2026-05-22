@@ -37,7 +37,7 @@ class Block(nn.Module):
 
 
 class ResnetBlock(nn.Module):
-    def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):  # 'zeros', 'reflect', 'replicate' or 'circular'
+    def __init__(self, dim, dim_out, groups=2, kernel_size=3, padding_mode='zeros'):  # 'zeros', 'reflect', 'replicate' or 'circular'
         super().__init__()
         self.block1 = Block(dim, dim_out, groups=groups, kernel_size=kernel_size, padding_mode=padding_mode)
         self.block2 = Block(dim_out, dim_out, groups=groups, kernel_size=kernel_size, padding_mode=padding_mode)
@@ -50,7 +50,6 @@ class ResnetBlock(nn.Module):
 
 
 
-
 # ============================================================
 # Core Operator Block
 # ============================================================
@@ -59,23 +58,27 @@ class AmpCell(nn.Module):
     def __init__(self, t_in, t_out, dim, size_factor=1.0):
         super().__init__()
         self.t_in, self.t_out = t_in, t_out
+        self.dim = dim
         self.tmlp = nn.Sequential(
             nn.Linear(t_in, int(t_out * size_factor)),
             nn.SELU(True),
             nn.Linear(int(t_out * size_factor), t_out),
         )
         self.conv = nn.Sequential(
-            ResnetBlock(dim * t_out, dim * t_out),
-            ResnetBlock(dim * t_out, dim * t_out),
-            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
+            ResnetBlock(t_out, t_out),
+            ResnetBlock(t_out, t_out),
         )
+        
+        self.conv2 = nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1)
 
     def forward(self, x):
         residual = self.tmlp(x.permute(0, 2, 3, 4, 1)).permute(0, 4, 1, 2, 3)
         x = residual
-        x = rearrange(x, 'b t c h w -> b (t c) h w')
+        x = rearrange(x, 'b t c h w -> (b c) t h w')
         x = self.conv(x)
-        x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
+        x = rearrange(x, '(b c) t h w -> b (t c) h w', c=self.dim)
+        x = self.conv2(x)
+        x = rearrange(x, 'b (t c) h w -> b t c h w', c=self.dim)
         x = x + residual
         return x
 
@@ -104,6 +107,7 @@ class AmpliNet(nn.Module):
         # --- Core Operator Blocks ---
         self.ampcell = AmpCell(pre_seq_length , aft_seq_length, hidden_dim, size_factor)
 
+
         # --- Projection (Hidden-to-Output Feature Projector) ---
         self.convout = nn.Sequential(
             ResnetBlock(hidden_dim, hidden_dim),
@@ -118,7 +122,6 @@ class AmpliNet(nn.Module):
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.pre_seq_length)
 
         # Core operator
-   
         x = self.ampcell(x)
 
         # Projection
@@ -139,7 +142,7 @@ class AlphaPre_Amplinet(nn.Module):
                  hidden_dim, size_factor=1, spec_num=20, kernel_size=1, bias=1,
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
         self.input_shape, self.input_dim = input_shape, input_dim
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num
@@ -181,8 +184,8 @@ class AlphaPre_Amplinet(nn.Module):
             # xas_abs = torch.abs(xas_fft)
             # amp_loss = self.criterion(xas_abs, frames_abs)
             # loss += self.amp_weight*amp_loss
-            falfcl_loss = self.criterion(xas, frames_gt)
-            loss = {'total_loss': falfcl_loss}
+            mse_loss = self.criterion(xas, frames_gt)
+            loss = {'total_loss': mse_loss}
             return xas, loss
         else:
             return xas, None
@@ -222,4 +225,5 @@ def get_model(
         amp_weight=amp_weight,
         aweight_stop_steps=aweight_stop_steps,
     )
+
     return model

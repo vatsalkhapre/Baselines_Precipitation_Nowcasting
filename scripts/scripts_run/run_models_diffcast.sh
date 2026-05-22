@@ -6,7 +6,9 @@ CUDA_VISIBLE_DEVICES=0 python3 run_diffcast.py \
     --use_diff \
     --dataset meteo \
     --seq_len 25 \
-    --epochs 30 \
+    --epochs 45 \
+    --ckpt_milestone /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/meteonet/Diffphydnet_meteo_Diffcast_on_meteonet/checkpoints/ckpt-last.pt \
+    --res_opt \
     --valid \
     --frames_in 5 \
     --frames_out 20 \

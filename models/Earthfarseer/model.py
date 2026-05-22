@@ -1,13 +1,13 @@
 import torch
 from torch import nn
-from modules import *
+from .modules import *
 import torch.nn.functional as F
 import torch.fft
 import numpy as np
 import torch.optim as optimizer
-from FoTF_module import *
-from Temporal_block import *
-from utils import *
+from .FoTF_module import *
+from .Temporal_block import *
+from .utils import *
 
 
 class Earthfarseer_model(nn.Module):

@@ -38,7 +38,7 @@ from copy import deepcopy
 
 
 # Apply your own wandb api key to log online
-# os.environ["WANDB_API_KEY"] = "ebdff79c224117070aea32ad36c6031428ab5f04"
+os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"
 # os.environ["WANDB_SILENT"] = "true"
 os.environ["ACCELERATE_DEBUG_MODE"] = "1"
 

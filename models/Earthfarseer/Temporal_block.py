@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from Fourier_computing_unit import *
+from .Fourier_computing_unit import *
 import math
 
 class GroupConv2d(nn.Module):

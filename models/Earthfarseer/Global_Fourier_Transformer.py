@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from modules import *
+from .modules import *
 import torch.nn.functional as F
 import torch.fft
 import numpy as np

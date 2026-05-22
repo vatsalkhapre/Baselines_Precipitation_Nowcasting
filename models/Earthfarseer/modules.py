@@ -1,7 +1,6 @@
 from timm.models.swin_transformer import SwinTransformerBlock, window_partition, window_reverse
 import torch
 from torch import nn
-from modules import *
 import torch.nn.functional as F
 import torch.fft
 import numpy as np

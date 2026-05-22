@@ -44,6 +44,11 @@ def create_parser():
     parser.add_argument("--seed",           type=int,   default=0,                 help='Experiment seed')
     parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
+    
+    #-----------------Other Parameters----------------
+    parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
+    parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
+
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='sevir',   help="dataset name")              #Check
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
@@ -60,15 +65,15 @@ def create_parser():
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
-    parser.add_argument("--lr",             type=float, default=1e-4,            help="learning rate")             #Check
-    parser.add_argument("--lr_beta1",       type=float, default=0.90,            help="learning rate beta 1")
-    parser.add_argument("--lr_beta2",       type=float, default=0.95,            help="learning rate beta 2")
-    parser.add_argument("--l2-norm",        type=float, default=0.0,             help="l2 norm weight decay")
-    parser.add_argument("--ema_rate",       type=float, default=0.95,            help="exponential moving average rate")
-    parser.add_argument("--scheduler",      type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
-    parser.add_argument("--warmup_steps",   type=int,   default=1000,            help="warmup steps")
-    parser.add_argument("--mixed_precision",type=str,   default='no',            help="mixed precision training")
-    parser.add_argument("--grad_acc_step",  type=int,   default=8,               help="gradient accumulation step")
+    parser.add_argument("--lr",               type=float, default=1e-4,            help="learning rate")             #Check
+    parser.add_argument("--lr_beta1",         type=float, default=0.90,            help="learning rate beta 1")
+    parser.add_argument("--lr_beta2",         type=float, default=0.95,            help="learning rate beta 2")
+    parser.add_argument("--l2-norm",          type=float, default=0.0,             help="l2 norm weight decay")
+    parser.add_argument("--ema_rate",         type=float, default=0.95,            help="exponential moving average rate")
+    parser.add_argument("--scheduler",        type=str,   default='cosine',        help="learning rate scheduler", choices=['constant', 'linear', 'cosine'])
+    parser.add_argument("--warmup_steps",     type=int,   default=1000,            help="warmup steps")
+    parser.add_argument("--mixed_precision",  type=str,   default='no',            help="mixed precision training")
+    parser.add_argument("--grad_acc_step",    type=int,   default=8,               help="gradient accumulation step")
     
     # --------------- Training ---------------
     parser.add_argument("--batch_size",     type=int,   default=4,               help="batch size")                 #Check
@@ -293,12 +298,30 @@ class Runner(object):
         # import and create different models given model config
         # =================================
         print_log("Build Model!", self.is_main)
+        total_steps = self.args.epochs * len(self.train_loader)
         if self.args.backbone == 'simvp':
             from models.simvp import get_model
             kwargs = {
                 "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
+            }
+            model = get_model(**kwargs)
+
+        elif self.args.backbone == 'lastocast':
+            from models.Lastocast.lastocast import get_model
+            kwargs = {
+                "weight_scale":1.5, 
+                "alpha":1.0, 
+                "beta":1.0, 
+                "freq_multiplier": 1.0,
+                "size_factor":self.args.size_factor,
+                "total_steps": total_steps, 
+                "const_ratio": 0.1,
+                "img_channels": self.args.img_channel, 
+                "dim":self.args.hidden_dim,
+                "T_in": self.args.frames_in, 
+                "T_out": self.args.frames_out
             }
             model = get_model(**kwargs)
 
@@ -652,7 +675,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0:
+                if (epoch+1)%5==0 or (epoch==0):
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

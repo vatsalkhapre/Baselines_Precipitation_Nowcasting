@@ -46,6 +46,7 @@ MODEL_REGISTRY = {
         "module": "models.Latent_space_models.alphapre_latent",
         "kwargs_type": "basic",
     },
+<<<<<<< HEAD
     "alphapre_latent": {
         "module": "models.Latent_space_models.alphapre_latent",
         "kwargs_type": "basic",
@@ -78,6 +79,32 @@ MODEL_REGISTRY = {
         "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
         "kwargs_type": "standard",
     },
+=======
+    "MLP": {
+        "module": "models.New_model_parts.MLP",
+        "kwargs_type": "basic",
+    },
+    "ConvMLP": {
+        "module": "models.New_model_parts.ConvMLP",
+        "kwargs_type": "standared",
+    },
+    "ConvMLP_activation": {
+        "module": "models.New_model_parts.ConvMLP_activation",
+        "kwargs_type": "standared",
+    },
+    "Conv_MLP_Gabor_activation": {
+        "module": "models.New_model_parts.Conv_MLP_Gabor_activation",
+        "kwargs_type": "gabor_standared",
+    },
+    "Conv_MLP_Gabor_activation_conv": {
+        "module": "models.New_model_parts.Conv_MLP_Gabor_activation_conv",
+        "kwargs_type": "gabor_standared",
+    },
+    "Conv_MLP_Gabor_activation_conv_residual": {
+        "module": "models.New_model_parts.Conv_MLP_Gabor_activation_conv_residual",
+        "kwargs_type": "gabor_standared",
+    }
+>>>>>>> 63e97d7 (imp changes)
 }
 
 # Ablation model prefixes that need dot→underscore conversion
@@ -108,6 +135,7 @@ def get_model_config(backbone: str) -> dict:
             version_underscore = version.replace(".", "_")
             if version_underscore.split("_")[-1] == "hybridloss":
                 kwargs_type = "hybrid"
+<<<<<<< HEAD
 
             if version_underscore.split("_")[-1] == "final":
                 kwargs_type = "gabor_convparallel_wavelet_final"
@@ -144,14 +172,29 @@ def get_model_config(backbone: str) -> dict:
 
             elif "gabor" in version_underscore.split("_")[-1]:
                 kwargs_type = "gabor_standared"
+=======
+            elif "gaborhybrid" in version_underscore.split("_")[-1]:
+                kwargs_type = "gaborhybrid"
+                
+            elif "gabor" in version_underscore.split("_")[-1]:
+                kwargs_type = "gabor_standared"
+
+            elif "acml" in version_underscore.split("_")[-1]:
+                kwargs_type = "standared_2"
+>>>>>>> 63e97d7 (imp changes)
 
             else:
                 kwargs_type = "standared"
 
+<<<<<<< HEAD
        
             # Build module path
     
             module_path = f"models.model_novelty.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+=======
+            # Build module path
+            module_path = f"models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_{version_underscore}"
+>>>>>>> 63e97d7 (imp changes)
             
             return {
                 "module": module_path,
@@ -161,8 +204,11 @@ def get_model_config(backbone: str) -> dict:
     # Not found
     return None
 
+<<<<<<< HEAD
 def str2bool(v):
     return v.lower() in ('true', '1', 'yes')
+=======
+>>>>>>> 63e97d7 (imp changes)
 
 def create_parser():
     # --------------- Basic ---------------
@@ -177,6 +223,7 @@ def create_parser():
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
 
+<<<<<<< HEAD
     # ---------------------- Spectral --------------------
     parser.add_argument("--modes"           , type=int  , default=8,                help="modes for spectral")
     parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
@@ -215,15 +262,34 @@ def create_parser():
     parser.add_argument("--beta_high"            , type=float, default=0.00,            help="beta for gabor for high freq")
     parser.add_argument("--freq_multiplier_high" , type=float, default=0.00,            help="freq_multiplier for gabor for high freq")
 
+=======
+    # --------------- Gabor Parameters ---------------
+>>>>>>> 63e97d7 (imp changes)
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
 
+<<<<<<< HEAD
     #------------------- Wavelet ----------------------
     parser.add_argument("--wave",      type=str,    default='haar',           help="Type of wavelet transform")
     parser.add_argument("--wavelet_level",     type=int,   default=1,         help="Wavelet level used for wavelet transform")
     parser.add_argument("--hf_mode",        type=str,    default= 'seperate',     help= "High frequency  mode" )
+=======
+    # --------------- FACL Parameters ---------------
+    parser.add_argument("--facl_const_ratio",  type=float , default=0.1 , help="Facl loss constant ratio")
+
+    # -----------------Other Parameters --------------------
+    parser.add_argument("--mlp_size_factor"   , type=float,  default=1.0,            help="mlp size factor for hidden layer")
+    parser.add_argument("--hidden_dim"        , type=int,    default=64,             help="hidden dimension size for expressiveness")
+    
+    # -----------------Kernel size--------------------------
+    parser.add_argument("--conv_kernel_sizes", type=int, nargs=3, default=[3, 3, 3], help="Three kernel sizes for AmpCell conv blocks")
+
+    # --------------- Flexible Lifting / Projection --------------------
+    parser.add_argument("--lift_dims", type=int, nargs='+',default=[16, 32, 64],help="Channel progression for input lifting path")
+    parser.add_argument("--proj_dims", type=int, nargs='+', default=[32, 16, 4], help="Channel progression for output projection path")
+>>>>>>> 63e97d7 (imp changes)
 
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
@@ -635,6 +701,7 @@ class Runner(object):
         # Build kwargs
         if kwargs_type == "basic":
             kwargs = {
+<<<<<<< HEAD
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
@@ -646,16 +713,27 @@ class Runner(object):
                 "amp_weight": self.args.amp_weight,
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
+=======
+                "total_steps": total_steps,
+                "const_ratio": 0.1,
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out
+>>>>>>> 63e97d7 (imp changes)
             }
 
         elif kwargs_type == "standared":
             kwargs = {
                 "total_steps": total_steps,
+<<<<<<< HEAD
                 "const_ratio": 0.1,
+=======
+                "const_ratio": self.args.facl_const_ratio,
+>>>>>>> 63e97d7 (imp changes)
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
+<<<<<<< HEAD
                 "dim": 64,
                 "n_layers": self.args.layers,
                 "pha_weight": self.args.pha_weight,
@@ -663,6 +741,32 @@ class Runner(object):
                 "amp_weight": self.args.amp_weight,
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
+=======
+                "dim": self.args.hidden_dim,
+                "mlp_size_factor": self.args.mlp_size_factor
+            }
+
+        elif kwargs_type == "standared_2":
+            
+            assert self.args.lift_dims[-1] == self.args.hidden_dim, \
+                "Last lift_dims value must equal hidden_dim"
+
+            assert self.args.proj_dims[-1] == self.args.img_channel, \
+                "Last proj_dims value must equal img_channel"
+            
+            kwargs = {
+                "total_steps": total_steps,
+                "const_ratio": self.args.facl_const_ratio,
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                "img_channels": self.args.img_channel,
+                "conv_kernel_sizes": self.args.conv_kernel_sizes,
+                "dim": self.args.hidden_dim,
+                "mlp_size_factor": self.args.mlp_size_factor, 
+                "lift_dims": self.args.lift_dims,
+                "proj_dims": self.args.proj_dims,
+>>>>>>> 63e97d7 (imp changes)
             }
 
         elif kwargs_type == "gabor_standared":
@@ -678,6 +782,7 @@ class Runner(object):
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
                 "dim": 64,
+<<<<<<< HEAD
                 "n_layers": self.args.layers,
                 "pha_weight": self.args.pha_weight,
                 "anet_weight": self.args.anet_weight,
@@ -875,6 +980,8 @@ class Runner(object):
                 "amp_weight": self.args.amp_weight,
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
+=======
+>>>>>>> 63e97d7 (imp changes)
             }
 
         elif kwargs_type == "gaborhybrid":
@@ -899,6 +1006,7 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
+<<<<<<< HEAD
         
         elif kwargs_type == "spectralgabor":
             kwargs = {
@@ -921,6 +1029,8 @@ class Runner(object):
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
+=======
+>>>>>>> 63e97d7 (imp changes)
 
         elif kwargs_type == "hybrid":
             kwargs = {
@@ -941,6 +1051,7 @@ class Runner(object):
                 "aweight_stop_steps": self.args.aw_stop_step,
             }
         
+<<<<<<< HEAD
         elif kwargs_type == "mlp_wavelet":
             kwargs = {
                 "size_factor": self.args.size_factor, 
@@ -957,6 +1068,12 @@ class Runner(object):
             }
 
         # Create model
+=======
+        
+        # Create model
+
+        
+>>>>>>> 63e97d7 (imp changes)
         model = get_model(**kwargs)
         
         print_log(f"model parameters : {kwargs}", self.is_main)
@@ -1174,12 +1291,17 @@ class Runner(object):
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
                     print_log(f" ========= Finisth one Epoch ==========", self.is_main)
+<<<<<<< HEAD
                     
+=======
+                    # time.sleep(30)
+>>>>>>> 63e97d7 (imp changes)
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
+<<<<<<< HEAD
 
             if (epoch+1)==35:
                 self.accelerator.wait_for_everyone()
@@ -1187,6 +1309,10 @@ class Runner(object):
                 break
 
             time.sleep(10)
+=======
+        self.accelerator.wait_for_everyone()
+        self.accelerator.end_training()
+>>>>>>> 63e97d7 (imp changes)
         
     def _get_seq_data(self, batch):
         # frame_seq = batch['vil'].unsqueeze(2).to(self.device)
@@ -1196,11 +1322,17 @@ class Runner(object):
         radar_batch = self._get_seq_data(batch)    
         frames_in, frames_out = radar_batch[:,:self.args.frames_in], radar_batch[:,self.args.frames_in:]
         std_val = frames_in.std()
+<<<<<<< HEAD
     
         frames_in = frames_in/std_val
         frames_out = frames_out/std_val
         
         
+=======
+        frames_in = frames_in/std_val
+        frames_out = frames_out/std_val
+        
+>>>>>>> 63e97d7 (imp changes)
         assert radar_batch.shape[1] == self.args.frames_out + self.args.frames_in, "radar sequence length error"
         
         if hasattr(self.model, 'module'):
@@ -1332,7 +1464,11 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
+<<<<<<< HEAD
                 logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/gaboranalysis.csv")
+=======
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ACML/new_model.csv")
+>>>>>>> 63e97d7 (imp changes)
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,
@@ -1391,12 +1527,22 @@ class Runner(object):
 
 def main():
     args = create_parser()
+<<<<<<< HEAD
     exp = Runner(args)
 
     if args.gpu_use:
         gpu_list = ','.join(args.gpu_use)
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list
         print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+=======
+    if args.gpu_use:
+        gpu_list = ','.join(args.gpu_use)
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_list   # set before CUDA init
+        print(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+    exp = Runner(args)
+
+    
+>>>>>>> 63e97d7 (imp changes)
     
     if args.generate_outputs:
         # When just evaluating and visualizing

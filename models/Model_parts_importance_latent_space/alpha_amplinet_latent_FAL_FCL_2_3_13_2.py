@@ -133,6 +133,17 @@ class AlphaPre_Amplinet(nn.Module):
                  input_dim, hidden_dim, size_factor=1):
         super(AlphaPre_Amplinet, self).__init__()
         self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
+<<<<<<< HEAD
+=======
+        self.input_shape, self.input_dim = input_shape, input_dim
+        self.hidden_dim = hidden_dim
+        self.spec_num = spec_num
+        self.pha_weight = pha_weight
+        self.anet_weight = anet_weight
+        self.amp_weight = amp_weight
+        self.pre_seq_length = pre_seq_length
+        self.aft_seq_length = aft_seq_length
+>>>>>>> 1d3216d (imp changes)
         self.criterion = RandomScheduling(total_steps, 1, const_ratio)
 
     def forward(self, x):  # x: [b, t, c, h, w]

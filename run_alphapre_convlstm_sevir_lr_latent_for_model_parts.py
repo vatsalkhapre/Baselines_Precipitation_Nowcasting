@@ -33,6 +33,9 @@ from models.autoencoder_kl import AutoencoderKL
 import importlib
 # ========================================================
 torch.backends.cudnn.deterministic = True
+# torch.backends.cuda.matmul.allow_tf32 = False
+# torch.backends.cudnn.allow_tf32 = False
+# torch.set_float32_matmul_precision("highest")
 # ========================================================
 # Apply your own wandb api key to log online
 os.environ["WANDB_API_KEY"] = "6427ba1f8d0c13065720163c3aed0fa974031bef"

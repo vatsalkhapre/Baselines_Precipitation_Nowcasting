@@ -644,7 +644,7 @@ class Runner(object):
         if self.is_main:
             total = sum([param.nelement() for param in self.model.parameters()])
             print_log("Main Model Parameters: %.2fM" % (total / 1e6), self.is_main)
-
+            self.model_params = total
 
     def _build_optimizer(self):
         # =================================

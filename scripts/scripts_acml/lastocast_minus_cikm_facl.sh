@@ -19,7 +19,7 @@ EPOCHS=50
 BATCH_SIZE=4
 LR=1e-4
 WANDB_PROJECT="Alphapre"
-GPU=2
+GPU=1
 HD=64
 
 
@@ -90,11 +90,11 @@ run_experiment() {
 # Experiments
 # =============================================================================
 
-# 1. BC variant,     SF=2.0
-run_experiment "amplinet_latent_falfcl_only_2.3.13.2.BC" 2.0
+# # 1. BC variant,     SF=2.0
+# run_experiment "amplinet_latent_falfcl_only_2.3.13.2.BC" 2.0
 
-# 1.5. BC variant,     SF=4.0
-run_experiment "amplinet_latent_falfcl_only_2.3.13.2.BC" 4.0
+# # 1.5. BC variant,     SF=4.0
+# run_experiment "amplinet_latent_falfcl_only_2.3.13.2.BC" 4.0
 
 
 # 1.75. non-BC variant, SF=4.0

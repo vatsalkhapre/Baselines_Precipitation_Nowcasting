@@ -139,7 +139,7 @@ class AlphaPre_Amplinet(nn.Module):
                  hidden_dim, size_factor=1, spec_num=20, kernel_size=1, bias=1,
                  pha_weight=0.01, anet_weight=0.1, amp_weight=0.01, aweight_stop_steps=10000):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim)
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
         self.input_shape, self.input_dim = input_shape, input_dim
         self.hidden_dim = hidden_dim
         self.spec_num = spec_num

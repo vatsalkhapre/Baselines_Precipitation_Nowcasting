@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Hyperparameter Tuning: mlp_size_factor x hidden_dim on MeteoNet
+# Hyperparameter Tuning: mlp_size_factor x hidden_dim on CIKM
 # Backbone: amplinet_latent_falfcl_only_2.3.13.2.mse.BC
 # =============================================================================
 
@@ -10,16 +10,16 @@ set -e
 # Paths
 # -----------------------------------------------------------------------------
 RUN_FILE="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/run_alphapre_convlstm_sevir_lr_latent_for_model_parts.py"
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
 
 # -----------------------------------------------------------------------------
 # Fixed config
 # -----------------------------------------------------------------------------
 BACKBONE="amplinet_latent_falfcl_only_2.3.13.2.mse.BC"
-DATASET="meteo_lr_latent_32"
+DATASET="cikm_latent_32"
 IMG_SIZE=32
 IMG_CHANNEL=4
-EXP_DIR="2_3_13_2_mse_BC_meteo_hparam_tuning"
+EXP_DIR="2_3_13_2_mse_BC_cikm_hparam_tuning"
 EPOCHS=50
 BATCH_SIZE=4
 LR=1e-4
@@ -54,15 +54,15 @@ for SF in "${MLP_SIZE_FACTORS[@]}"; do
             --img_channel           ${IMG_CHANNEL} \
             --gpu_use               ${GPU} \
             --frames_in             5 \
-            --frames_out            20 \
+            --frames_out            10 \
             --exp_dir               "${EXP_DIR}" \
-            --exp_note              "meteo_${TAG}" \
+            --exp_note              "cikm_${TAG}" \
             --epochs                ${EPOCHS} \
             --batch_size            ${BATCH_SIZE} \
             --lr                    ${LR} \
             --wandb_state           ${WANDB_STATE} \
             --wandb_project_name    "${WANDB_PROJECT}" \
-            --run_name              "meteo_${TAG}" \
+            --run_name              "cikm_${TAG}" \
             --ae_ckpt_path          "${AE_CKPT}" \
             --mlp_size_factor       ${SF} \
             --hidden_dim            ${HD} \
@@ -79,15 +79,15 @@ for SF in "${MLP_SIZE_FACTORS[@]}"; do
             --img_channel           ${IMG_CHANNEL} \
             --gpu_use               ${GPU} \
             --frames_in             5 \
-            --frames_out            20 \
+            --frames_out            10 \
             --exp_dir               "${EXP_DIR}" \
-            --exp_note              "meteo_${TAG}" \
+            --exp_note              "cikm_${TAG}" \
             --epochs                ${EPOCHS} \
             --batch_size            ${BATCH_SIZE} \
             --lr                    ${LR} \
             --wandb_state           offline \
             --wandb_project_name    "${WANDB_PROJECT}" \
-            --run_name              "meteo_${TAG}_eval" \
+            --run_name              "cikm_${TAG}_eval" \
             --ae_ckpt_path          "${AE_CKPT}" \
             --mlp_size_factor       ${SF} \
             --hidden_dim            ${HD} \

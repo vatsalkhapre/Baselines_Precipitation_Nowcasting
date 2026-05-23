@@ -75,20 +75,20 @@ echo " Running: sevir_lr_latent_32"
 echo "============================================================"
 python3 "${RUN_FILE}" \
     --backbone          "${BACKBONE}" \
-    --dataset           sevir_lr_latent_32 \
+    --dataset           cikm_latent_32 \
     --img_size          ${IMG_SIZE} \
     --gpu_use           1 \
     --img_channel       ${IMG_CHANNEL} \
     --frames_in         5 \
-    --frames_out        20 \
+    --frames_out        10 \
     --exp_dir           "${EXP_DIR}" \
-    --exp_note          sevir_lr_latent_32 \
+    --exp_note          cikm_latent_32 \
     --epochs            ${EPOCHS} \
     --batch_size        ${BATCH_SIZE} \
     --wandb_state       ${WANDB_STATE} \
     --wandb_project_name "${WANDB_PROJECT}" \
-    --run_name          "lastocast_minus_mse_sevir" \
-    --ae_ckpt_path      "${AE_CKPT_SEVIR}" \
+    --run_name          "lastocast_minus_mse_cikm" \
+    --ae_ckpt_path      "${AE_CKPT_METEO}" \
     --eval \
     --seed 0
 

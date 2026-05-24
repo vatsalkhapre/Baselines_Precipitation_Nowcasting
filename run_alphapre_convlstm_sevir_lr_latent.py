@@ -104,6 +104,18 @@ MODEL_REGISTRY = {
         "module": "models.Lastocast.lastocast",
         "kwargs_type": "lastocast"
     },
+    "DAWNCast": {
+        "module": "models.DAWNCast.dawncast",
+        "kwargs_type": "dawncast"
+    },
+    "DAWNCast2": {
+        "module": "models.DAWNCast.dawncast_2",
+        "kwargs_type": "dawncast"
+    }, 
+    "DAWNCast3": {
+        "module": "models.DAWNCast.dawncast_3",
+        "kwargs_type": "dawncast"
+    },
     # -------------------------------------------------------------------------
     # DAWNCast
     # -------------------------------------------------------------------------
@@ -118,7 +130,7 @@ MODEL_REGISTRY = {
         "module": "models.LPCast.lpcast",
         "kwargs_type": "lpcast",
     },
-}
+}   
 
 # Ablation model prefixes that need dot→underscore conversion
 ABLATION_PREFIXES = [
@@ -168,6 +180,8 @@ def get_model_config(backbone: str) -> dict:
     # Not found
     return None
 
+def str2bool(v):
+    return v.lower() in ('true', '1', 'yes')
 
 def create_parser():
     # --------------- Basic ---------------
@@ -182,7 +196,31 @@ def create_parser():
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
 
+     # ---------------------- Spectral --------------------
+    parser.add_argument("--modes"           , type=int  , default=8,                help="modes for spectral")
+    parser.add_argument("--afno_blocks"      , type=int  , default=1,               help="Number of blocks in afno")
+    parser.add_argument("--afno2D_hidden_size_factor", type=int, default=1,         help="hidden size factor in afno2d")
+    parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
+    
+    # ---------------------- ConvParallel Args --------------------
+    parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
+    parser.add_argument("--norm_before",    type=str2bool  , default=False,              help="want to use the norm before in convparallel")
+    parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
+    parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+    parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
+
+
     # --------------- Gabor Parameters ---------------
+    parser.add_argument("--weight_scale_low"    , type=float, default=0.00,            help="weight_scale for gabor for low freq")
+    parser.add_argument("--alpha_low"           , type=float, default=0.00,            help="alpha for gabor for low freq")
+    parser.add_argument("--beta_low"            , type=float, default=0.00,            help="beta for gabor for low freq")
+    parser.add_argument("--freq_multiplier_low" , type=float, default=0.00,            help="freq_multiplier for gabor for low freq")
+
+    parser.add_argument("--weight_scale_high"    , type=float, default=0.00,            help="weight_scale for gabor for high freq")
+    parser.add_argument("--alpha_high"           , type=float, default=0.00,            help="alpha for gabor for high freq")
+    parser.add_argument("--beta_high"            , type=float, default=0.00,            help="beta for gabor for high freq")
+    parser.add_argument("--freq_multiplier_high" , type=float, default=0.00,            help="freq_multiplier for gabor for high freq")
+
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
@@ -1199,7 +1237,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ECCV26/eval_results.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/Dawncast_variants.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

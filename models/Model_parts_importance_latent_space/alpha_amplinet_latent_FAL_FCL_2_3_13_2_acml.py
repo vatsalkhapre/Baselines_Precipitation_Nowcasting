@@ -52,7 +52,7 @@ class ResnetBlock(nn.Module):
 # ============================================================
 
 class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, size_factor=1.0):
+    def __init__(self, t_in, t_out, dim, size_factor=1.0, conv_kernel_size=3):
         super().__init__()
         self.t_out = t_out
         self.tmlp = nn.Sequential(
@@ -61,9 +61,9 @@ class AmpCell(nn.Module):
             nn.Linear(int(t_out * size_factor), t_out),
         )
         self.conv = nn.Sequential(
-            ResnetBlock(dim * t_out, dim * t_out),
-            ResnetBlock(dim * t_out, dim * t_out),
-            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
+            ResnetBlock(dim * t_out, dim * t_out, kernel_size= conv_kernel_size),
+            ResnetBlock(dim * t_out, dim * t_out, kernel_size= conv_kernel_size),
+            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=conv_kernel_size, padding=conv_kernel_size // 2),
         )
 
     def forward(self, x):
@@ -84,7 +84,7 @@ class AmpliNet(nn.Module):
 
     Maps T_in input frames to T_out predicted frames via an AmpCell layer.
     """
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor):
+    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor, conv_kernel_size):
         super().__init__()
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
@@ -97,7 +97,7 @@ class AmpliNet(nn.Module):
         )
 
         # --- Core Operator Block ---
-        self.ampcell = AmpCell(pre_seq_length, aft_seq_length, hidden_dim, size_factor)
+        self.ampcell = AmpCell(pre_seq_length, aft_seq_length, hidden_dim, size_factor, conv_kernel_size)
 
         # --- Projection (Hidden-to-Output Feature Projector) ---
         self.convout = nn.Sequential(
@@ -130,9 +130,9 @@ class AmpliNet(nn.Module):
 class AlphaPre_Amplinet(nn.Module):
     """Training wrapper with loss computation."""
     def __init__(self, total_steps, const_ratio, pre_seq_length, aft_seq_length,
-                 input_dim, hidden_dim, size_factor=1):
+                 input_dim, hidden_dim, conv_kernel_size, size_factor=1):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
+        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor, conv_kernel_size)
         self.criterion = RandomScheduling(total_steps, 1, const_ratio)
 
     def forward(self, x):  # x: [b, t, c, h, w]
@@ -160,6 +160,7 @@ def get_model(
     T_in=5,
     T_out=20,
     mlp_size_factor=1.0,
+    kernel_size=3,
     **kwargs
 ):
     model = AlphaPre_Amplinet(
@@ -169,5 +170,6 @@ def get_model(
         input_dim=img_channels,
         hidden_dim=dim,
         size_factor=mlp_size_factor,
+        conv_kernel_size=kernel_size
     )
     return model

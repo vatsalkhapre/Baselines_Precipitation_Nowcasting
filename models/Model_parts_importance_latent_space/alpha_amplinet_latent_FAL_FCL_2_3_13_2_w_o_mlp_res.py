@@ -71,7 +71,7 @@ class AmpCell(nn.Module):
         x = rearrange(residual, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
-        x = x + residual
+        # x = x + residual
         return x
 
 

@@ -22,17 +22,17 @@ WANDB_PROJECT="Alphapre"
 GPU=1
 HD=64
 SF=1.0
-
+KERNEL=3
+CONST_RATIO=0.1
 # =============================================================================
 # Helper: train then eval for a given BACKBONE + SF
 # =============================================================================
 run_experiment() {
     local BACKBONE=$1
-    local KERNEL=$2
-    local TAG="bb${BACKBONE}_kernel_size${KERNEL}"
+    local TAG="bb${BACKBONE}"
 
     echo "============================================================"
-    echo " TRAIN | backbone=${BACKBONE}  conv_kernel_size=${KERNEL} "
+    echo " TRAIN | backbone=${BACKBONE} "
     echo "============================================================"
     python3 "${RUN_FILE}" \
         --backbone              "${BACKBONE}" \
@@ -54,6 +54,7 @@ run_experiment() {
         --mlp_size_factor       ${SF} \
         --hidden_dim            ${HD} \
         --conv_kernel_size      ${KERNEL} \
+        --facl_const_ratio      ${CONST_RATIO} \
         --valid \
         --seed 0
 
@@ -80,6 +81,7 @@ run_experiment() {
         --mlp_size_factor       ${SF} \
         --hidden_dim            ${HD} \
         --conv_kernel_size      ${KERNEL} \
+        --facl_const_ratio      ${CONST_RATIO} \
         --eval \
         --seed 0
 
@@ -94,11 +96,8 @@ run_experiment() {
 
 
 # 3. non-BC variant, SF=1.0
-run_experiment "amplinet_latent_falfcl_only_2.3.13.2.acml" 1
-# run_experiment "amplinet_latent_falfcl_only_2.3.13.2.acml" 3
-run_experiment "amplinet_latent_falfcl_only_2.3.13.2.acml" 5
-run_experiment "amplinet_latent_falfcl_only_2.3.13.2.acml" 7
-# run_experiment "amplinet_latent_falfcl_only_2.3.13.2.acml" 9
+run_experiment "amplinet_latent_falfcl_only_2.3.13.2.w_o_mlp_res" 
+
 
 
 echo "============================================================"

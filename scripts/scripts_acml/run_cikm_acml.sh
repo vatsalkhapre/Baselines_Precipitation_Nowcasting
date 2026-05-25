@@ -31,9 +31,6 @@ CONST_RATIO=0.1
 GPUS=(0 1)
 NUM_GPUS=${#GPUS[@]}
 
-LOG_DIR="./sweep_logs_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "${LOG_DIR}"
-
 # -----------------------------------------------------------------------------
 # Sweep axes
 # -----------------------------------------------------------------------------
@@ -101,7 +98,7 @@ run_experiment() {
 
     # ---- TRAIN ----
     python3 "${RUN_FILE}" \
-        --backbone              "amplinet_latent_falfcl_only_2.3.13.2.acml" \
+        --backbone              "amplinet_latent_falfcl_only_2.3.13.2.w_o_mlp_res" \
         --dataset               "${DATASET}" \
         --img_size              ${IMG_SIZE} \
         --img_channel           ${IMG_CHANNEL} \
@@ -134,7 +131,7 @@ run_experiment() {
 
     # ---- EVAL ----
     python3 "${RUN_FILE}" \
-        --backbone              "amplinet_latent_falfcl_only_2.3.13.2.acml" \
+        --backbone              "amplinet_latent_falfcl_only_2.3.13.2.w_o_mlp_res" \
         --dataset               "${DATASET}" \
         --img_size              ${IMG_SIZE} \
         --img_channel           ${IMG_CHANNEL} \
@@ -241,7 +238,6 @@ done
 
 echo "GPU 0 lane: ${#LANE_0[@]} jobs"
 echo "GPU 1 lane: ${#LANE_1[@]} jobs"
-echo "Logs       : ${LOG_DIR}"
 echo ""
 
 # -----------------------------------------------------------------------------
@@ -250,49 +246,41 @@ echo ""
 run_lane() {
     local gpu=$1
     shift
-    local log_file="${LOG_DIR}/sweep_gpu${gpu}.log"
     local total=$#
     local idx=0
 
-    {
-        echo "============================================================"
-        echo " Lane started on GPU ${gpu} | ${total} jobs"
-        echo " Started at: $(date)"
-        echo "============================================================"
-    } | tee -a "${log_file}"
+    echo "============================================================"
+    echo " Lane started on GPU ${gpu} | ${total} jobs"
+    echo " Started at: $(date)"
+    echo "============================================================"
 
     for job in "$@"; do
         idx=$((idx + 1))
         IFS=';' read -r HD K1 K2 K3 LIFT_DIMS PROJ_DIMS PHASE <<< "${job}"
 
-        {
-            echo ""
-            echo "------------------------------------------------------------"
-            echo " [GPU${gpu}] Job ${idx}/${total} [${PHASE}] | $(date)"
-            echo "   hidden_dim = ${HD}"
-            echo "   kernels    = ${K1} ${K2} ${K3}"
-            echo "   lift_dims  = ${LIFT_DIMS}"
-            echo "   proj_dims  = ${PROJ_DIMS}"
-            echo "------------------------------------------------------------"
-        } | tee -a "${log_file}"
+        echo ""
+        echo "------------------------------------------------------------"
+        echo " [GPU${gpu}] Job ${idx}/${total} [${PHASE}] | $(date)"
+        echo "   hidden_dim = ${HD}"
+        echo "   kernels    = ${K1} ${K2} ${K3}"
+        echo "   lift_dims  = ${LIFT_DIMS}"
+        echo "   proj_dims  = ${PROJ_DIMS}"
+        echo "------------------------------------------------------------"
 
-        run_experiment "${gpu}" "${HD}" "${K1}" "${K2}" "${K3}" "${LIFT_DIMS}" "${PROJ_DIMS}" \
-            >> "${log_file}" 2>&1
+        run_experiment "${gpu}" "${HD}" "${K1}" "${K2}" "${K3}" "${LIFT_DIMS}" "${PROJ_DIMS}"
         local rc=$?
 
         if [[ ${rc} -ne 0 ]]; then
-            echo "[GPU${gpu}] Job ${idx}/${total} FAILED (rc=${rc}) — continuing." | tee -a "${log_file}"
+            echo "[GPU${gpu}] Job ${idx}/${total} FAILED (rc=${rc}) — continuing."
         else
-            echo "[GPU${gpu}] Job ${idx}/${total} ok." | tee -a "${log_file}"
+            echo "[GPU${gpu}] Job ${idx}/${total} ok."
         fi
     done
 
-    {
-        echo ""
-        echo "============================================================"
-        echo " Lane on GPU ${gpu} finished at: $(date)"
-        echo "============================================================"
-    } | tee -a "${log_file}"
+    echo ""
+    echo "============================================================"
+    echo " Lane on GPU ${gpu} finished at: $(date)"
+    echo "============================================================"
 }
 
 # -----------------------------------------------------------------------------
@@ -327,5 +315,4 @@ wait "${PIDS[@]}"
 echo ""
 echo "============================================================"
 echo " Coordinate sweep complete."
-echo " Logs: ${LOG_DIR}"
 echo "============================================================"

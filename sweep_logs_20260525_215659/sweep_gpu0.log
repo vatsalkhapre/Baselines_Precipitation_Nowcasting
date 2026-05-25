@@ -1,0 +1,55 @@
+============================================================
+ Lane started on GPU 0 | 5 jobs
+ Started at: Mon May 25 09:56:59 PM IST 2026
+============================================================
+
+------------------------------------------------------------
+ [GPU0] Job 1/5 [P1_HD] | Mon May 25 09:56:59 PM IST 2026
+   hidden_dim = 32
+   kernels    = 3 3 3
+   lift_dims  = 16 32 32
+   proj_dims  = 32 32 16 4
+------------------------------------------------------------
+[GPU0] >>> START hd32_k333_l16_32_32_p32_32_16_4
+wandb: Currently logged in as: khaprevatsal (khaprevatsal-indian-institute-of-science) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: creating run
+wandb: Tracking run with wandb version 0.19.11
+wandb: Run data is saved locally in /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/wandb/run-20260525_215704-sx0to8s5
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cikm_hd32_k333_l16_32_32_p32_32_16_4
+wandb: ⭐️ View project at https://wandb.ai/khaprevatsal-indian-institute-of-science/Alphapre
+wandb: 🚀 View run at https://wandb.ai/khaprevatsal-indian-institute-of-science/Alphapre/runs/sx0to8s5
+CUDA_VISIBLE_DEVICES: 0
+Using GPUs: cuda
+============================================================
+                 Experiment Start                           
+============================================================
+Distributed environment: NO
+Num processes: 1
+Process index: 0
+Local process index: 0
+Device: cuda
+
+Mixed precision type: no
+
+train dataset num:8000
+valid dataset num:1000
+test dataset num:4000
+train dataset num:8000
+valid dataset num:1000
+test dataset num:4000
+train data: 2000, valid data: 250, test_data: 1000
+torch.Size([4, 15, 4, 32, 32])
+Pixel Scale: 80.0, Threshold: [20, 30, 35, 40]
+Build Model!
+Loading module: models.Model_parts_importance_latent_space.alpha_amplinet_latent_FAL_FCL_2_3_13_2_acml
+model parameters : {'total_steps': 100000, 'const_ratio': 0.1, 'input_shape': (32, 32), 'T_in': 5, 'T_out': 10, 'img_channels': 4, 'conv_kernel_sizes': [3, 3, 3], 'dim': 32, 'mlp_size_factor': 1.0, 'lift_dims': [16, 32, 32], 'proj_dims': [32, 32, 16, 4]}
+begin ema
+end device
+Main Model Parameters: 4.68M
+Data Loading Time: 0.3453714847564697
+gpu_nums: 1, gpu_id: 0
+Input shape: 32x32
+✅ Autoencoder loaded successfully
+Training : 1
+  0%|          | 0/2000 [00:00<?, ?it/s]  0%|          | 1/2000 [00:00<21:23,  1.56it/s]  0%|          | 10/2000 [00:00<01:53, 17.46it/s]  1%|          | 19/2000 [00:00<01:01, 32.04it/s]  1%|▏         | 28/2000 [00:00<00:43, 44.95it/s]  2%|▏         | 38/2000 [00:01<00:34, 56.87it/s]  2%|▏         | 47/2000 [00:01<00:29, 65.15it/s]

@@ -1,3 +1,4 @@
+
 """
 AmpliNet: Amplitude-Based Spatio-Temporal Operator for Precipitation Nowcasting
 
@@ -7,6 +8,16 @@ Architecture Overview:
         → AmpCell Layers (temporal amplitude projection + spatial conv)
         → Projection (hidden-to-output feature projector)
     Output (B, T_out, C, H, W)
+
+This version keeps lifting/projection configurable through simple
+channel schedules:
+
+    lift_dims = [16, 32, 64]
+    proj_dims = [32, 16, 4]
+
+and keeps AmpCell kernel sizes configurable as a list:
+
+    conv_kernel_sizes = [7, 5, 3]
 """
 
 from torch import nn
@@ -22,8 +33,13 @@ from utils.utilspp import RandomScheduling
 class Block(nn.Module):
     def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
         super(Block, self).__init__()
-        self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size,
-                              padding=kernel_size // 2, padding_mode=padding_mode)
+        self.proj = nn.Conv2d(
+            dim,
+            dim_out,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            padding_mode=padding_mode,
+        )
         self.norm = nn.GroupNorm(groups, dim_out)
         self.act = nn.SiLU()
 
@@ -47,12 +63,59 @@ class ResnetBlock(nn.Module):
         return h + self.res_conv(x)
 
 
+def build_channel_path(
+    in_channels,
+    dims,
+    groups=8,
+    padding_mode='zeros',
+    last_kernel_size=1,
+):
+    """
+    Build a lifting/projection path from a simple channel list.
+
+    The convention is:
+      - all intermediate stages use ResnetBlock
+      - the last stage uses a plain Conv2d
+    """
+    if dims is None or len(dims) == 0:
+        return nn.Identity(), in_channels
+
+    layers = []
+    prev = in_channels
+
+    for idx, out_ch in enumerate(dims):
+        is_last = idx == len(dims) - 1
+        if is_last:
+            layers.append(
+                nn.Conv2d(
+                    prev,
+                    out_ch,
+                    kernel_size=last_kernel_size,
+                    padding=last_kernel_size // 2,
+                    padding_mode=padding_mode,
+                )
+            )
+        else:
+            layers.append(
+                ResnetBlock(
+                    prev,
+                    out_ch,
+                    groups=groups,
+                    kernel_size=3,
+                    padding_mode=padding_mode,
+                )
+            )
+        prev = out_ch
+
+    return nn.Sequential(*layers), prev
+
+
 # ============================================================
 # Core Operator Block
 # ============================================================
 
 class AmpCell(nn.Module):
-    def __init__(self, t_in, t_out, dim, size_factor=1.0, conv_kernel_size=3):
+    def __init__(self, t_in, t_out, dim, size_factor=1.0, conv_kernel_size_1=3, conv_kernel_size_2=3, conv_kernel_size_3=3):
         super().__init__()
         self.t_out = t_out
         self.tmlp = nn.Sequential(
@@ -61,9 +124,9 @@ class AmpCell(nn.Module):
             nn.Linear(int(t_out * size_factor), t_out),
         )
         self.conv = nn.Sequential(
-            ResnetBlock(dim * t_out, dim * t_out, kernel_size= conv_kernel_size),
-            ResnetBlock(dim * t_out, dim * t_out, kernel_size= conv_kernel_size),
-            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=conv_kernel_size, padding=conv_kernel_size // 2),
+            ResnetBlock(dim * t_out, dim * t_out, kernel_size=conv_kernel_size_1),
+            ResnetBlock(dim * t_out, dim * t_out, kernel_size=conv_kernel_size_2),
+            nn.Conv2d(dim * t_out, dim * t_out, kernel_size=conv_kernel_size_3, padding=conv_kernel_size_3 // 2),
         )
 
     def forward(self, x):
@@ -80,31 +143,94 @@ class AmpCell(nn.Module):
 # ============================================================
 
 class AmpliNet(nn.Module):
-    """Amplitude projection network.
-
-    Maps T_in input frames to T_out predicted frames via an AmpCell layer.
     """
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor, conv_kernel_size):
+    Amplitude projection network.
+
+    Channel schedules are given by simple lists:
+      lift_dims = [16, 32, 64]
+      proj_dims = [32, 16, 4]
+    """
+
+    def __init__(
+        self,
+        pre_seq_length,
+        aft_seq_length,
+        dim,
+        hidden_dim,
+        size_factor,
+        conv_kernel_sizes,
+        lift_dims=None,
+        proj_dims=None,
+        groups=8,
+        padding_mode='zeros',
+    ):
         super().__init__()
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
 
+        # Default to the original 3-stage arrangement if not provided.
+        if lift_dims is None:
+            lift_dims = [hidden_dim, hidden_dim, hidden_dim]
+        if proj_dims is None:
+            proj_dims = [hidden_dim, hidden_dim, dim]
+
+        if len(lift_dims) == 0:
+            raise ValueError("lift_dims must contain at least one channel size.")
+        if len(proj_dims) == 0:
+            raise ValueError("proj_dims must contain at least one channel size.")
+
+        # Enforce the intended endpoint consistency.
+        if lift_dims[-1] != hidden_dim:
+            raise ValueError(
+                f"lift_dims must end at hidden_dim={hidden_dim}, but got {lift_dims[-1]}."
+            )
+        if proj_dims[0] != hidden_dim:
+            raise ValueError(
+                f"proj_dims must start from hidden_dim={hidden_dim}, but got {proj_dims[0]}."
+            )
+        if proj_dims[-1] != dim:
+            raise ValueError(
+                f"proj_dims must end at img_channels={dim}, but got {proj_dims[-1]}."
+            )
+
         # --- Lifting (Input-to-Hidden Feature Extractor) ---
-        self.convin = nn.Sequential(
-            ResnetBlock(dim, hidden_dim),
-            ResnetBlock(hidden_dim, hidden_dim),
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
+        self.convin, lift_out = build_channel_path(
+            in_channels=dim,
+            dims=lift_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+            last_kernel_size=1,
         )
+        if lift_out != hidden_dim:
+            raise ValueError(
+                f"Lifting path must end at hidden_dim={hidden_dim}, but it ends at {lift_out}."
+            )
+
+        conv_kernel_size_1, conv_kernel_size_2, conv_kernel_size_3 = conv_kernel_sizes
 
         # --- Core Operator Block ---
-        self.ampcell = AmpCell(pre_seq_length, aft_seq_length, hidden_dim, size_factor, conv_kernel_size)
+        self.ampcell = AmpCell(
+            pre_seq_length,
+            aft_seq_length,
+            hidden_dim,
+            size_factor,
+            conv_kernel_size_1,
+            conv_kernel_size_2,
+            conv_kernel_size_3,
+        )
 
         # --- Projection (Hidden-to-Output Feature Projector) ---
-        self.convout = nn.Sequential(
-            ResnetBlock(hidden_dim, hidden_dim),
-            ResnetBlock(hidden_dim, hidden_dim),
-            nn.Conv2d(hidden_dim, dim, kernel_size=1),
+        self.convout, proj_out = build_channel_path(
+            in_channels=hidden_dim,
+            dims=proj_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+            last_kernel_size=1,
         )
+        if proj_out != dim:
+            raise ValueError(
+                f"Projection path must end at img_channels={dim}, but it ends at {proj_out}."
+            )
 
     def forward(self, x):
         # Lifting
@@ -129,10 +255,34 @@ class AmpliNet(nn.Module):
 
 class AlphaPre_Amplinet(nn.Module):
     """Training wrapper with loss computation."""
-    def __init__(self, total_steps, const_ratio, pre_seq_length, aft_seq_length,
-                 input_dim, hidden_dim, conv_kernel_size, size_factor=1):
+    def __init__(
+        self,
+        total_steps,
+        const_ratio,
+        pre_seq_length,
+        aft_seq_length,
+        input_dim,
+        hidden_dim,
+        conv_kernel_sizes,
+        size_factor=1,
+        lift_dims=None,
+        proj_dims=None,
+        groups=8,
+        padding_mode='zeros',
+    ):
         super(AlphaPre_Amplinet, self).__init__()
-        self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor, conv_kernel_size)
+        self.amplinet = AmpliNet(
+            pre_seq_length,
+            aft_seq_length,
+            input_dim,
+            hidden_dim,
+            size_factor,
+            conv_kernel_sizes,
+            lift_dims=lift_dims,
+            proj_dims=proj_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+        )
         self.criterion = RandomScheduling(total_steps, 1, const_ratio)
 
     def forward(self, x):  # x: [b, t, c, h, w]
@@ -160,16 +310,21 @@ def get_model(
     T_in=5,
     T_out=20,
     mlp_size_factor=1.0,
-    kernel_size=3,
+    conv_kernel_sizes=(3, 3, 3),
+    lift_dims=None,
+    proj_dims=None,
     **kwargs
 ):
     model = AlphaPre_Amplinet(
-        total_steps, const_ratio,
+        total_steps,
+        const_ratio,
         pre_seq_length=T_in,
         aft_seq_length=T_out,
         input_dim=img_channels,
         hidden_dim=dim,
+        conv_kernel_sizes=conv_kernel_sizes,
         size_factor=mlp_size_factor,
-        conv_kernel_size=kernel_size
+        lift_dims=lift_dims,
+        proj_dims=proj_dims,
     )
     return model

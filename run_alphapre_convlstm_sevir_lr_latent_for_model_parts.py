@@ -151,8 +151,14 @@ def create_parser():
     # -----------------Other Parameters --------------------
     parser.add_argument("--mlp_size_factor"   , type=float,  default=1.0,            help="mlp size factor for hidden layer")
     parser.add_argument("--hidden_dim"        , type=int,    default=64,             help="hidden dimension size for expressiveness")
-    parser.add_argument("--conv_kernel_size",   type=int,    default=3,              help="convolution kernel size")
     
+    # -----------------Kernel size--------------------------
+    parser.add_argument("--conv_kernel_sizes", type=int, nargs=3, default=[3, 3, 3], help="Three kernel sizes for AmpCell conv blocks")
+
+    # --------------- Flexible Lifting / Projection --------------------
+    parser.add_argument("--lift_dims", type=int, nargs='+',default=[16, 32, 64],help="Channel progression for input lifting path")
+    parser.add_argument("--proj_dims", type=int, nargs='+', default=[32, 16, 4], help="Channel progression for output projection path")
+
     # --------------- Dataset ---------------
     parser.add_argument("--dataset",            type=str,       default='meteo_lr_latent_32',   help="dataset name")
     parser.add_argument("--datatype",           type=str,       default='vil_vip',           help="Indicates the datatype available")
@@ -582,6 +588,13 @@ class Runner(object):
             }
 
         elif kwargs_type == "standared_2":
+            
+            assert self.args.lift_dims[-1] == self.args.hidden_dim, \
+                "Last lift_dims value must equal hidden_dim"
+
+            assert self.args.proj_dims[-1] == self.args.img_channel, \
+                "Last proj_dims value must equal img_channel"
+            
             kwargs = {
                 "total_steps": total_steps,
                 "const_ratio": self.args.facl_const_ratio,
@@ -589,9 +602,11 @@ class Runner(object):
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,
                 "img_channels": self.args.img_channel,
+                "conv_kernel_sizes": self.args.conv_kernel_sizes,
                 "dim": self.args.hidden_dim,
                 "mlp_size_factor": self.args.mlp_size_factor, 
-                "kernel_size": self.args.conv_kernel_size
+                "lift_dims": self.args.lift_dims,
+                "proj_dims": self.args.proj_dims,
             }
 
         elif kwargs_type == "gabor_standared":
@@ -653,6 +668,8 @@ class Runner(object):
         
         
         # Create model
+
+        
         model = get_model(**kwargs)
         
         print_log(f"model parameters : {kwargs}", self.is_main)

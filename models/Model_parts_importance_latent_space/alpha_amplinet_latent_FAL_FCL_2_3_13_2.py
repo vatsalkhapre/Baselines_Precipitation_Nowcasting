@@ -12,6 +12,7 @@ Architecture Overview:
 from torch import nn
 from einops import rearrange
 
+
 from utils.utilspp import RandomScheduling
 
 
@@ -21,7 +22,11 @@ from utils.utilspp import RandomScheduling
 
 class Block(nn.Module):
     def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
+    def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
         super(Block, self).__init__()
+        self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size,
+                              padding=kernel_size // 2, padding_mode=padding_mode)
+        self.norm = nn.GroupNorm(groups, dim_out)
         self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size,
                               padding=kernel_size // 2, padding_mode=padding_mode)
         self.norm = nn.GroupNorm(groups, dim_out)
@@ -35,6 +40,7 @@ class Block(nn.Module):
 
 
 class ResnetBlock(nn.Module):
+    def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
     def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
         super().__init__()
         self.block1 = Block(dim, dim_out, groups=groups, kernel_size=kernel_size, padding_mode=padding_mode)
@@ -55,6 +61,7 @@ class AmpCell(nn.Module):
     def __init__(self, t_in, t_out, dim, size_factor=1.0):
         super().__init__()
         self.t_out = t_out
+        self.t_out = t_out
         self.tmlp = nn.Sequential(
             nn.Linear(t_in, int(t_out * size_factor)),
             nn.SELU(True),
@@ -68,6 +75,7 @@ class AmpCell(nn.Module):
 
     def forward(self, x):
         residual = self.tmlp(x.permute(0, 2, 3, 4, 1)).permute(0, 4, 1, 2, 3)
+        x = rearrange(residual, 'b t c h w -> b (t c) h w')
         x = rearrange(residual, 'b t c h w -> b (t c) h w')
         x = self.conv(x)
         x = rearrange(x, 'b (t c) h w -> b t c h w', t=self.t_out)
@@ -83,9 +91,13 @@ class AmpliNet(nn.Module):
     """Amplitude projection network.
 
     Maps T_in input frames to T_out predicted frames via an AmpCell layer.
+    Maps T_in input frames to T_out predicted frames via an AmpCell layer.
     """
     def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor):
+    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor):
         super().__init__()
+        self.pre_seq_length = pre_seq_length
+        self.aft_seq_length = aft_seq_length
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
 
@@ -96,6 +108,8 @@ class AmpliNet(nn.Module):
             nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
         )
 
+        # --- Core Operator Block ---
+        self.ampcell = AmpCell(pre_seq_length, aft_seq_length, hidden_dim, size_factor)
         # --- Core Operator Block ---
         self.ampcell = AmpCell(pre_seq_length, aft_seq_length, hidden_dim, size_factor)
 
@@ -131,25 +145,17 @@ class AlphaPre_Amplinet(nn.Module):
     """Training wrapper with loss computation."""
     def __init__(self, total_steps, const_ratio, pre_seq_length, aft_seq_length,
                  input_dim, hidden_dim, size_factor=1):
+    def __init__(self, total_steps, const_ratio, pre_seq_length, aft_seq_length,
+                 input_dim, hidden_dim, size_factor=1):
         super(AlphaPre_Amplinet, self).__init__()
         self.amplinet = AmpliNet(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
-<<<<<<< HEAD
-=======
-        self.input_shape, self.input_dim = input_shape, input_dim
-        self.hidden_dim = hidden_dim
-        self.spec_num = spec_num
-        self.pha_weight = pha_weight
-        self.anet_weight = anet_weight
-        self.amp_weight = amp_weight
-        self.pre_seq_length = pre_seq_length
-        self.aft_seq_length = aft_seq_length
->>>>>>> 1d3216d (imp changes)
         self.criterion = RandomScheduling(total_steps, 1, const_ratio)
 
     def forward(self, x):  # x: [b, t, c, h, w]
         return self.amplinet(x)
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
+        xas = self(frames_in)
         xas = self(frames_in)
         if compute_loss:
             falfcl_loss = self.criterion(xas, frames_gt)

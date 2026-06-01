@@ -103,7 +103,21 @@ MODEL_REGISTRY = {
     "LASTOCast": {
         "module": "models.Lastocast.lastocast",
         "kwargs_type": "lastocast"
-    }
+    },
+    # -------------------------------------------------------------------------
+    # DAWNCast
+    # -------------------------------------------------------------------------
+    "DAWNCast": {
+        "module": "models.DAWNCast.dawncast",
+        "kwargs_type": "dawncast",
+    },
+    # -------------------------------------------------------------------------
+    # LPCast
+    # -------------------------------------------------------------------------
+    "LPCast": {
+        "module": "models.LPCast.lpcast",
+        "kwargs_type": "lpcast",
+    },
 }
 
 # Ablation model prefixes that need dot→underscore conversion
@@ -173,6 +187,36 @@ def create_parser():
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
     parser.add_argument("--beta"            , type=float, default=0.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
+
+    # --------------- DAWNCast: Wavelet ---------------
+    parser.add_argument("--wave",           type=str,   default='db6',      help='DAWNCast: wavelet type (e.g. haar, db4, db6)')
+    parser.add_argument("--wavelet_level",  type=int,   default=1,          help='DAWNCast: DWT decomposition level J')
+    parser.add_argument("--hf_mode",        type=str,   default='separate', help='DAWNCast: HF FAT Block mode: shared or separate')
+
+    # --------------- DAWNCast: Gabor (LL subband) ---------------
+    parser.add_argument("--weight_scale_low",    type=float, default=0.1,  help='DAWNCast: weight scale for LL Gabor')
+    parser.add_argument("--alpha_low",           type=float, default=1.0,  help='DAWNCast: alpha (Gamma prior) for LL Gabor')
+    parser.add_argument("--beta_low",            type=float, default=1.0,  help='DAWNCast: beta (Gamma prior) for LL Gabor')
+    parser.add_argument("--freq_multiplier_low", type=float, default=0.5,  help='DAWNCast: frequency multiplier lambda for LL Gabor')
+
+    # --------------- DAWNCast: Gabor (HF subbands) ---------------
+    parser.add_argument("--weight_scale_high",    type=float, default=0.1,  help='DAWNCast: weight scale for HF Gabor')
+    parser.add_argument("--alpha_high",           type=float, default=1.0,  help='DAWNCast: alpha (Gamma prior) for HF Gabor')
+    parser.add_argument("--beta_high",            type=float, default=1.0,  help='DAWNCast: beta (Gamma prior) for HF Gabor')
+    parser.add_argument("--freq_multiplier_high", type=float, default=2.0,  help='DAWNCast: frequency multiplier lambda for HF Gabor')
+
+    # --------------- DAWNCast: SRST Block ---------------
+    parser.add_argument("--spectral_blocks",              type=int,   default=1,    help='DAWNCast: number of groups N_g in STR module')
+    parser.add_argument("--spectral_hidden_size_factor",  type=int,   default=1,    help='DAWNCast: hidden expansion factor rho_h in STR module')
+    parser.add_argument("--sparsity_threshold",           type=float, default=0.01, help='DAWNCast: soft-shrinkage threshold lambda in STR module')
+    parser.add_argument("--conv_kernel",                  type=int,   default=3,    help='DAWNCast: spatial branch depthwise conv kernel size k')
+
+    # --------------- LPCast ---------------
+    parser.add_argument("--facl_const_ratio",  type=float, default=0.1,            help="LPCast: FACL loss constant ratio")
+    parser.add_argument("--mlp_size_factor",   type=float, default=1.0,            help="LPCast: MLP hidden expansion factor in AmpCell")
+    parser.add_argument("--conv_kernel_sizes", type=int,   nargs=3, default=[3, 3, 3], help="LPCast: three kernel sizes for AmpCell conv blocks")
+    parser.add_argument("--lift_dims",  type=int, nargs='+', default=[16, 32, 64], help="LPCast: channel progression for input lifting path")
+    parser.add_argument("--proj_dims",  type=int, nargs='+', default=[32, 16, 4],  help="LPCast: channel progression for output projection path")
 
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
@@ -717,6 +761,52 @@ class Runner(object):
                 "dim":self.args.hidden_dim,
                 "T_in": self.args.frames_in, 
                 "T_out": self.args.frames_out
+            }
+
+        elif kwargs_type == "dawncast":
+            kwargs = {
+                "afno_blocks":              self.args.spectral_blocks,
+                "sparsity_threshold":       self.args.sparsity_threshold,
+                "afno_hidden_size_factor":  self.args.spectral_hidden_size_factor,
+                "weight_scale_low":         self.args.weight_scale_low,
+                "alpha_low":                self.args.alpha_low,
+                "beta_low":                 self.args.beta_low,
+                "freq_multiplier_low":      self.args.freq_multiplier_low,
+                "weight_scale_high":        self.args.weight_scale_high,
+                "alpha_high":               self.args.alpha_high,
+                "beta_high":                self.args.beta_high,
+                "freq_multiplier_high":     self.args.freq_multiplier_high,
+                "k_spatial":                self.args.conv_kernel,
+                "wave":                     self.args.wave,
+                "wavelet_level":            self.args.wavelet_level,
+                "hf_mode":                  self.args.hf_mode,
+                "size_factor":              self.args.size_factor,
+                "dim":                      self.args.hidden_dim,
+                "img_channels":             self.args.img_channel,
+                "T_in":                     self.args.frames_in,
+                "T_out":                    self.args.frames_out,
+                "total_steps":              total_steps,
+                "const_ratio":              0.1,
+                "input_shape":              (self.args.img_size, self.args.img_size),
+            }
+
+        elif kwargs_type == "lpcast":
+            assert self.args.lift_dims[-1] == self.args.hidden_dim, \
+                "Last lift_dims value must equal hidden_dim"
+            assert self.args.proj_dims[-1] == self.args.img_channel, \
+                "Last proj_dims value must equal img_channel"
+            kwargs = {
+                "total_steps":       total_steps,
+                "const_ratio":       self.args.facl_const_ratio,
+                "input_shape":       (self.args.img_size, self.args.img_size),
+                "T_in":              self.args.frames_in,
+                "T_out":             self.args.frames_out,
+                "img_channels":      self.args.img_channel,
+                "conv_kernel_sizes": self.args.conv_kernel_sizes,
+                "dim":               self.args.hidden_dim,
+                "mlp_size_factor":   self.args.mlp_size_factor,
+                "lift_dims":         self.args.lift_dims,
+                "proj_dims":         self.args.proj_dims,
             }
 
         # Create model

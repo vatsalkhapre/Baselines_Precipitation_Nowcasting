@@ -1,13 +1,22 @@
 """
-Wavelet-Gabor LASTOCast Block (Unified)
+DAWN-Cast: Latent Dynamical Adaptive Wavelet Network for Precipitation Nowcasting
 
-Supports:
-    - J=1 to J=4 with separate Gabor streams per HF level
-    - hf_mode: 'shared' (one stream for all HF) or 'separate' (one per level)
+Architecture:
+    Input → Lifting → DWT → [FAT Block per subband] → IDWT (fused path)
+                                                      → IDWT (Gabor residual path)
+          → SRST Block → + Gabor residual → Projection
 
-Pipeline:
-    Input → Lifting → DWT → [Gabor+MLP per band] → Fusion per band → IDWT
-          → Spatio-Temporal Conv → + Gabor residual → Projection
+Components:
+    - FATBlock        : Frequency Adaptive Temporal Block (Gabor + MLP dual-stream per subband)
+    - WGTMBlock       : Wavelet Guided Temporal Modelling Block
+    - SRSTBlock       : Spectral Refinement Spatio-Temporal Block
+    - SRSTResBlock    : Stack of two SRSTBlocks with residual connection
+    - STRModule       : Spectral Temporal Refinement module (Fourier-domain, based on AFNO [1])
+    - DAWNCast        : Full DAWN-Cast model
+    - DAWNCastForecaster : DAWN-Cast with loss scheduling
+
+[1] Guibas et al., "Adaptive Fourier Neural Operators: Efficient Token Mixers
+    for Transformers", ICLR 2022.
 
 Requirements:
     pip install pytorch_wavelets
@@ -24,16 +33,31 @@ import matplotlib.pyplot as plt
 import os
 import time
 
-class AFNO2D(nn.Module):
+
+# ============================================================
+# Spectral Temporal Refinement Module
+# Based on AFNO (Adaptive Fourier Neural Operator) [Guibas et al., ICLR 2022]
+# Used inside SRSTBlock as the global temporal refinement branch
+# ============================================================
+
+class STRModule(nn.Module):
     """
-    hidden_size: channel dimension size
-    num_blocks: how many blocks to use in the block diagonal weight matrices (higher => less complexity but less parameters)
-    sparsity_threshold: lambda for softshrink
-    hard_thresholding_fraction: how many frequencies you want to completely mask out (lower => hard_thresholding_fraction^2 less FLOPs)
+    Spectral Temporal Refinement (STR) module.
+    Performs Fourier-domain temporal processing for global structure refinement.
+    Based on AFNO [Guibas et al., ICLR 2022].
+
+    Args:
+        hidden_size             : merged temporal-channel dimension D = T_out * C
+        num_blocks              : number of groups partitioning D (higher => fewer parameters)
+        sparsity_threshold      : lambda for soft-shrinkage regularization
+        hard_thresholding_fraction : fraction of frequency modes retained
+        hidden_size_factor      : expansion factor rho_h for hidden dimension d_h = d * rho_h
     """
-    def __init__(self, hidden_size, num_blocks=1, sparsity_threshold=0.01, hard_thresholding_fraction=1, hidden_size_factor=1):
+    def __init__(self, hidden_size, num_blocks=1, sparsity_threshold=0.01,
+                 hard_thresholding_fraction=1, hidden_size_factor=1):
         super().__init__()
-        assert hidden_size % num_blocks == 0, f"hidden_size {hidden_size} should be divisble by num_blocks {num_blocks}"
+        assert hidden_size % num_blocks == 0, \
+            f"hidden_size {hidden_size} should be divisible by num_blocks {num_blocks}"
 
         self.hidden_size = hidden_size
         self.sparsity_threshold = sparsity_threshold
@@ -49,11 +73,11 @@ class AFNO2D(nn.Module):
 
     def forward(self, x):
         bias = x
-        
+
         dtype = x.dtype
         x = x.float()
         B, H, W, C = x.shape
-        N = H*W
+        N = H * W
         x = x.reshape(B, H, W, C)
         x = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
         x = x.reshape(B, x.shape[1], x.shape[2], self.num_blocks, self.block_size)
@@ -66,106 +90,150 @@ class AFNO2D(nn.Module):
         total_modes = N // 2 + 1
         kept_modes = int(total_modes * self.hard_thresholding_fraction)
 
+        # Layer 1: complex-valued Fourier-domain transformation (expand to d_h)
         o1_real[:, :, :kept_modes] = F.relu(
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) - \
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) + \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[0]) -
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[1]) +
             self.b1[0]
         )
-        
         o1_imag[:, :, :kept_modes] = F.relu(
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) + \
-            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) + \
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].imag, self.w1[0]) +
+            torch.einsum('...bi,bio->...bo', x[:, :, :kept_modes].real, self.w1[1]) +
             self.b1[1]
         )
 
+        # Layer 2: complex-valued Fourier-domain transformation (project back to d)
         o2_real[:, :, :kept_modes] = F.relu(
-            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) - \
-            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) + \
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[0]) -
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[1]) +
             self.b2[0]
         )
-
-        o2_imag[:, :, :kept_modes] =  F.relu(
-            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) + \
-            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) + \
+        o2_imag[:, :, :kept_modes] = F.relu(
+            torch.einsum('...bi,bio->...bo', o1_imag[:, :, :kept_modes], self.w2[0]) +
+            torch.einsum('...bi,bio->...bo', o1_real[:, :, :kept_modes], self.w2[1]) +
             self.b2[1]
         )
 
         x = torch.stack([o2_real, o2_imag], dim=-1)
-        
+
+        # Sparsity regularization via soft-shrinkage
         x = F.softshrink(x, lambd=self.sparsity_threshold)
-       
-        
+
         x = torch.view_as_complex(x)
-   
         x = x.reshape(B, x.shape[1], x.shape[2], C)
-    
         x = torch.fft.irfft2(x, s=(H, W), dim=(1, 2), norm="ortho")
-    
         x = x.type(dtype)
-        return x + bias
 
-class SpectralBlock_2D(nn.Module):
-    def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial, groupnorm=True, groups=8):
+        return x + bias  # residual connection
 
+
+# ============================================================
+# Spectral Refinement Spatio-Temporal (SRST) Block
+# Two parallel branches: STR (global) + Spatial (local) → GroupNorm → Channel Mixing
+# ============================================================
+
+class SRSTBlock(nn.Module):
+    """
+    Spectral Refinement Spatio-Temporal (SRST) Block.
+
+    Refines the aggregated latent tensor through two parallel branches:
+      - STR branch    : Spectral Temporal Refinement (global, Fourier-domain)
+      - Spatial branch: Depthwise convolution for local fine-detail refinement
+
+    Outputs are summed → GroupNorm → SiLU → Channel Mixing (1x1 conv).
+    """
+    def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor,
+                 k_spatial, groupnorm=True, groups=8):
         super().__init__()
 
         pad_spatial = (k_spatial - 1) // 2
 
-        self.proj = AFNO2D(dim, num_blocks, sparsity_threshold,
-                           hidden_size_factor=hidden_size_factor)
+        # STR branch: global Fourier-domain temporal refinement
+        self.str_branch = STRModule(dim, num_blocks, sparsity_threshold,
+                                    hidden_size_factor=hidden_size_factor)
 
-        self.dw_spatial = nn.Conv2d(dim, dim, kernel_size=k_spatial,
-                                   padding=pad_spatial, groups=dim, bias=False)
+        # Spatial branch: local fine-detail refinement via depthwise convolution
+        self.spatial_branch = nn.Conv2d(dim, dim, kernel_size=k_spatial,
+                                        padding=pad_spatial, groups=dim, bias=False)
 
         self.norm = nn.GroupNorm(groups, dim) if groupnorm else nn.BatchNorm2d(dim)
 
-        
-        self.pw = nn.Sequential(
-            nn.Conv2d(dim, dim*2, 1),
+        # Channel mixing: couples STR and spatial features across temporal-channel dim
+        self.channel_mixing = nn.Sequential(
+            nn.Conv2d(dim, dim * 2, 1),
             nn.GELU(),
-            nn.Conv2d(dim*2, dim, 1))
+            nn.Conv2d(dim * 2, dim, 1))
 
         self.act = nn.SiLU()
 
     def forward(self, x):
-        # x: (B, H, W, C)
+        # x: (B, H, W, D) where D = T_out * C
         shortcut = x
 
-        x_ = x.permute(0,3,1,2)
-    
-        x_spa = self.dw_spatial(x_)
+        x_ = x.permute(0, 3, 1, 2)          # (B, D, H, W)
 
-        x_spec = self.proj(x_.permute(0,2,3,1))
-        x_spec = x_spec.permute(0,3,1,2)
-        
+        # Spatial branch: local fine-scale spatial refinement
+        x_spa = self.spatial_branch(x_)       # (B, D, H, W)
+
+        # STR branch: global spectral temporal refinement
+        x_spec = self.str_branch(x_.permute(0, 2, 3, 1))  # (B, H, W, D)
+        x_spec = x_spec.permute(0, 3, 1, 2)               # (B, D, H, W)
+
+        # Fuse branches, normalize, activate, and apply channel mixing
         x_fused = x_spa + x_spec
-
         x_fused = self.norm(x_fused)
-
         x_fused = self.act(x_fused)
+        x_fused = self.channel_mixing(x_fused)
 
-        x_fused = self.pw(x_fused)
+        x_fused = x_fused.permute(0, 2, 3, 1)  # (B, H, W, D)
 
-        x_fused = x_fused.permute(0,2,3,1)
+        return x_fused
 
-        out = x_fused
 
-        return out
+# ============================================================
+# SRST Residual Block: two SRSTBlocks with skip connection
+# ============================================================
 
-class ResneSpectralBlock(nn.Module):
-    def __init__(self, dim,num_blocks, sparsity_threshold, hidden_size_factor,  k_spatial, groups = 8): #'zeros', 'reflect', 'replicate' or 'circular'
+class SRSTResBlock(nn.Module):
+    def __init__(self, dim, num_blocks, sparsity_threshold, hidden_size_factor,
+                 k_spatial, groups=8):
         super().__init__()
-        self.block1 = SpectralBlock_2D(dim, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
-        self.block2 = SpectralBlock_2D(dim, num_blocks=num_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor= hidden_size_factor, k_spatial= k_spatial, groups = groups)
+        self.srst_block1 = SRSTBlock(dim, num_blocks=num_blocks,
+                                     sparsity_threshold=sparsity_threshold,
+                                     hidden_size_factor=hidden_size_factor,
+                                     k_spatial=k_spatial, groups=groups)
+        self.srst_block2 = SRSTBlock(dim, num_blocks=num_blocks,
+                                     sparsity_threshold=sparsity_threshold,
+                                     hidden_size_factor=hidden_size_factor,
+                                     k_spatial=k_spatial, groups=groups)
         self.res_conv = nn.Identity()
 
     def forward(self, x):
-        h = self.block1(x)
-        h = self.block2(h)
+        h = self.srst_block1(x)
+        h = self.srst_block2(h)
         return h + self.res_conv(x)
-    
+
+
+# ============================================================
+# Gabor Activation (used inside FATBlock)
+# ============================================================
+
 class GaborLayer(nn.Module):
-    def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier=1.5):
+    """
+    Adaptive Gabor activation for subband-specific climatic inductive bias.
+
+    Learnable parameters:
+        mu    : Gaussian envelope center (localization in feature space)
+        gamma : bandwidth (initialized from Gamma(alpha, beta) prior)
+        freq  : per-neuron base frequency
+        freq_multiplier : global frequency scaling lambda
+
+    Behavioral regimes (see paper Section 3):
+        - Small lambda*freq, small gamma => near-linear (slowly evolving subbands)
+        - Large lambda*freq, large gamma => oscillatory + localized (turbulent subbands)
+    """
+    def __init__(self, in_features, out_features, weight_scale,
+                 alpha=1.0, beta=1.0, freq_multiplier=1.5):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
         self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
@@ -178,16 +246,22 @@ class GaborLayer(nn.Module):
         self.freq_multiplier = freq_multiplier
 
     def forward(self, x):
+        # Distance term D(x) = ||x - mu||^2
         D = (
             (x ** 2).sum(-1)[..., None]
             + (self.mu ** 2).sum(-1)[None, :]
             - 2 * x @ self.mu.T
         )
+        # Gabor activation: sin(lambda * f * W^T x) * exp(-0.5 * gamma * D)
         return torch.sin(self.freq_multiplier * self.freq * self.linear(x)) * \
                torch.exp(-0.5 * D * self.gamma[None, :])
 
 
-class Block(nn.Module):
+# ============================================================
+# Utility blocks for Lifting and Projection
+# ============================================================
+
+class _ConvNormAct(nn.Module):
     def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
         super().__init__()
         self.proj = nn.Conv2d(dim, dim_out, kernel_size=kernel_size,
@@ -200,12 +274,13 @@ class Block(nn.Module):
 
 
 class TransformBlock(nn.Module):
+    """Residual Conv block used in Lifting and Projection."""
     def __init__(self, dim, dim_out, groups=8, kernel_size=3, padding_mode='zeros'):
         super().__init__()
-        self.block1 = Block(dim, dim_out, groups=groups,
-                            kernel_size=kernel_size, padding_mode=padding_mode)
-        self.block2 = Block(dim_out, dim_out, groups=groups,
-                            kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block1 = _ConvNormAct(dim, dim_out, groups=groups,
+                                   kernel_size=kernel_size, padding_mode=padding_mode)
+        self.block2 = _ConvNormAct(dim_out, dim_out, groups=groups,
+                                   kernel_size=kernel_size, padding_mode=padding_mode)
         self.skip = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
     def forward(self, x):
@@ -215,11 +290,29 @@ class TransformBlock(nn.Module):
 
 
 # ============================================================
-# Temporal stream: Gabor + MLP + Fusion for a single band
+# FAT Block: Frequency Adaptive Temporal Block
+# Dual-stream (Gabor + MLP) temporal modeling for a single wavelet subband
 # ============================================================
 
-class BandTemporalStream(nn.Module):
-    """Applies Gabor+MLP dual-stream temporal modeling to a single frequency band."""
+class FATBlock(nn.Module):
+    """
+    Frequency Adaptive Temporal (FAT) Block.
+
+    Applied independently to each wavelet subband. Combines:
+      - Gabor stream : adaptive Gabor activation providing subband-specific
+                       climatic inductive bias (see GaborLayer)
+      - MLP stream   : stable nonlinear temporal transformation
+
+    The two streams are fused via concatenation + 1x1x1 Conv3d.
+
+    Args:
+        t_in, t_out     : input/output temporal lengths
+        dim             : channel dimension of the subband
+        weight_scale    : Gabor weight initialization scale
+        alpha, beta     : Gamma distribution parameters for gamma initialization
+        freq_multiplier : global frequency scaling lambda for Gabor
+        size_factor     : MLP hidden dimension expansion factor
+    """
     def __init__(self, t_in, t_out, dim, weight_scale, alpha, beta,
                  freq_multiplier, size_factor=1.0):
         super().__init__()
@@ -233,13 +326,15 @@ class BandTemporalStream(nn.Module):
 
     def forward(self, x):
         """
-        x: (B, C, H, W, T_in)
-        returns: gabor_out (B, C, H, W, T_out), fused_out (B, C, T_out, H, W)
+        x         : (B, C, H, W, T_in)
+        returns   : gabor_out  (B, C, H, W, T_out)  -- Gabor stream output (for residual path)
+                    mlp_out    (B, C, H, W, T_out)  -- MLP stream output
+                    fused_out  (B, C, T_out, H, W)  -- fused output (for WGTM aggregation)
         """
-        gabor_out = self.gabor(x)   # (B, C, H, W, T_out)
-        mlp_out = self.mlp(x)       # (B, C, H, W, T_out)
-       
-        # Fuse: cat along channel, permute for Conv3d
+        gabor_out = self.gabor(x)    # (B, C, H, W, T_out)
+        mlp_out   = self.mlp(x)      # (B, C, H, W, T_out)
+
+        # Concatenate along channel dim, permute for Conv3d, fuse 2C → C
         fused = torch.cat([gabor_out, mlp_out], dim=1)  # (B, 2C, H, W, T_out)
         fused = fused.permute(0, 1, 4, 2, 3)            # (B, 2C, T_out, H, W)
         fused = self.fusion(fused)                        # (B, C, T_out, H, W)
@@ -248,20 +343,29 @@ class BandTemporalStream(nn.Module):
 
 
 # ============================================================
-# Main Wavelet-Gabor Block
+# WGTM Block: Wavelet Guided Temporal Modelling Block
+# DWT → FAT Block per subband → IDWT (fused) + IDWT (Gabor residual) → SRST
 # ============================================================
 
-class WaveletGaborBlock(nn.Module):
+class WGTMBlock(nn.Module):
     """
-    LASTOCast block with wavelet-decomposed dual Gabor temporal modeling.
+    Wavelet Guided Temporal Modelling (WGTM) Block.
+
+    Pipeline:
+        1. J-level 2D DWT → LL subband + HF subbands per level
+        2. FATBlock applied independently to each subband
+        3. IDWT of fused FAT outputs  → input to SRST Block
+        4. IDWT of Gabor-only outputs → Gabor residual (added after SRST)
+        5. SRST Block refines the fused latent
+        6. Add Gabor residual → final WGTM output
 
     Args:
-        level: DWT decomposition level (1, 2, 3, or 4)
-        hf_mode: 'shared' or 'separate'
-            - 'shared': single Gabor stream for all HF levels
-            - 'separate': one Gabor stream per HF level
+        level   : DWT decomposition level J (1-4)
+        hf_mode : 'shared' (one FATBlock for all HF levels) or
+                  'separate' (one FATBlock per HF level)
     """
-    def __init__(self, t_in, t_out, dim, num_blocks,sparsity_threshold, hidden_size_factor,
+    def __init__(self, t_in, t_out, dim, num_blocks, sparsity_threshold,
+                 hidden_size_factor,
                  weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
                  weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                  k_spatial,
@@ -275,58 +379,53 @@ class WaveletGaborBlock(nn.Module):
         assert level in [1, 2, 3, 4], "Levels 1-4 supported"
         assert hf_mode in ['shared', 'separate']
 
-        # ---- Wavelet transform ----
+        # ---- Wavelet transform (J-level DWT / IDWT) ----
         self.wave = wave
-        self.dwt = DWTForward(J=level, wave=wave, mode='zero')
+        self.dwt  = DWTForward(J=level, wave=wave, mode='zero')
         self.idwt = DWTInverse(wave=wave, mode='zero')
 
-        # ---- LL temporal stream (always present) ----
-        self.stream_ll = BandTemporalStream(
+        # ---- FAT Block for LL subband (low-frequency, large-scale convective structure) ----
+        self.fat_ll = FATBlock(
             t_in, t_out, dim,
             weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
             size_factor,
         )
 
-        # ---- HF temporal streams ----
+        # ---- FAT Block(s) for HF subbands (high-frequency, turbulent fine-scale variability) ----
         if hf_mode == 'shared':
-            # Single stream shared across all HF levels
-            self.stream_hf = BandTemporalStream(
+            # Single FAT Block shared across all HF levels
+            self.fat_hf = FATBlock(
                 t_in, t_out, 3 * dim,
                 weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                 size_factor,
             )
         else:
-            # Separate stream per HF level
-            # Interpolate freq_multiplier from high (coarsest) to low (finest)
-            self.hf_streams = nn.ModuleList()
+            # Separate FAT Block per HF level (frequency interpolated across levels)
+            self.fat_hf_streams = nn.ModuleList()
             for i in range(level):
                 if level == 1:
                     freq_i = freq_multiplier_high
                 else:
-                    # Level 0 = coarsest (highest freq), level[-1] = finest (mid freq)
-                    # Interpolate: coarsest gets freq_high, finest gets midpoint
+                    # Interpolate: coarsest level gets freq_high, finest gets midpoint
                     freq_mid = (freq_multiplier_low + freq_multiplier_high) / 2
-                    alpha_interp = i / (level - 1)  # 0 for coarsest, 1 for finest
+                    alpha_interp = i / (level - 1)
                     freq_i = freq_multiplier_high * (1 - alpha_interp) + freq_mid * alpha_interp
 
-                self.hf_streams.append(BandTemporalStream(
+                self.fat_hf_streams.append(FATBlock(
                     t_in, t_out, 3 * dim,
                     weight_scale_high, alpha_high, beta_high, freq_i,
                     size_factor,
                 ))
-            #     print("freq_i", freq_i)
-            
-            # print("hf_streams length", len(self.hf_streams))
-        # ---- Spatio-Temporal Interaction ----
-        # self.spatial_temporal = nn.Sequential(
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     TransformBlock(dim * t_out, dim * t_out),
-        #     nn.Conv2d(dim * t_out, dim * t_out, kernel_size=3, padding=1),
-        # )
 
-        self.conv_spectral = nn.Sequential(ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     ResneSpectralBlock(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor, k_spatial),
-                                     AFNO2D(dim*t_out, num_blocks, sparsity_threshold, hidden_size_factor= hidden_size_factor))
+        # ---- SRST Block stack: refines the IDWT-aggregated fused outputs ----
+        self.srst = nn.Sequential(
+            SRSTResBlock(dim * t_out, num_blocks, sparsity_threshold,
+                         hidden_size_factor, k_spatial),
+            SRSTResBlock(dim * t_out, num_blocks, sparsity_threshold,
+                         hidden_size_factor, k_spatial),
+            STRModule(dim * t_out, num_blocks, sparsity_threshold,
+                      hidden_size_factor=hidden_size_factor)
+        )
         self.viz_counter = 0
 
     def forward(self, x):
@@ -334,51 +433,40 @@ class WaveletGaborBlock(nn.Module):
         B, T, C, H, W = x.shape
 
         # ============================================================
-        # 1. DWT decomposition
+        # 1. J-level 2D DWT decomposition
         # ============================================================
         x_flat = rearrange(x, 'b t c h w -> (b t) c h w')
-        # print("x_flat", x_flat.shape)
         ll, hf_list = self.dwt(x_flat)
-        # print("hf_list", len(hf_list))
-
-        # for i, ele in enumerate(hf_list):
-            # print(i, ele.shape)
-        # ll: (B*T, C, H/2^level, W/2^level)
-        # hf_list[i]: (B*T, C, 3, H_i, W_i) for i in range(level)
-        # hf_list[0] = coarsest, hf_list[-1] = finest
+        # ll        : (B*T, C, H/2^J, W/2^J)         — LL subband
+        # hf_list[i]: (B*T, C, 3, H_i, W_i)          — HF subbands per level
 
         # ============================================================
-        # 2. Temporal processing per band
+        # 2. FAT Block temporal processing per subband
         # ============================================================
 
-        # --- LL band ---
+        # --- LL subband → FAT Block (Low) ---
         ll_t = rearrange(ll, '(b t) c h w -> b c h w t', t=T)
-        ll_gabor, ll_mlp, ll_fused = self.stream_ll(ll_t)
+        ll_gabor, ll_mlp, ll_fused = self.fat_ll(ll_t)
 
-        # --- HF bands ---
-        hf_gabor_list = []
-        hf_fused_list = []
-        hf_mlp_list = []
+        # --- HF subbands → FAT Block (High) per level ---
+        hf_gabor_list  = []
+        hf_fused_list  = []
+        hf_mlp_list    = []
 
         for i in range(len(hf_list)):
             hf_t = rearrange(hf_list[i], '(b t) c n h w -> b (c n) h w t', t=T)
 
             if self.hf_mode == 'shared':
-                hf_gabor, hf_mlp, hf_fused = self.stream_hf(hf_t)
+                hf_gabor, hf_mlp, hf_fused = self.fat_hf(hf_t)
             else:
-                hf_gabor, hf_mlp, hf_fused = self.hf_streams[i](hf_t)
+                hf_gabor, hf_mlp, hf_fused = self.fat_hf_streams[i](hf_t)
 
             hf_gabor_list.append(hf_gabor)
             hf_mlp_list.append(hf_mlp)
             hf_fused_list.append(hf_fused)
 
-        # # ===== VISUALIZATION (ONLY FOR DEBUG) =====
-        # self.debug_data = {
-        #     "ll_gabor": ll_gabor.detach().cpu(),
-        #     "hf_gabor": [hf.detach().cpu() for hf in hf_gabor_list]
-
         # ============================================================
-        # 3. IDWT reconstruction (fused path)
+        # 3. IDWT reconstruction — fused path (input to SRST Block)
         # ============================================================
         ll_recon = rearrange(ll_fused, 'b c t h w -> (b t) c h w')
         hf_recon_list = []
@@ -389,7 +477,7 @@ class WaveletGaborBlock(nn.Module):
         reconstructed = self.idwt((ll_recon, hf_recon_list))
 
         # ============================================================
-        # 4. IDWT reconstruction (gabor-only residual)
+        # 4. IDWT reconstruction — Gabor residual path (bypasses SRST)
         # ============================================================
         ll_gabor_flat = rearrange(ll_gabor, 'b c h w t -> (b t) c h w')
         hf_gabor_flat_list = []
@@ -400,54 +488,66 @@ class WaveletGaborBlock(nn.Module):
         gabor_residual = self.idwt((ll_gabor_flat, hf_gabor_flat_list))
 
         # ============================================================
-        # 5. Trim, reshape, S-T Conv, residual
+        # 5. Trim, reshape, apply SRST Block, add Gabor residual
         # ============================================================
-        reconstructed = reconstructed[..., :H, :W]
+        reconstructed  = reconstructed[..., :H, :W]
         gabor_residual = gabor_residual[..., :H, :W]
 
-        reconstructed = rearrange(reconstructed, '(b t) c h w -> b t c h w', t=self.t_out)
-        gabor_residual = rearrange(gabor_residual, '(b t) c h w -> b t c h w', t=self.t_out)
+        reconstructed  = rearrange(reconstructed,  '(b t) c h w -> b t c h w', t=self.t_out)
+        gabor_residual = rearrange(gabor_residual,  '(b t) c h w -> b t c h w', t=self.t_out)
 
-        # Spatio-Temporal Interaction
-        x_st = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
-        x_st = self.conv_spectral(x_st)
-        x_st = rearrange(x_st, 'b h w (t c) -> b t c h w', t=self.t_out)
+        # SRST Block: refines fused latent in merged temporal-channel space
+        x_srst = rearrange(reconstructed, 'b t c h w -> b h w (t c)')
+        x_srst = self.srst(x_srst)
+        x_srst = rearrange(x_srst, 'b h w (t c) -> b t c h w', t=self.t_out)
 
-        # Gabor residual
-        x = x_st + gabor_residual
+        # Final output: SRST-refined + Gabor residual (Eq. Z_hat = SRST(Z_fused) + R_Gabor)
+        x = x_srst + gabor_residual
 
         return x
 
 
 # ============================================================
-# Full LASTOCast with Wavelet-Gabor
+# DAWN-Cast: Full model (Lifting → WGTM → Projection)
 # ============================================================
 
-class WaveletLASTOCast(nn.Module):
-    def __init__(self, T_in, T_out, in_dim, hidden_dim,num_blocks, sparsity_threshold,                  
-                 hidden_size_factor, weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
+class DAWNCast(nn.Module):
+    """
+    DAWN-Cast: Latent Dynamical Adaptive Wavelet Network.
+
+    Full pipeline:
+        Input (B, T_in, C, H, W)
+        → Lifting (c → c')
+        → WGTMBlock (wavelet decomp + FAT Blocks + SRST Block)
+        → Projection (c' → c)
+        → Output (B, T_out, C, H, W)
+    """
+    def __init__(self, T_in, T_out, in_dim, hidden_dim, num_blocks,
+                 sparsity_threshold, hidden_size_factor,
+                 weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
                  weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                  k_spatial, size_factor=1.0, wave='haar', level=1, hf_mode='shared'):
         super().__init__()
-        self.T_in = T_in
+        self.T_in  = T_in
         self.T_out = T_out
 
-        # Lifting
+        # Lifting: c → c' (expand latent channels)
         self.lifting = nn.Sequential(
             TransformBlock(in_dim, hidden_dim),
             TransformBlock(hidden_dim, hidden_dim),
             nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
         )
 
-        # Core operator
-        self.operator = WaveletGaborBlock(
-            T_in, T_out, hidden_dim, num_blocks, sparsity_threshold, hidden_size_factor,
+        # WGTM Block: wavelet-guided temporal modelling
+        self.wgtm = WGTMBlock(
+            T_in, T_out, hidden_dim, num_blocks, sparsity_threshold,
+            hidden_size_factor,
             weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
             weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
             k_spatial, size_factor, wave, level, hf_mode,
         )
 
-        # Projection
+        # Projection: c' → c (reduce back to latent channels)
         self.projection = nn.Sequential(
             TransformBlock(hidden_dim, hidden_dim),
             TransformBlock(hidden_dim, hidden_dim),
@@ -459,7 +559,7 @@ class WaveletLASTOCast(nn.Module):
         x = self.lifting(x)
         x = rearrange(x, '(b t) c h w -> b t c h w', t=self.T_in)
 
-        x = self.operator(x)
+        x = self.wgtm(x)
 
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         x = self.projection(x)
@@ -467,26 +567,37 @@ class WaveletLASTOCast(nn.Module):
         return x
 
 
-class WaveletLASTOCastForecaster(nn.Module):
-    def __init__(self, T_in, T_out, in_dim, hidden_dim, num_blocks, sparsity_threshold, hidden_size_factor,
+# ============================================================
+# DAWN-Cast Forecaster (with FACL loss scheduling)
+# ============================================================
+
+class DAWNCastForecaster(nn.Module):
+    """
+    DAWN-Cast Forecaster wrapper with Fourier Amplitude and Correlation Loss (FACL)
+    scheduling via RandomScheduling.
+    """
+    def __init__(self, T_in, T_out, in_dim, hidden_dim, num_blocks,
+                 sparsity_threshold, hidden_size_factor,
                  weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
                  weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
                  size_factor, total_steps, const_ratio,
                  k_spatial, wave='haar', level=1, hf_mode='shared'):
         super().__init__()
-        self.lastocast = WaveletLASTOCast(
-            T_in, T_out, in_dim, hidden_dim,num_blocks, sparsity_threshold, hidden_size_factor,
+        self.dawncast = DAWNCast(
+            T_in, T_out, in_dim, hidden_dim, num_blocks, sparsity_threshold,
+            hidden_size_factor,
             weight_scale_low, alpha_low, beta_low, freq_multiplier_low,
             weight_scale_high, alpha_high, beta_high, freq_multiplier_high,
-            k_spatial, size_factor, wave, level, hf_mode,)
-        self.T_in = T_in
+            k_spatial, size_factor, wave, level, hf_mode,
+        )
+        self.T_in  = T_in
         self.T_out = T_out
         self.falfcl = RandomScheduling(total_steps, 1, const_ratio)
         self.itr = 0
 
     def forward(self, x, y=None, cmp_fft_loss=False):
         self.itr += 1
-        return self.lastocast(x)
+        return self.dawncast(x)
 
     def predict(self, frames_in, frames_gt=None, compute_loss=False):
         xas = self(frames_in, frames_gt, compute_loss)
@@ -503,7 +614,8 @@ class WaveletLASTOCastForecaster(nn.Module):
 # ============================================================
 
 def get_model(
-    afno_blocks, sparsity_threshold, afno_hidden_size_factor, weight_scale_low=1.5, alpha_low=1.0, beta_low=1.0, freq_multiplier_low=0.5,
+    afno_blocks, sparsity_threshold, afno_hidden_size_factor,
+    weight_scale_low=1.5, alpha_low=1.0, beta_low=1.0, freq_multiplier_low=0.5,
     weight_scale_high=1.5, alpha_high=1.0, beta_high=1.0, freq_multiplier_high=2.0,
     size_factor=1.0,
     total_steps=50000, const_ratio=0.5, k_spatial=3,
@@ -513,41 +625,35 @@ def get_model(
     input_shape=(128, 128),
     **kwargs
 ):
-    model = WaveletLASTOCastForecaster(
+    model = DAWNCastForecaster(
         T_in=T_in, T_out=T_out,
-        in_dim=img_channels, hidden_dim=dim, num_blocks=afno_blocks, sparsity_threshold=sparsity_threshold, hidden_size_factor=afno_hidden_size_factor,
-        weight_scale_low=weight_scale_low, alpha_low=alpha_low,
-        beta_low=beta_low, freq_multiplier_low=freq_multiplier_low,
+        in_dim=img_channels, hidden_dim=dim,
+        num_blocks=afno_blocks,
+        sparsity_threshold=sparsity_threshold,
+        hidden_size_factor=afno_hidden_size_factor,
+        weight_scale_low=weight_scale_low,   alpha_low=alpha_low,
+        beta_low=beta_low,                   freq_multiplier_low=freq_multiplier_low,
         weight_scale_high=weight_scale_high, alpha_high=alpha_high,
-        beta_high=beta_high, freq_multiplier_high=freq_multiplier_high,
-        size_factor=size_factor, total_steps=total_steps, const_ratio=const_ratio, k_spatial=k_spatial, 
+        beta_high=beta_high,                 freq_multiplier_high=freq_multiplier_high,
+        size_factor=size_factor,
+        total_steps=total_steps, const_ratio=const_ratio,
+        k_spatial=k_spatial,
         wave=wave, level=wavelet_level, hf_mode=hf_mode,
     )
-    
     return model
-
 
 
 # ============================================================
 # Self-test
 # ============================================================
 if __name__ == '__main__':
-    print("=== Wavelet-Gabor LASTOCast Self-Test (J=1 to J=4) ===\n")
-
-    # Spatial sizes at each level for 32x32 input:
-    # J=1: LL=16x16, HF=[16x16]
-    # J=2: LL=8x8,   HF=[8x8, 16x16]
-    # J=3: LL=4x4,   HF=[4x4, 8x8, 16x16]
-    # J=4: LL=2x2,   HF=[2x2, 4x4, 8x8, 16x16]
+    print("=== DAWN-Cast Self-Test (J=1 to J=4) ===\n")
 
     configs = []
     for wave in ['db6']:
         for level in [2, 3, 4]:
             for hf_mode in ['shared', 'separate']:
-                configs.append({
-                    'wave': wave, 'level': level,
-                    'hf_mode': hf_mode,
-                })
+                configs.append({'wave': wave, 'level': level, 'hf_mode': hf_mode})
 
     passed = 0
     failed = 0
@@ -560,9 +666,10 @@ if __name__ == '__main__':
                 wave=cfg['wave'], wavelet_level=cfg['level'],
                 hf_mode=cfg['hf_mode'],
             )
-            x = torch.randn(2, 5, 4, 32, 32)
+            x   = torch.randn(2, 5, 4, 32, 32)
             out = model(x)
-            params = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
+            params = sum(p.numel() for p in model.parameters()
+                         if p.requires_grad) / 1e6
             assert out.shape == (2, 20, 4, 32, 32), f"Shape mismatch: {out.shape}"
             print(f"  [PASS] {tag:<25} | out={tuple(out.shape)} | {params:.2f}M")
             passed += 1

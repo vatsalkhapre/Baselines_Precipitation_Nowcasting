@@ -114,6 +114,8 @@ class Evaluator(object):
         self.seq_len = seq_len
         self.total = 0
         self.value_scale = value_scale 
+        self.mse_list  = []   # MSE per batch (scaled pixel space)
+        self.ssim_list = []   # SSIM per batch (averaged over frames × channels)
     
     def float2int(self, arr):
 
@@ -173,6 +175,27 @@ class Evaluator(object):
                 self.metrics[threshold]["correctnegs16"].append(correctnegs16)
 
         self.total += batch_size
+
+        # ------ SSIM and MSE (computed in scaled pixel space, consistent with CSI) ------
+        # SSIM: average over all (batch, time, channel) frame pairs
+        ssim_batch = []
+        for b in range(batch_size):
+            for t in range(seq_len):
+                n_channels = pred.shape[2]
+                for c in range(n_channels):
+                    s = cal_ssim(
+                        pred[b, t, c].astype(np.float64),
+                        gt[b, t, c].astype(np.float64),
+                        data_range=self.value_scale,
+                    )
+                    ssim_batch.append(s)
+        self.ssim_list.append(float(np.nan_to_num(np.mean(ssim_batch))))
+
+        # MSE: mean squared error in scaled pixel space
+        mse_val = np.mean(
+            (pred.astype(np.float32) - gt.astype(np.float32)) ** 2
+        )
+        self.mse_list.append(float(mse_val))
             
         
     def cal_frame(self, obs, sim, threshold):
@@ -267,7 +290,16 @@ class Evaluator(object):
         print_log(f"[ avg_csi_pool 4x4 ] : {np.mean(avg_csi44)}; [ avg_csi_pool 16x16 ]: {np.mean(avg_csi16)}")
 
         
-        res_dict['csi'] = np.nan_to_num(np.mean(avg_csi))
+        res_dict['csi']           = float(np.nan_to_num(np.mean(avg_csi)))
+        res_dict['far']           = float(np.nan_to_num(np.mean(avg_far)))
+        res_dict['pod']           = float(np.nan_to_num(np.mean(avg_pod)))
+        res_dict['hss']           = float(np.nan_to_num(np.mean(avg_hss)))
+        res_dict['csi_pool4x4']   = float(np.nan_to_num(np.mean(avg_csi44)))
+        res_dict['csi_pool16x16'] = float(np.nan_to_num(np.mean(avg_csi16)))
+        res_dict['ssim']          = float(np.nan_to_num(np.mean(self.ssim_list)))
+        res_dict['mse']           = float(np.nan_to_num(np.mean(self.mse_list)))
+
+        print_log(f"[ ssim ] : {res_dict['ssim']:.6f}  |  [ mse ] : {res_dict['mse']:.4f}")
         print_log('='*90)
         
         return res_dict

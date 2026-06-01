@@ -794,6 +794,9 @@ class Runner(object):
             epoch_start_time = time.time()
             self.cur_epoch = epoch
             self.model.train()
+            #For graident accumulation scores
+            epoch_loss_sum = 0.0
+            epoch_steps    = 0
             
             for i, batch in enumerate(tqdm(self.train_loader, total=len(self.train_loader))):
                 # train the model with mixed_precision
@@ -809,9 +812,12 @@ class Runner(object):
                                 print_log(name, self.is_main)   
     
                 self.accelerator.wait_for_everyone()
+                grad_norm = None     #Gradient accumulation 
                 if self.accelerator.sync_gradients:
-                    self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
-                
+                    # self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
+
+                    grad_norm = self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)   #Gradient accumulation 
+
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 
@@ -822,11 +828,17 @@ class Runner(object):
                 lr = self.optimizer.param_groups[0]['lr']
                 log_dict = dict()
                 log_dict['lr'] = lr
+                if grad_norm is not None:       #Gradient accumulation 
+                    log_dict['grad_norm'] = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else float(grad_norm)    #Gradient accumulation 
                 for k,v in loss_dict.items():
                     if type(v) == float:
                         log_dict[k] = v
                     else:
                         log_dict[k] = v.item()
+
+                epoch_loss_sum += log_dict.get('total_loss', 0.0)    #Gradient accumulation 
+                epoch_steps    += 1                                  #Gradient accumulation 
+
                 self.accelerator.log(log_dict, step=self.cur_step)
              
                 state_str = f"Epoch {self.cur_epoch}/{self.global_epochs}, Step {i}/{self.steps_per_epoch}"
@@ -857,6 +869,16 @@ class Runner(object):
                             print_log(e, self.is_main)
                             print_log("Sanity Check Failed", self.is_main)
 
+            #Gradient accumulation {
+            if self.is_main:
+                epoch_avg_loss = epoch_loss_sum / max(epoch_steps, 1)
+                self.accelerator.log({
+                    'epoch/total_loss': epoch_avg_loss,
+                    'epoch/index':      epoch + 1,
+                }, step=self.cur_step)
+                print_log(f"Epoch {epoch+1} avg train loss: {epoch_avg_loss:.6f}", self.is_main)
+
+            # }
             # save checkpoint and do test every epoch
             if self.args.valid:
 

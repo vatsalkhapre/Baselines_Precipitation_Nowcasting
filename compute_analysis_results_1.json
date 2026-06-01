@@ -1,9 +1,0 @@
-[
-  {
-    "model": "PhyDNet",
-    "params_M": 3.09,
-    "flops_G": 76.59,
-    "gpu_memory_GB": 0.03,
-    "throughput_samples_per_sec": 19.3
-  }
-]

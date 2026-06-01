@@ -1,30 +1,35 @@
 #!/bin/bash
 # ==============================================================
-# DAWNCast — Pixel Space Training
-# Runner  : run_alphapre_convlstm.py
-# Backbone: dawncast
-# Space   : pixel  (raw frames, no autoencoder)
+# DAWNCast — Latent Space Training
+# Runner  : run_alphapre_convlstm_sevir_lr_latent.py
+# Backbone: DAWNCast   (must match MODEL_REGISTRY key exactly)
+# Space   : latent     (32×32 SD-VAE latents, 4 channels)
 # ==============================================================
 
 # ---- GPU(s) — space-separated list passed to --gpu_use -------
 GPUS="0"
 
 # ---- Runner --------------------------------------------------
-SCRIPT="run_alphapre_convlstm.py"
+SCRIPT="run_alphapre_convlstm_sevir_lr_latent.py"
 
 # ---- Experiment ----------------------------------------------
-EXP_DIR="sevir"
-EXP_NOTE="dawncast_pixel"
-RUN_NAME="DAWNCast_pixel_sevir"
+EXP_DIR="sevir_lr_latent_32"
+EXP_NOTE="dawncast_latent"
+RUN_NAME="DAWNCast_latent_sevir"
 
 # ---- Dataset -------------------------------------------------
-DATASET="sevir"                   # sevir | meteo | shanghai | cikm
-IMG_SIZE=128
-IMG_CHANNEL=1
+# Latent dataset names:  sevir_lr_latent_32 | meteo_lr_latent_32
+#                        shanghai_lr_latent_32 | cikm_latent_32
+DATASET="sevir_lr_latent_32"
+IMG_SIZE=32                       # latent spatial size (32×32)
+IMG_CHANNEL=4                     # SD-VAE latent channels
 FRAMES_IN=5
 FRAMES_OUT=20
 SEQ_LEN=25
 
+
+# ---- Autoencoder checkpoint ----------------------------------
+AE_CKPT_PATH="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth"  # <-- SET THIS
 
 
 
@@ -45,25 +50,24 @@ ALPHA_HIGH=1.0
 BETA_HIGH=0.17
 FREQ_MULTIPLIER_HIGH=4.0
 
-# ---- DAWNCast: SRST Block (Spectral Temporal Refinement) ----
+# ---- DAWNCast: SRST Block -----------------------------------
 SPECTRAL_BLOCKS=4                 # N_g: number of groups in STR module
 SPECTRAL_HIDDEN_SIZE_FACTOR=4     # rho_h: hidden expansion in STR module
 SPARSITY_THRESHOLD=0.01           # soft-shrinkage lambda
 CONV_KERNEL=3                     # spatial depthwise conv kernel size k
 
 # ---- DAWNCast: general architecture -------------------------
-HIDDEN_DIM=64                     # latent channel dim after lifting
-SIZE_FACTOR=1.0                   # FAT Block MLP hidden expansion
+HIDDEN_DIM=64
+SIZE_FACTOR=1.0
 
 # ---- Wandb ---------------------------------------------------
 WANDB_STATE="offline"
 WANDB_PROJECT="Neurips26"
 
 
-
 # ==============================================================
 python ${SCRIPT} \
-    --backbone                 dawncast \
+    --backbone                 DAWNCast \
     --seed                     0 \
     --exp_dir                  ${EXP_DIR} \
     --exp_note                 ${EXP_NOTE} \
@@ -101,5 +105,6 @@ python ${SCRIPT} \
     --wandb_project_name       ${WANDB_PROJECT} \
     --run_name                 ${RUN_NAME} \
     --gpu_use                  ${GPUS} \
+    --ae_ckpt_path             ${AE_CKPT_PATH} \
     \
     --valid \

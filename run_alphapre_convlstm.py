@@ -45,6 +45,7 @@ def create_parser():
     parser.add_argument("--exp_dir",        type=str,   default='sevir',      help="experiment directory")       #Check
     parser.add_argument("--exp_note",       type=str,   default="reeval results",              help="additional note for experiment")      #Check
 
+
     # --------------- Loss weights ---------------
     parser.add_argument("--mse_weight", type=float, default=0.00,            help="mse weight for hybid falfcl loss")
     parser.add_argument("--falfcl_weight", type=float, default=1.00,            help="falfcl weight for hybid falfcl loss")
@@ -60,8 +61,10 @@ def create_parser():
     parser.add_argument('--depths', type=str, default='2,6,2,2', help='depths for each stage (comma-separated)')
     parser.add_argument('--num_heads', type=str, default='3,6,12,24', help='number of heads (comma-separated)')
     parser.add_argument('--skip_connection', type=str, default='add', choices=['add', 'concat'], help='skip connection type')
-    parser.add_argument('--drop_path_rate', type=float, default=0, help='drop path rate')
+    parser.add_argument('--drop_path_rate', type=float, default=0.2, help='drop path rate')
     parser.add_argument('--use_checkpoint', action='store_true', help='use gradient checkpointing')
+
+
 
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
@@ -334,6 +337,8 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+
+
         elif self.args.backbone == 'exPreCast':
             from models.exPreCast.exPreCast import get_model
 
@@ -359,6 +364,7 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        
         elif self.args.backbone == 'simvp_falfcl':
             from models.simvp_falfcl import get_model
             kwargs = {
@@ -434,26 +440,8 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
-        # elif self.args.backbone == 'dawncast':
-        #     from models.DAWNCast.dawncast import get_model
-        #     kwargs = {
-        #         "afno_blocks": 4,
-        #         "sparsity_threshold": 0.01, 
-        #         "afno_hidden_size_factor": 3, 
-        #         "weight_scale_low":0.1, 
-        #         "alpha_low": 1.0,
-        #         "beta_low": 0.17, 
-        #         "freq_multiplier_low": 4.0, 
-        #         "weight_scale_high": 1.0,  
-        #         "alpha_high": 1.0, 
-        #         "beta_high": 0.17, 
-        #         "freq_multiplier_high": 4.0, 
-        #         "k_spatial": 3, 
-        #         "wave": "db6", 
-        #         "wavelet_level": 3, 
-        #         "hf_mode": 'separate'
-        #     }
-            model = get_model(**kwargs)
+       
+
 
         elif self.args.backbone == 'lastocast':
             from models.Lastocast.lastocast import get_model
@@ -605,6 +593,14 @@ class Runner(object):
             lr=self.args.lr if self.args.lr is not None else 1e-3,
             alpha=self.args.lr_beta1,
             weight_decay=self.args.l2_norm
+            )
+        elif self.args.backbone == 'exPreCast':
+            # Paper: AdamW, lr=1e-3, warm-up cosine, warmup_ratio=0.2
+            self.optimizer = torch.optim.AdamW(
+                trainable_params,
+                lr=self.args.lr if self.args.lr is not None else 1e-3,
+                betas=(0.9, 0.999),       # AdamW defaults as paper doesn't specify custom betas
+                weight_decay=0.00001
             )
         elif self.args.backbone == 'exPreCast':
             # Paper: AdamW, lr=1e-3, warm-up cosine, warmup_ratio=0.2

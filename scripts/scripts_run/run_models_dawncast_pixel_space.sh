@@ -74,10 +74,6 @@ python ${SCRIPT} \
     --frames_in                ${FRAMES_IN} \
     --frames_out               ${FRAMES_OUT} \
     --seq_len                  ${SEQ_LEN} \
-    --stride                   ${STRIDE} \
-    --batch_size               ${BATCH_SIZE} \
-    --num_workers              ${NUM_WORKERS} \
-    --preprocessing            ${PREPROCESSING} \
     \
     --wave                     ${WAVE} \
     --wavelet_level            ${WAVELET_LEVEL} \

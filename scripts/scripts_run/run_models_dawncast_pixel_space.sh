@@ -7,7 +7,7 @@
 # ==============================================================
 
 # ---- GPU(s) — space-separated list passed to --gpu_use -------
-GPUS="0"
+GPUS="1"
 
 # ---- Runner --------------------------------------------------
 SCRIPT="run_alphapre_convlstm.py"
@@ -24,9 +24,6 @@ IMG_CHANNEL=1
 FRAMES_IN=5
 FRAMES_OUT=20
 SEQ_LEN=25
-
-
-
 
 # ---- DAWNCast: wavelet ---------------------------------------
 WAVE="db6"                        # haar | db4 | db6
@@ -56,7 +53,7 @@ HIDDEN_DIM=64                     # latent channel dim after lifting
 SIZE_FACTOR=1.0                   # FAT Block MLP hidden expansion
 
 # ---- Wandb ---------------------------------------------------
-WANDB_STATE="offline"
+WANDB_STATE="online"
 WANDB_PROJECT="Neurips26"
 
 
@@ -99,3 +96,41 @@ python ${SCRIPT} \
     --gpu_use                  ${GPUS} \
     \
     --valid \
+
+python ${SCRIPT} \
+    --backbone                 dawncast \
+    --seed                     0 \
+    --exp_dir                  ${EXP_DIR} \
+    --exp_note                 ${EXP_NOTE} \
+    \
+    --dataset                  ${DATASET} \
+    --img_size                 ${IMG_SIZE} \
+    --img_channel              ${IMG_CHANNEL} \
+    --frames_in                ${FRAMES_IN} \
+    --frames_out               ${FRAMES_OUT} \
+    --seq_len                  ${SEQ_LEN} \
+    \
+    --wave                     ${WAVE} \
+    --wavelet_level            ${WAVELET_LEVEL} \
+    --hf_mode                  ${HF_MODE} \
+    --weight_scale_low         ${WEIGHT_SCALE_LOW} \
+    --alpha_low                ${ALPHA_LOW} \
+    --beta_low                 ${BETA_LOW} \
+    --freq_multiplier_low      ${FREQ_MULTIPLIER_LOW} \
+    --weight_scale_high        ${WEIGHT_SCALE_HIGH} \
+    --alpha_high               ${ALPHA_HIGH} \
+    --beta_high                ${BETA_HIGH} \
+    --freq_multiplier_high     ${FREQ_MULTIPLIER_HIGH} \
+    --spectral_blocks          ${SPECTRAL_BLOCKS} \
+    --spectral_hidden_size_factor ${SPECTRAL_HIDDEN_SIZE_FACTOR} \
+    --sparsity_threshold       ${SPARSITY_THRESHOLD} \
+    --conv_kernel              ${CONV_KERNEL} \
+    --hidden_dim               ${HIDDEN_DIM} \
+    --size_factor              ${SIZE_FACTOR} \
+    \
+    --wandb_state              offline \
+    --wandb_project_name       ${WANDB_PROJECT} \
+    --run_name                 ${RUN_NAME} \
+    --gpu_use                  ${GPUS} \
+    \
+    --eval \

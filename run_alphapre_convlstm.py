@@ -477,6 +477,7 @@ class Runner(object):
             model = get_model(**kwargs)
 
         elif self.args.backbone == 'lpcast':
+            
             from models.LPCast.lpcast import get_model
             assert self.args.lift_dims[-1] == self.args.hidden_dim, \
                 "Last lift_dims value must equal hidden_dim"

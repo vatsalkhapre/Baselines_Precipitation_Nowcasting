@@ -50,7 +50,7 @@ LIFT_DIMS="32 64 64"              # ends at HIDDEN_DIM (64)
 PROJ_DIMS="64 64 32 4"               # starts at HIDDEN_DIM (64), ends at IMG_CHANNEL (4)
 
 # ---- Wandb ---------------------------------------------------
-WANDB_STATE="offline"
+WANDB_STATE="online"
 WANDB_PROJECT="ACML"
 
 
@@ -87,3 +87,35 @@ python ${SCRIPT} \
     --ae_ckpt_path       ${AE_CKPT_PATH} \
     \
     --valid \
+
+python ${SCRIPT} \
+    --backbone           LPCast \
+    --seed               0 \
+    --exp_dir            ${EXP_DIR} \
+    --exp_note           ${EXP_NOTE} \
+    \
+    --dataset            ${DATASET} \
+    --img_size           ${IMG_SIZE} \
+    --img_channel        ${IMG_CHANNEL} \
+    --frames_in          ${FRAMES_IN} \
+    --frames_out         ${FRAMES_OUT} \
+    --seq_len            ${SEQ_LEN} \
+    --batch_size         ${BATCH_SIZE} \
+    --num_workers        ${NUM_WORKERS} \
+    \
+    --epochs             ${EPOCHS} \
+    \
+    --hidden_dim         ${HIDDEN_DIM} \
+    --facl_const_ratio   ${FACL_CONST_RATIO} \
+    --mlp_size_factor    ${MLP_SIZE_FACTOR} \
+    --conv_kernel_sizes  ${CONV_KERNEL_SIZES} \
+    --lift_dims          ${LIFT_DIMS} \
+    --proj_dims          ${PROJ_DIMS} \
+    \
+    --wandb_state        "offline" \
+    --wandb_project_name ${WANDB_PROJECT} \
+    --run_name           ${RUN_NAME} \
+    --gpu_use            ${GPUS} \
+    --ae_ckpt_path       ${AE_CKPT_PATH} \
+    \
+    --eval \

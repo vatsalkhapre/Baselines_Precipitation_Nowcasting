@@ -50,7 +50,6 @@ run_experiment() {
     echo "=============================================="
 
     # ── Train ──
-<<<<<<< HEAD
     CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
         --backbone ${BACKBONE} \
         --dataset ${DATASET} \
@@ -85,8 +84,6 @@ run_experiment() {
         --run_name "${BACKBONE}_${DS_SHORT}_${TAG}"
 
     # ── Eval ──
-=======
->>>>>>> d4282f5 (analysis_ablations)
     # CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
     #     --backbone ${BACKBONE} \
     #     --dataset ${DATASET} \

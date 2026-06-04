@@ -249,6 +249,10 @@ def create_parser():
     parser.add_argument("--beta"            , type=float, default=1.00,            help="beta for gabor")
     parser.add_argument("--freq_multiplier" , type=float, default=0.00,            help="freq_multiplier for gabor")
 
+    # --------------- LPCast ---------------
+    parser.add_argument("--facl_const_ratio",  type=float, default=0.1,  help="LPCast: RandomScheduling loss constant ratio")
+    parser.add_argument("--mlp_size_factor",   type=float, default=1.0,  help="LPCast: TemporalProjector hidden expansion factor")
+
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
     parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
@@ -600,6 +604,19 @@ class Runner(object):
                 "batch_size": self.args.batch_size
             }
             model = TrajGRU_model(**kwargs)
+
+        elif self.args.backbone == 'lpcast':
+            from models.LPCast.lpcast import get_model
+            kwargs = {
+                "total_steps":     total_steps,
+                "const_ratio":     self.args.facl_const_ratio,
+                "img_channels":    self.args.img_channel,
+                "dim":             self.args.hidden_dim,
+                "T_in":            self.args.frames_in,
+                "T_out":           self.args.frames_out,
+                "mlp_size_factor": self.args.mlp_size_factor,
+            }
+            model = get_model(**kwargs)
             
         else:
             raise NotImplementedError

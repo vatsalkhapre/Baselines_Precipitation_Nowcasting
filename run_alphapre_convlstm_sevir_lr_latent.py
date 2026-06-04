@@ -250,11 +250,8 @@ def create_parser():
     parser.add_argument("--conv_kernel",                  type=int,   default=3,    help='DAWNCast: spatial branch depthwise conv kernel size k')
 
     # --------------- LPCast ---------------
-    parser.add_argument("--facl_const_ratio",  type=float, default=0.1,            help="LPCast: FACL loss constant ratio")
-    parser.add_argument("--mlp_size_factor",   type=float, default=1.0,            help="LPCast: MLP hidden expansion factor in AmpCell")
-    parser.add_argument("--conv_kernel_sizes", type=int,   nargs=3, default=[3, 3, 3], help="LPCast: three kernel sizes for AmpCell conv blocks")
-    parser.add_argument("--lift_dims",  type=int, nargs='+', default=[16, 32, 64], help="LPCast: channel progression for input lifting path")
-    parser.add_argument("--proj_dims",  type=int, nargs='+', default=[32, 16, 4],  help="LPCast: channel progression for output projection path")
+    parser.add_argument("--facl_const_ratio",  type=float, default=0.1,  help="LPCast: RandomScheduling loss constant ratio")
+    parser.add_argument("--mlp_size_factor",   type=float, default=1.0,  help="LPCast: TemporalProjector hidden expansion factor")
 
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
@@ -829,22 +826,14 @@ class Runner(object):
             }
 
         elif kwargs_type == "lpcast":
-            assert self.args.lift_dims[-1] == self.args.hidden_dim, \
-                "Last lift_dims value must equal hidden_dim"
-            assert self.args.proj_dims[-1] == self.args.img_channel, \
-                "Last proj_dims value must equal img_channel"
             kwargs = {
-                "total_steps":       total_steps,
-                "const_ratio":       self.args.facl_const_ratio,
-                "input_shape":       (self.args.img_size, self.args.img_size),
-                "T_in":              self.args.frames_in,
-                "T_out":             self.args.frames_out,
-                "img_channels":      self.args.img_channel,
-                "conv_kernel_sizes": self.args.conv_kernel_sizes,
-                "dim":               self.args.hidden_dim,
-                "mlp_size_factor":   self.args.mlp_size_factor,
-                "lift_dims":         self.args.lift_dims,
-                "proj_dims":         self.args.proj_dims,
+                "total_steps":     total_steps,
+                "const_ratio":     self.args.facl_const_ratio,
+                "img_channels":    self.args.img_channel,
+                "dim":             self.args.hidden_dim,
+                "T_in":            self.args.frames_in,
+                "T_out":           self.args.frames_out,
+                "mlp_size_factor": self.args.mlp_size_factor,
             }
 
         # Create model

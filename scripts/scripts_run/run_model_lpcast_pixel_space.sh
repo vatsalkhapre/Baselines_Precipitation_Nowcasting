@@ -1,82 +1,38 @@
 #!/bin/bash
-# ==============================================================
-# LPCast — Pixel Space Training
+# =============================================================================
+# LPCast — SEVIR Best Configuration (Pixel Space)
 # Runner  : run_alphapre_convlstm.py
-# Backbone: lpcast
-# Space   : pixel  (raw frames, no autoencoder)
-# ==============================================================
+# Dataset : SEVIR  |  dim=64  |  best epoch=66
+# Edit GPU_ID before running.
+# =============================================================================
 
-# ---- GPU(s) — space-separated list passed to --gpu_use -------
-GPUS="0"                          # e.g. "0 1 2 3" for multi-GPU
+set -e   # abort on first error
 
-# ---- Runner --------------------------------------------------
-SCRIPT="run_alphapre_convlstm.py"
+GPU_ID=0
+RUNNER="run_alphapre_convlstm.py"
 
-# ---- Experiment ----------------------------------------------
-EXP_DIR="sevir"                   # top-level experiment folder
-EXP_NOTE="lpcast_pixel"           # sub-folder / run label
-RUN_NAME="LPCast_pixel_sevir"     # wandb display name
-
-# ---- Dataset -------------------------------------------------
-DATASET="sevir"                   # sevir | meteo | shanghai | cikm
-IMG_SIZE=128                      # spatial resolution (H = W)
-IMG_CHANNEL=1                     # 1 for single-channel precip
-FRAMES_IN=5
-FRAMES_OUT=20
-SEQ_LEN=25
-STRIDE=13
-BATCH_SIZE=4
-NUM_WORKERS=8
-PREPROCESSING=0                   # 0 = min-max normalisation
-
-# ---- Optimiser -----------------------------------------------
-EPOCHS=50
-
-# ---- LPCast architecture ------------------------------------
-# Constraints (enforced inside the model):
-#   lift_dims[-1]  == HIDDEN_DIM
-#   proj_dims[0]   == HIDDEN_DIM
-#   proj_dims[-1]  == IMG_CHANNEL
-HIDDEN_DIM=64
-FACL_CONST_RATIO=0.1              # FACL loss warm-up constant ratio
-MLP_SIZE_FACTOR=1.0               # AmpCell MLP hidden expansion
-CONV_KERNEL_SIZES="3 3 3"         # three integers for AmpCell conv blocks
-LIFT_DIMS="32 64 64"              # ends at HIDDEN_DIM (64)
-PROJ_DIMS="64 64 32 4"               # starts at HIDDEN_DIM (64), ends at IMG_CHANNEL (1)
-
-# ---- Wandb ---------------------------------------------------
-WANDB_STATE="online"             # offline | online | disabled
-WANDB_PROJECT="ACML"
-
-
-# ==============================================================
-python ${SCRIPT} \
-    --backbone           lpcast \
-    --seed               0 \
-    --exp_dir            ${EXP_DIR} \
-    --exp_note           ${EXP_NOTE} \
-    \
-    --dataset            ${DATASET} \
-    --img_size           ${IMG_SIZE} \
-    --img_channel        ${IMG_CHANNEL} \
-    --frames_in          ${FRAMES_IN} \
-    --frames_out         ${FRAMES_OUT} \
-    --seq_len            ${SEQ_LEN} \
-    --batch_size         ${BATCH_SIZE} \
-    --num_workers        ${NUM_WORKERS} \
-    \
-    --epochs             ${EPOCHS} \
-    \
-    --hidden_dim         ${HIDDEN_DIM} \
-    --facl_const_ratio   ${FACL_CONST_RATIO} \
-    --mlp_size_factor    ${MLP_SIZE_FACTOR} \
-    --conv_kernel_sizes  ${CONV_KERNEL_SIZES} \
-    --lift_dims          ${LIFT_DIMS} \
-    --proj_dims          ${PROJ_DIMS} \
-    \
-    --wandb_state        ${WANDB_STATE} \
-    --wandb_project_name ${WANDB_PROJECT} \
-    --run_name           ${RUN_NAME} \
-    --gpu_use            ${GPUS} \
-    \
-    --valid \
+echo "========== LPCast SEVIR (pixel space) — dim=64 =========="
+CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
+    --backbone          lpcast \
+    --dataset           sevir \
+    --img_channel       1 \
+    --img_size          128 \
+    --frames_in         5 \
+    --frames_out        20 \
+    --seq_len           25 \
+    --hidden_dim        64 \
+    --mlp_size_factor   1.0 \
+    --facl_const_ratio  0.1 \
+    --epochs            66 \
+    --batch_size        4 \
+    --lr                1e-4 \
+    --scheduler         cosine \
+    --num_workers       8 \
+    --seed              0 \
+    --exp_dir           lpcast_sevir_pixel \
+    --exp_note          sevir_dim64 \
+    --run_name          LPCast_SEVIR_pixel_dim64 \
+    --wandb_state       offline \
+    --gpu_use           $GPU_ID \
+    --valid
+echo "========== SEVIR done =========="

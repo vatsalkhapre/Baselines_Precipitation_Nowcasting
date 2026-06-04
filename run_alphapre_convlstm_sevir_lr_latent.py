@@ -203,23 +203,12 @@ def create_parser():
     parser.add_argument("--afno_sparsity_threshold",   type=float, default=0.01,    help="sparsity threshold in afno2d")
     
     # ---------------------- ConvParallel Args --------------------
-    parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
+    # parser.add_argument("--conv_kernel",    type=int  , default=3,              help="Conv parallel kernel value")
     parser.add_argument("--norm_before",    type=str2bool  , default=False,              help="want to use the norm before in convparallel")
     parser.add_argument("--use_residual",    type=str2bool  , default=False,              help="want to use the residual in convparallel setting")
     parser.add_argument("--adaptive_fusion",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
     parser.add_argument("--channel_mixing",    type=str2bool  , default=False,              help="want to use the adaptive_fusion in convparallel setting")
 
-
-    # --------------- Gabor Parameters ---------------
-    parser.add_argument("--weight_scale_low"    , type=float, default=0.00,            help="weight_scale for gabor for low freq")
-    parser.add_argument("--alpha_low"           , type=float, default=0.00,            help="alpha for gabor for low freq")
-    parser.add_argument("--beta_low"            , type=float, default=0.00,            help="beta for gabor for low freq")
-    parser.add_argument("--freq_multiplier_low" , type=float, default=0.00,            help="freq_multiplier for gabor for low freq")
-
-    parser.add_argument("--weight_scale_high"    , type=float, default=0.00,            help="weight_scale for gabor for high freq")
-    parser.add_argument("--alpha_high"           , type=float, default=0.00,            help="alpha for gabor for high freq")
-    parser.add_argument("--beta_high"            , type=float, default=0.00,            help="beta for gabor for high freq")
-    parser.add_argument("--freq_multiplier_high" , type=float, default=0.00,            help="freq_multiplier for gabor for high freq")
 
     parser.add_argument("--weight_scale"    , type=float, default=0.00,            help="weight_scale for gabor")
     parser.add_argument("--alpha"           , type=float, default=0.00,            help="alpha for gabor")
@@ -1060,7 +1049,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 :
+                if (epoch+1)%5==0 or (epoch+1)==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

@@ -237,7 +237,7 @@ def create_parser():
     parser.add_argument("--seq_len",            type=int,       default=25,             help="sequence length sampled from dataset")
     parser.add_argument("--frames_in",          type=int,       default=5,              help="nuFmber of frames to input")
     parser.add_argument("--frames_out",         type=int,       default=20,             help="number of frames to output")    
-    parser.add_argument("--num_workers",        type=int,       default=8,              help="number of workers for data loader")
+    parser.add_argument("--num_CUDA_VISIBLE_DEVICES=0ers",        type=int,       default=8,              help="number of CUDA_VISIBLE_DEVICES=0ers for data loader")
     parser.add_argument("--preprocessing",      type=int,       default=0,              help="Preprocessing 0 for min max normalization")
     
     # --------------- Optimizer ---------------
@@ -262,7 +262,7 @@ def create_parser():
     parser.add_argument("--layers",         type=int,   default=3,               help="layers number")
     parser.add_argument("--pha_weight",     type=float, default=0.01,            help="phase weight")
     parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
-    parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")
+    parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute netCUDA_VISIBLE_DEVICES=0 mse weight")
     parser.add_argument("--aw_stop_step",   type=int,   default=5000,            help="training step at which the amplitude weight decays to 0")
     parser.add_argument("--out_weight",     type=float, default=1.0,             help="final output weight")
     parser.add_argument("--tf",             action="store_false",                help="teacher force")
@@ -544,27 +544,27 @@ class Runner(object):
             self.test_loader = create_loader(test_data, batch_size= self.args.batch_size)
 
         if self.args.dataset == 'sevir_lr_latent_32' or self.args.dataset == 'sevir_lr_latent':
-            self.train_loader = train_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            self.valid_loader = valid_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            self.test_loader = test_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            self.valid_os_loader = valid_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
-            self.test_os_loader = test_os_data.get_torch_dataloader(num_workers=self.args.num_workers)
+            self.train_loader = train_data.get_torch_dataloader(num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers)
+            self.valid_loader = valid_data.get_torch_dataloader(num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers)
+            self.test_loader = test_data.get_torch_dataloader(num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers)
+            self.valid_os_loader = valid_os_data.get_torch_dataloader(num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers)
+            self.test_os_loader = test_os_data.get_torch_dataloader(num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers)
         
         if self.args.dataset == 'shanghai_lr_latent_32' or self.args.dataset == 'meteo_lr_latent_32' or self.args.dataset == 'cikm_latent_32':
             self.train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=self.args.num_workers, drop_last=True
+                train_data, batch_size=self.args.batch_size, shuffle=True, num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers, drop_last=True
             )
             self.valid_loader = torch.utils.data.DataLoader(
-                valid_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+                valid_data, batch_size=self.args.batch_size, shuffle=False, num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers, drop_last=True
             )
             self.test_loader = torch.utils.data.DataLoader(
-                test_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+                test_data, batch_size=self.args.batch_size , shuffle=False, num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers
             )
             self.valid_os_loader = torch.utils.data.DataLoader(
-                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_workers=self.args.num_workers, drop_last=True
+                valid_os_data, batch_size=self.args.batch_size, shuffle=False, num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers, drop_last=True
             )
             self.test_os_loader = torch.utils.data.DataLoader(
-                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_workers=self.args.num_workers
+                test_os_data, batch_size=self.args.batch_size , shuffle=False, num_CUDA_VISIBLE_DEVICES=0ers=self.args.num_CUDA_VISIBLE_DEVICES=0ers
             )
         
 

@@ -203,7 +203,7 @@ def create_parser():
     parser.add_argument("--num_gfn_layers",    type=int  , default=1,              help="Hidden size factor for MLP")
 
     #-----------------------Ablation Motive-------------------
-    parser.add_argument("--work"       , type=str    ,  default='ablation',   help="incremental, ablation")
+    parser.add_argument("--work"       , type=str    ,  default='incremental',   help="incremental, ablation")
     
     #----------------------- Model Specific---------------------
     parser.add_argument("--residual_mode"       , type=str    ,  default='gabor',   help="residual connection to use in the model, values can be ['gabor', 'mlp', 'none']")
@@ -637,6 +637,7 @@ class Runner(object):
         # Calculate total_steps
         total_steps = self.args.epochs * len(self.train_loader)
         
+       
         # Build kwargs
         if kwargs_type == "basic":
             kwargs = {

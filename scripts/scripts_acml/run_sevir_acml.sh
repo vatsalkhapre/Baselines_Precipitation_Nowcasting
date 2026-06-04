@@ -1,9 +1,9 @@
 
 
 RUN_FILE="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/run_alphapre_convlstm_sevir_lr_latent_for_model_parts.py"
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth"
 
-DATASET="cikm_latent_32"
+DATASET="sevir_lr_latent_32"
 IMG_SIZE=32
 IMG_CHANNEL=4
 EXP_DIR="lastocast_minus_faclloss"
@@ -13,7 +13,6 @@ LR=1e-4
 WANDB_PROJECT="Alphapre"
 SF=1.0
 CONST_RATIO=0.1
-KERNEL_SIZES="3 3 3"
 
 # =============================================================================
 # Helper: train then eval
@@ -23,9 +22,10 @@ run_experiment() {
     local GPU_ID=$1
     local BACKBONE=$2
     local HD=$3
-    local LIFT_DIMS=$4
-    local PROJ_DIMS=$5
-    local TAG=$6
+    local KERNEL_SIZES=$4
+    local LIFT_DIMS=$5
+    local PROJ_DIMS=$6
+    local TAG=$7
 
     echo "============================================================"
     echo " [GPU${GPU_ID}] TRAIN | backbone=${BACKBONE}"
@@ -33,52 +33,51 @@ run_experiment() {
     echo " proj_dims = ${PROJ_DIMS}"
     echo "============================================================"
 
-    python3 "${RUN_FILE}" \
-        --backbone              "${BACKBONE}" \
-        --dataset               "${DATASET}" \
-        --img_size              ${IMG_SIZE} \
-        --img_channel           ${IMG_CHANNEL} \
-        --frames_in             5 \
-        --frames_out            10 \
-        --exp_dir               "${EXP_DIR}" \
-        --exp_note              "cikm_${TAG}" \
-        --epochs                ${EPOCHS} \
-        --batch_size            ${BATCH_SIZE} \
-        --gpu_use               ${GPU_ID} \
-        --lr                    ${LR} \
-        --wandb_state           offline \
-        --wandb_project_name    "${WANDB_PROJECT}" \
-        --run_name              "cikm_${TAG}" \
-        --ae_ckpt_path          "${AE_CKPT}" \
-        --mlp_size_factor       ${SF} \
-        --hidden_dim            ${HD} \
-        --conv_kernel_sizes     ${KERNEL_SIZES} \
-        --lift_dims             ${LIFT_DIMS} \
-        --proj_dims             ${PROJ_DIMS} \
-        --facl_const_ratio      ${CONST_RATIO} \
-        --valid \
-        --seed 0
+    # CUDA_VISIBLE_DEVICES=${GPU_ID} python3 "${RUN_FILE}" \
+    #     --backbone              "${BACKBONE}" \
+    #     --dataset               "${DATASET}" \
+    #     --img_size              ${IMG_SIZE} \
+    #     --img_channel           ${IMG_CHANNEL} \
+    #     --frames_in             5 \
+    #     --frames_out            20 \
+    #     --exp_dir               "${EXP_DIR}" \
+    #     --exp_note              "sevir_${TAG}" \
+    #     --epochs                ${EPOCHS} \
+    #     --batch_size            ${BATCH_SIZE} \
+    #     --lr                    ${LR} \
+    #     --wandb_state           offline \
+    #     --wandb_project_name    "${WANDB_PROJECT}" \
+    #     --run_name              "sevir_${TAG}" \
+    #     --ae_ckpt_path          "${AE_CKPT}" \
+    #     --mlp_size_factor       ${SF} \
+    #     --hidden_dim            ${HD} \
+    #     --conv_kernel_sizes     ${KERNEL_SIZES} \
+    #     --lift_dims             ${LIFT_DIMS} \
+    #     --proj_dims             ${PROJ_DIMS} \
+    #     --facl_const_ratio      ${CONST_RATIO} \
+    #     --valid \
+    #     --seed 0
 
     echo "============================================================"
     echo " [GPU${GPU_ID}] EVAL | backbone=${BACKBONE}"
     echo "============================================================"
 
-    python3 "${RUN_FILE}" \
+    CUDA_VISIBLE_DEVICES=${GPU_ID} python3 "${RUN_FILE}" \
         --backbone              "${BACKBONE}" \
         --dataset               "${DATASET}" \
         --img_size              ${IMG_SIZE} \
         --img_channel           ${IMG_CHANNEL} \
-        --gpu_use               ${GPU_ID} \
         --frames_in             5 \
-        --frames_out            10 \
+        --frames_out            20 \
         --exp_dir               "${EXP_DIR}" \
-        --exp_note              "cikm_${TAG}" \
+        --exp_note              "sevir_${TAG}" \
         --epochs                ${EPOCHS} \
         --batch_size            ${BATCH_SIZE} \
         --lr                    ${LR} \
+        --gpu_use               ${GPU_ID} \
         --wandb_state           offline \
         --wandb_project_name    "${WANDB_PROJECT}" \
-        --run_name              "cikm_${TAG}_eval" \
+        --run_name              "sevir_${TAG}_eval" \
         --ae_ckpt_path          "${AE_CKPT}" \
         --mlp_size_factor       ${SF} \
         --hidden_dim            ${HD} \
@@ -89,8 +88,8 @@ run_experiment() {
         --eval \
         --seed 0
 
-    echo "[GPU${GPU_ID}] Done: ${TAG}"
-    echo ""
+#     echo "[GPU${GPU_ID}] Done: ${TAG}"
+#     echo ""
 }
 
 # =============================================================================
@@ -107,81 +106,43 @@ echo "Starting first pair..."
 run_experiment \
     1 \
     "${BACKBONE}" \
-    128 \
-    "32 64 128" \
-    "128 64 32 4" \
-    "HD_128_3264128" &
+    64 \
+    "3 3 3" \
+    "32 64 64" \
+    "64 64 32 4" \
+    "HD_64_135_326464" &
+
 PID1=$!
 
-wait $PID1
-
 
 run_experiment \
-    1 \
+    0 \
     "${BACKBONE}" \
-    128 \
-    "32 128 128" \
-    "128 128 32 4" \
-    "HD_128_32128128" &
-PID6=$!
+    64 \
+    "1 3 5" \
+    "64 64 64" \
+    "64 64 64 4" \
+    "HD_64_333_646464" &
 
-wait $PID6
-
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    128 \
-    "64 128 128" \
-    "128 128 64 4" \
-    "HD_128_64128128" &
-PID7=$!
-
-wait $PID7
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    128 \
-    "128 128 128" \
-    "128 128 128 4" \
-    "HD_128_128128128" &
-PID8=$!
-
-wait $PID8
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    256 \
-    "64 128 256" \
-    "256 128 64 4" \
-    "HD_256_64128256" &
 PID2=$!
 
-wait $PID2
 
 run_experiment \
-    1 \
+    2 \
     "${BACKBONE}" \
-    256 \
-    "64 256 256" \
-    "256 256 64 4" \
-    "HD_256_64256256" &
+    64 \
+    "5 3 1" \
+    "64 64 64" \
+    "64 64 64 4" \
+    "HD_64_531_646464" &
+
 PID3=$!
 
+wait $PID1
+wait $PID2
 wait $PID3
 
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    256 \
-    "128 256 256" \
-    "256 256 128 4" \
-    "HD_256_128256256" &
-PID4=$!
 
-wait $PID4
 # --------------------------------------------------
 # Second pair: GPU 0 and GPU 1 in parallel
 # --------------------------------------------------

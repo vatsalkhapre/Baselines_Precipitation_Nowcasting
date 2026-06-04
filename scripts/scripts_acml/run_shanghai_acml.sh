@@ -1,9 +1,9 @@
 
 
 RUN_FILE="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/run_alphapre_convlstm_sevir_lr_latent_for_model_parts.py"
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SHANGHAI.pth"
 
-DATASET="cikm_latent_32"
+DATASET="shanghai_lr_latent_32"
 IMG_SIZE=32
 IMG_CHANNEL=4
 EXP_DIR="lastocast_minus_faclloss"
@@ -39,16 +39,16 @@ run_experiment() {
         --img_size              ${IMG_SIZE} \
         --img_channel           ${IMG_CHANNEL} \
         --frames_in             5 \
-        --frames_out            10 \
+        --frames_out            20 \
         --exp_dir               "${EXP_DIR}" \
-        --exp_note              "cikm_${TAG}" \
+        --exp_note              "shanghai_${TAG}" \
         --epochs                ${EPOCHS} \
         --batch_size            ${BATCH_SIZE} \
         --gpu_use               ${GPU_ID} \
         --lr                    ${LR} \
         --wandb_state           offline \
         --wandb_project_name    "${WANDB_PROJECT}" \
-        --run_name              "cikm_${TAG}" \
+        --run_name              "shanghai_${TAG}" \
         --ae_ckpt_path          "${AE_CKPT}" \
         --mlp_size_factor       ${SF} \
         --hidden_dim            ${HD} \
@@ -70,15 +70,15 @@ run_experiment() {
         --img_channel           ${IMG_CHANNEL} \
         --gpu_use               ${GPU_ID} \
         --frames_in             5 \
-        --frames_out            10 \
+        --frames_out            20 \
         --exp_dir               "${EXP_DIR}" \
-        --exp_note              "cikm_${TAG}" \
+        --exp_note              "shanghai_${TAG}" \
         --epochs                ${EPOCHS} \
         --batch_size            ${BATCH_SIZE} \
         --lr                    ${LR} \
         --wandb_state           offline \
         --wandb_project_name    "${WANDB_PROJECT}" \
-        --run_name              "cikm_${TAG}_eval" \
+        --run_name              "shanghai_${TAG}_eval" \
         --ae_ckpt_path          "${AE_CKPT}" \
         --mlp_size_factor       ${SF} \
         --hidden_dim            ${HD} \
@@ -105,83 +105,27 @@ BACKBONE="amplinet_latent_falfcl_only_2.3.13.2.acml"
 echo "Starting first pair..."
 
 run_experiment \
-    1 \
-    "${BACKBONE}" \
-    128 \
-    "32 64 128" \
-    "128 64 32 4" \
-    "HD_128_3264128" &
-PID1=$!
-
-wait $PID1
-
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    128 \
-    "32 128 128" \
-    "128 128 32 4" \
-    "HD_128_32128128" &
-PID6=$!
-
-wait $PID6
-
-
-run_experiment \
-    1 \
+    0 \
     "${BACKBONE}" \
     128 \
     "64 128 128" \
     "128 128 64 4" \
     "HD_128_64128128" &
-PID7=$!
+PID1=$!
 
-wait $PID7
+# wait $PID1
 
 run_experiment \
-    1 \
+    0 \
     "${BACKBONE}" \
     128 \
     "128 128 128" \
     "128 128 128 4" \
     "HD_128_128128128" &
-PID8=$!
+PID1=$!
 
-wait $PID8
+wait $PID1
 
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    256 \
-    "64 128 256" \
-    "256 128 64 4" \
-    "HD_256_64128256" &
-PID2=$!
-
-wait $PID2
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    256 \
-    "64 256 256" \
-    "256 256 64 4" \
-    "HD_256_64256256" &
-PID3=$!
-
-wait $PID3
-
-run_experiment \
-    1 \
-    "${BACKBONE}" \
-    256 \
-    "128 256 256" \
-    "256 256 128 4" \
-    "HD_256_128256256" &
-PID4=$!
-
-wait $PID4
 # --------------------------------------------------
 # Second pair: GPU 0 and GPU 1 in parallel
 # --------------------------------------------------

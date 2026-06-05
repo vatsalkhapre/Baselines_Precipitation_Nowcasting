@@ -8,7 +8,7 @@
 
 set -e   # abort on first error
 
-GPU_ID=1
+GPU_ID=0
 AE_CKPT_DIR="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints"
 RUNNER="run_alphapre_convlstm_sevir_lr_latent.py"
 

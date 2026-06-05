@@ -8,7 +8,7 @@
 
 set -e   # abort on first error
 
-GPU_ID=0
+GPU_ID=2
 RUNNER="run_alphapre_convlstm.py"
 
 echo "========== LPCast SEVIR (pixel space) — dim=64 =========="
@@ -23,16 +23,15 @@ CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
     --hidden_dim        64 \
     --mlp_size_factor   1.0 \
     --facl_const_ratio  0.1 \
-    --epochs            66 \
+    --epochs            50 \
     --batch_size        4 \
-    --lr                1e-4 \
-    --scheduler         cosine \
     --num_workers       8 \
-    --seed              0 \
     --exp_dir           lpcast_sevir_pixel \
     --exp_note          sevir_dim64 \
     --run_name          LPCast_SEVIR_pixel_dim64 \
-    --wandb_state       offline \
+    --wandb_state        online \
+    --wandb_project_name  ACML \
+    --run_name           LPCast_sevir_pixel \
     --gpu_use           $GPU_ID \
     --valid
 echo "========== SEVIR done =========="

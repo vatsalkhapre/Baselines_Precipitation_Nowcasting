@@ -1053,7 +1053,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 or (epoch+1)==0:
+                if (epoch+1)%1==0 or (epoch+1)==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -1068,7 +1068,6 @@ class Runner(object):
                         self.save('last')
                         print_log(f"Valid Results: {cur_csi}, Best csi: {self.max_csi}, Best step: {self.best_step}", self.is_main)
                     print_log(f" ========= Finisth one Epoch ==========", self.is_main)
-                    time.sleep(30)
             else:
                 self.save()
                 print_log(f" ========= Finisth one Epoch ==========", self.is_main)

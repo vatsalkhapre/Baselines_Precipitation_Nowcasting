@@ -308,6 +308,8 @@ def get_model(
     T_in=5,
     T_out=20,
     mlp_size_factor=1.0,
+    lift_dims=[64,64,64], 
+    proj_dims=[64,64,64,4],
     **kwargs
 ):
     model = LPCast(
@@ -317,5 +319,7 @@ def get_model(
         input_dim=img_channels,
         hidden_dim=dim,
         size_factor=mlp_size_factor,
+        lift_dims=lift_dims, 
+        proj_dims=proj_dims
     )
     return model

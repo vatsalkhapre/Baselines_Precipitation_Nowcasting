@@ -57,6 +57,47 @@ class RFB(nn.Module):
         return h + self.res_conv(x)
 
 
+def build_channel_path(
+    in_channels,
+    dims,
+    groups=8,
+    padding_mode='zeros',
+    last_kernel_size=1,
+):
+    """Build a lifting/projection path from a simple channel list."""
+    if dims is None or len(dims) == 0:
+        return nn.Identity(), in_channels
+
+    layers = []
+    prev = in_channels
+
+    for idx, out_ch in enumerate(dims):
+        is_last = idx == len(dims) - 1
+        if is_last:
+            layers.append(
+                nn.Conv2d(
+                    prev,
+                    out_ch,
+                    kernel_size=last_kernel_size,
+                    padding=last_kernel_size // 2,
+                    padding_mode=padding_mode,
+                )
+            )
+        else:
+            layers.append(
+                RFB(
+                    prev,
+                    out_ch,
+                    groups=groups,
+                    kernel_size=3,
+                    padding_mode=padding_mode,
+                )
+            )
+        prev = out_ch
+
+    return nn.Sequential(*layers), prev
+
+
 # ============================================================
 # Precipitation Evolution Module (PEM)
 # ============================================================
@@ -117,27 +158,74 @@ class LPCBackbone(nn.Module):
     T_in latent input frames to T_out predicted latent frames.
     """
 
-    def __init__(self, pre_seq_length, aft_seq_length, dim, hidden_dim, size_factor):
+    def __init__(
+        self,
+        pre_seq_length,
+        aft_seq_length,
+        dim,
+        hidden_dim,
+        size_factor,
+        lift_dims=None,
+        proj_dims=None,
+        groups=8,
+        padding_mode='zeros',
+    ):
         super().__init__()
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
 
-        # Latent Stem: expand latent channels (C → hidden_dim) independently per frame
-        self.latent_stem = nn.Sequential(
-            RFB(dim, hidden_dim),
-            RFB(hidden_dim, hidden_dim),
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
+        # Default to the original 3-stage arrangement if not provided.
+        if lift_dims is None:
+            lift_dims = [hidden_dim, hidden_dim, hidden_dim]
+        if proj_dims is None:
+            proj_dims = [hidden_dim, hidden_dim, dim]
+
+        if len(lift_dims) == 0:
+            raise ValueError("lift_dims must contain at least one channel size.")
+        if len(proj_dims) == 0:
+            raise ValueError("proj_dims must contain at least one channel size.")
+
+        if lift_dims[-1] != hidden_dim:
+            raise ValueError(
+                f"lift_dims must end at hidden_dim={hidden_dim}, but got {lift_dims[-1]}."
+            )
+        if proj_dims[0] != hidden_dim:
+            raise ValueError(
+                f"proj_dims must start from hidden_dim={hidden_dim}, but got {proj_dims[0]}."
+            )
+        if proj_dims[-1] != dim:
+            raise ValueError(
+                f"proj_dims must end at img_channels={dim}, but got {proj_dims[-1]}."
+            )
+
+        # Latent Stem: expand latent channels independently per frame
+        self.latent_stem, stem_out = build_channel_path(
+            in_channels=dim,
+            dims=lift_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+            last_kernel_size=1,
         )
+        if stem_out != hidden_dim:
+            raise ValueError(
+                f"Latent stem must end at hidden_dim={hidden_dim}, but it ends at {stem_out}."
+            )
 
         # PEM: Precipitation Evolution Module — temporal forecasting + spatial refinement
         self.pem = PEM(pre_seq_length, aft_seq_length, hidden_dim, size_factor)
 
-        # Projection: compress back to latent channels (hidden_dim → C) per frame
-        self.projection = nn.Sequential(
-            RFB(hidden_dim, hidden_dim),
-            RFB(hidden_dim, hidden_dim),
-            nn.Conv2d(hidden_dim, dim, kernel_size=1),
+        # Projection: compress back to latent channels per frame
+        self.projection, proj_out = build_channel_path(
+            in_channels=hidden_dim,
+            dims=proj_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+            last_kernel_size=1,
         )
+        if proj_out != dim:
+            raise ValueError(
+                f"Projection path must end at img_channels={dim}, but it ends at {proj_out}."
+            )
 
     def forward(self, x):
         # Latent Stem: process each frame independently  (B*T, C, H, W)
@@ -167,10 +255,32 @@ class LPCast(nn.Module):
     Handles forward inference and loss computation via RandomScheduling.
     """
 
-    def __init__(self, total_steps, const_ratio, pre_seq_length, aft_seq_length,
-                 input_dim, hidden_dim, size_factor=1):
+    def __init__(
+        self,
+        total_steps,
+        const_ratio,
+        pre_seq_length,
+        aft_seq_length,
+        input_dim,
+        hidden_dim,
+        size_factor=1,
+        lift_dims=None,
+        proj_dims=None,
+        groups=8,
+        padding_mode='zeros',
+    ):
         super(LPCast, self).__init__()
-        self.backbone = LPCBackbone(pre_seq_length, aft_seq_length, input_dim, hidden_dim, size_factor)
+        self.backbone = LPCBackbone(
+            pre_seq_length,
+            aft_seq_length,
+            input_dim,
+            hidden_dim,
+            size_factor,
+            lift_dims=lift_dims,
+            proj_dims=proj_dims,
+            groups=groups,
+            padding_mode=padding_mode,
+        )
         self.criterion = RandomScheduling(total_steps, 1, const_ratio)
 
     def forward(self, x):  # x: (B, T_in, C, H, W)

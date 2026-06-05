@@ -241,7 +241,9 @@ def create_parser():
     # --------------- LPCast ---------------
     parser.add_argument("--facl_const_ratio",  type=float, default=0.1,  help="LPCast: RandomScheduling loss constant ratio")
     parser.add_argument("--mlp_size_factor",   type=float, default=1.0,  help="LPCast: TemporalProjector hidden expansion factor")
-
+    parser.add_argument("--lift_dims", type=int, nargs='+', default=None, help="LPCast: channel progression for latent stem")
+    parser.add_argument("--proj_dims", type=int, nargs='+', default=None, help="LPCast: channel progression for projection path")
+    
     #-----------------Other Parameters----------------
     parser.add_argument("--size_factor",  type=float, default=1.0,            help="factor for hidden layer of mlp")
     parser.add_argument("--hidden_dim",     type=int,   default=64,             help="Conv Resnet block hidden dimension")
@@ -823,6 +825,8 @@ class Runner(object):
                 "T_in":            self.args.frames_in,
                 "T_out":           self.args.frames_out,
                 "mlp_size_factor": self.args.mlp_size_factor,
+                "lift_dims":       self.args.lift_dims,
+                "proj_dims":       self.args.proj_dims,
             }
 
         # Create model

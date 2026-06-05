@@ -41,7 +41,57 @@ RUNNER="run_alphapre_convlstm_sevir_lr_latent.py"
 #     --run_name           LPCast_sevir \
 #     --gpu_use           $GPU_ID \
 #     --valid
+# echo "========== [1/4] SEVIR — dim=64 =========="
+# CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
+#     --backbone          LPCast \
+#     --dataset           sevir_lr_latent_32 \
+#     --img_channel       4 \
+#     --img_size          32 \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --seq_len           25 \
+#     --hidden_dim        64 \
+#     --mlp_size_factor   1.0 \
+#     --lift_dims         64 64 64 \
+#     --proj_dims         64 64 4 \
+#     --facl_const_ratio  0.1 \
+#     --ae_ckpt_path      $AE_CKPT_DIR/autoencoder_checkpoint_32_SEVIR.pth \
+#     --epochs            50 \
+#     --batch_size        4 \
+#     --num_workers       8 \
+#     --exp_dir           lpcast_latent_best \
+#     --exp_note          sevir_dim64 \
+#     --run_name          LPCast_SEVIR_dim64 \
+#     --wandb_state        online \
+#     --wandb_project_name  ACML \
+#     --run_name           LPCast_sevir \
+#     --gpu_use           $GPU_ID \
+#     --valid
 
+# CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
+#     --backbone          LPCast \
+#     --dataset           sevir_lr_latent_32 \
+#     --img_channel       4 \
+#     --img_size          32 \
+#     --frames_in         5 \
+#     --frames_out        20 \
+#     --seq_len           25 \
+#     --hidden_dim        64 \
+#     --mlp_size_factor   1.0 \
+#     --lift_dims         64 64 64 \
+#     --proj_dims         64 64 4 \
+#     --facl_const_ratio  0.1 \
+#     --ae_ckpt_path      $AE_CKPT_DIR/autoencoder_checkpoint_32_SEVIR.pth \
+#     --epochs            50 \
+#     --batch_size        4 \
+#     --num_workers       8 \
+#     --exp_dir           lpcast_latent_best \
+#     --exp_note          sevir_dim64 \
+#     --run_name          LPCast_SEVIR_dim64 \
+#     --wandb_state        offline \
+#     --gpu_use           $GPU_ID \
+#     --eval
+# echo "========== SEVIR done =========="
 # CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
 #     --backbone          LPCast \
 #     --dataset           sevir_lr_latent_32 \
@@ -122,9 +172,9 @@ CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
     --eval
 echo "========== Shanghai done =========="
 
-# =============================================================================
-# 3. Meteonet  |  dim=64  |  best epoch=70
-# =============================================================================
+# # =============================================================================
+# # 3. Meteonet  |  dim=64  |  best epoch=70
+# # =============================================================================
 # echo "========== [3/4] Meteonet — dim=64 =========="
 # CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
 #     --backbone          LPCast \

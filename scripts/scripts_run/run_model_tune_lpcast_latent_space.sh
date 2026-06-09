@@ -173,6 +173,7 @@ run_exp() {
 # ==========================================================
 # Sweep — 7 experiments queued across ${#GPU_POOL[@]} GPUs
 # ==========================================================
+<<<<<<< HEAD
 run_exp 64  "64 64 64"    "64 64 4"        # Original LPCast
 run_exp 64  "64 64 64"    "64 64 64 4"     # Alpha-like (deeper proj)
 run_exp 64  "32 64 64"    "64 64 32 4"     # Alpha-like (narrower lift)
@@ -180,6 +181,15 @@ run_exp 64  "32 64 64"    "64 64 32 4"     # Alpha-like (narrower lift)
 # run_exp 96  "96 96 96"    "96 96 96 4"     # Wider + deeper
 # run_exp 128 "128 128 128" "128 128 4"      # Large
 # run_exp 128 "128 128 128" "128 128 128 4"  # Large + deeper
+=======
+# run_exp 64  "64 64 64"    "64 64 4"        # Original LPCast
+# run_exp 64  "64 64 64"    "64 64 64 4"     # Alpha-like (deeper proj)
+# run_exp 64  "32 64 64"    "64 64 32 4"     # Alpha-like (narrower lift)
+run_exp 96  "96 96 96"    "96 96 4"        # Wider
+run_exp 96  "96 96 96"    "96 96 96 4"     # Wider + deeper
+run_exp 128 "128 128 128" "128 128 4"      # Large
+run_exp 128 "128 128 128" "128 128 128 4"  # Large + deeper
+>>>>>>> 2e181f6 (sevir tunning lpcast)
 
 echo "All 7 experiments queued — waiting for completion…"
 wait

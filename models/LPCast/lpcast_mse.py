@@ -14,7 +14,6 @@ Architecture Overview:
 from torch import nn
 from einops import rearrange
 
-from utils.utilspp import RandomScheduling
 
 
 # ============================================================
@@ -281,7 +280,7 @@ class LPCast(nn.Module):
             groups=groups,
             padding_mode=padding_mode,
         )
-        self.criterion = RandomScheduling(total_steps, 1, const_ratio)
+        self.criterion = nn.MSELoss()
 
     def forward(self, x):  # x: (B, T_in, C, H, W)
         return self.backbone(x)

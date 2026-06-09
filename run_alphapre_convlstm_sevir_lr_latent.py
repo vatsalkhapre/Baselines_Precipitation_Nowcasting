@@ -130,6 +130,10 @@ MODEL_REGISTRY = {
         "module": "models.LPCast.lpcast",
         "kwargs_type": "lpcast",
     },
+    "LPCast_mse": {
+        "module": "models.LPCast.lpcast_mse",
+        "kwargs_type": "lpcast",
+    }
 }   
 
 # Ablation model prefixes that need dot→underscore conversion

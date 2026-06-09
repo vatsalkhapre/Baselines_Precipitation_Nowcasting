@@ -28,7 +28,7 @@ run_exp () {
     echo "================================================="
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
-        --backbone LPCast \
+        --backbone LPCast_mse \
         --dataset cikm_latent_32 \
         --img_channel 4 \
         --img_size 32 \
@@ -44,13 +44,13 @@ run_exp () {
         --epochs 50 \
         --batch_size 4 \
         --num_workers 8 \
-        --exp_dir lpcast_cikm_tuning \
+        --exp_dir lpcast_mse_cikm_tuning \
         --exp_note $EXP_TAG \
-        --run_name LPCast_$EXP_TAG \
+        --run_name lpcast_mse_$EXP_TAG \
         --wandb_project_name ACML \
-        --wandb_state offline \
+        --wandb_state online \
         --gpu_use $GPU_ID \
-        --eval
+        --valid
 }
 
 # ==========================================================

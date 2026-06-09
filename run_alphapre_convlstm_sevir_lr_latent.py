@@ -1057,7 +1057,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%1==0 or (epoch+1)==0:
+                if (epoch+1)%5==0 :
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -1222,7 +1222,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/Dawncast_variants.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/ACML/Final_model.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

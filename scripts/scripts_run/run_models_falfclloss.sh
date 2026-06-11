@@ -1,57 +1,25 @@
-# CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-#     --exp_dir shanghai_falfcl \
-#     --exp_note earthformer_on_shanghai \
-#     --batch_size 4 \
-#     --backbone earthformer_falfcl \
-#     --dataset shanghai \
-#     --seq_len 25 \
-#     --valid \
-#     --epochs 70 \
-#     --frames_in 5 \
-#     --frames_out 20 \
-#     --num_workers 8 \
-#     --wandb_state 'online' \
-#     --wandb_project_name 'Alphapre_all_other_models' \
-#     --run_name "earthformer_shanghai_falfcl" 
-
 CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai_falfcl \
-    --exp_note earthformer_on_shanghai \
+    --exp_dir meteo_falfcl \
+    --exp_note earthformer_on_meteonet \
     --batch_size 4 \
     --backbone earthformer_falfcl \
-    --dataset shanghai \
-    --seq_len 25 \
-    --eval \
-    --frames_in 5 \
-    --frames_out 20 \
-    --num_workers 8 \
-    --wandb_state 'offline' \
-    --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "earthformer_shanghai_falfcl" 
-
-
-CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai_falfcl \
-    --exp_note simvp_on_shanghai \
-    --batch_size 4 \
-    --backbone simvp_falfcl \
-    --dataset shanghai \
+    --dataset meteo \
     --seq_len 25 \
     --valid \
-    --epochs 70 \
+    --epochs 50 \
     --frames_in 5 \
     --frames_out 20 \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "simvp_shanghai_falfcl" 
+    --run_name "earthformer_meteo_falfcl" 
 
 CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-    --exp_dir shanghai_falfcl \
-    --exp_note simvp_on_shanghai \
+    --exp_dir meteo_falfcl \
+    --exp_note earthformer_on_meteo \
     --batch_size 4 \
-    --backbone simvp_falfcl \
-    --dataset shanghai \
+    --backbone earthformer_falfcl \
+    --dataset meteo \
     --seq_len 25 \
     --eval \
     --frames_in 5 \
@@ -59,33 +27,69 @@ CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
     --num_workers 8 \
     --wandb_state 'offline' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "simvp_shanghai_falfcl" 
+    --run_name "earthformer_meteo_falfcl" 
+
+
+
 
 CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm_falfcl \
-    --exp_note simvp_on_cikm \
-    --batch_size 8 \
+    --exp_dir meteo_falfcl \
+    --exp_note simvp_on_meteo \
+    --batch_size 4 \
     --backbone simvp_falfcl \
-    --dataset cikm \
-    --seq_len 15 \
-    --epochs 70 \
+    --dataset meteo \
+    --seq_len 25 \
     --valid \
+    --epochs 50 \
     --frames_in 5 \
-    --frames_out 10 \
+    --frames_out 20 \
+    --num_workers 8 \
+    --wandb_state 'online' \
+    --wandb_project_name 'Alphapre_all_other_models' \
+    --run_name "simvp_meteo_falfcl" 
+
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
+    --exp_dir meteo_falfcl \
+    --exp_note simvp_on_meteo \
+    --batch_size 4 \
+    --backbone simvp_falfcl \
+    --dataset meteo \
+    --seq_len 25 \
+    --eval \
+    --frames_in 5 \
+    --frames_out 20 \
     --num_workers 8 \
     --wandb_state 'offline' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "simvp_cikm_falfcl" 
+    --run_name "simvp_meteo_falfcl" 
 
 CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm_falfcl \
-    --exp_note simvp_on_cikm \
-    --batch_size 8 \
-    --backbone simvp_falfcl \
-    --dataset cikm \
-    --seq_len 15 \
+    --exp_dir meteo_falfcl \
+    --exp_note trajgru_on_meteo \
+    --batch_size 4 \
+    --backbone traj_gru_falfcl \
+    --dataset meteo \
+    --seq_len 25 \
+    --valid \
+    --epochs 50 \
+    --frames_in 5 \
+    --frames_out 20 \
+    --num_workers 8 \
+    --wandb_state 'online' \
+    --wandb_project_name 'Alphapre_all_other_models' \
+    --run_name "trajgru_meteo_falfcl" 
+
+CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
+    --exp_dir meteo_falfcl \
+    --exp_note trajgru_on_meteo \
+    --batch_size 4 \
+    --backbone traj_gru_falfcl \
+    --dataset meteo \
+    --seq_len 25 \
     --eval \
     --frames_in 5 \
-    --frames_out 10 \
+    --frames_out 20 \
     --num_workers 8 \
-    --wandb_state 'offline' 
+    --wandb_state 'offline' \
+    --wandb_project_name 'Alphapre_all_other_models' \
+    --run_name "trajgru_meteo_falfcl" 

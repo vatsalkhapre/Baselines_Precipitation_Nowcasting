@@ -550,6 +550,23 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == 'alphapre_falfcl':
+            from models.alphapre_falfcl import get_model
+            kwargs = {
+                "input_shape": (self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out,
+                'img_channels' : self.args.img_channel,
+                'dim' : 64,
+                'n_layers': self.args.layers,
+                'pha_weight': self.args.pha_weight,
+                'anet_weight': self.args.anet_weight,
+                'amp_weight': self.args.amp_weight,
+                'spec_num': self.args.spec_num,
+                'aweight_stop_steps': self.args.aw_stop_step,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster

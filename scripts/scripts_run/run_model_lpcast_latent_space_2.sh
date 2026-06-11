@@ -9,11 +9,11 @@
 set -e   # abort on first error
 
 
-GPU_ID=0
+GPU_ID=1
 AE_CKPT_DIR="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints"
 RUNNER="run_alphapre_convlstm_sevir_lr_latent.py"
 
-AE_CKPT="$AE_CKPT_DIR/autoencoder_checkpoint_32_SHANGHAI.pth"
+AE_CKPT="$AE_CKPT_DIR/autoencoder_checkpoint_32_CIKM.pth"
 
 run_exp () {
 
@@ -28,13 +28,13 @@ run_exp () {
     echo "================================================="
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
-        --backbone LPCast_mse \
-        --dataset shanghai_lr_latent_32 \
+        --backbone LPCast \
+        --dataset cikm_latent_32 \
         --img_channel 4 \
         --img_size 32 \
         --frames_in 5 \
-        --frames_out 20 \
-        --seq_len 25 \
+        --frames_out 10 \
+        --seq_len 15 \
         --hidden_dim $HIDDEN_DIM \
         --mlp_size_factor 1.0 \
         --lift_dims $LIFT_DIMS \
@@ -44,13 +44,13 @@ run_exp () {
         --epochs 50 \
         --batch_size 4 \
         --num_workers 8 \
-        --exp_dir lpcast_mse_shanghai_tuning \
+        --exp_dir lpcast_mse_cikm_tuning \
         --exp_note $EXP_TAG \
-        --run_name lpcast_mse_$EXP_TAG \
+        --run_name lpcast_mse_$EXP_TAG_70 \
         --wandb_project_name ACML \
-        --wandb_state offline \
+        --wandb_state online \
         --gpu_use $GPU_ID \
-        --eval
+        --valid
 }
 
 # ==========================================================
@@ -59,10 +59,10 @@ run_exp () {
 # Original LPCast
 run_exp 64 "64 64 64" "64 64 4"
 
-# Alpha-like
-run_exp 64 "64 64 64" "64 64 64 4"
+# # Alpha-like
+# run_exp 64 "64 64 64" "64 64 64 4"
 
-run_exp 64 "32 64 64" "64 64 32 4"
+# run_exp 64 "32 64 64" "64 64 32 4"
 
 # Wider
 # run_exp 96 "96 96 96" "96 96 4"

@@ -1,6 +1,8 @@
 GPU_ID=1
-AE_CKPT="$AE_CKPT_DIR/autoencoder_checkpoint_32_SHANGHAI.pth"
-
+AE_CKPT_DIR="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints"
+AE_CKPT="$AE_CKPT_DIR/autoencoder_checkpoint_32_SEVIR.pth"
+DATASET='Sevir'
+RUNNER=/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/run_alphapre_convlstm_sevir_lr_latent.py
 run_exp () {
 
     HIDDEN_DIM=$1
@@ -15,7 +17,7 @@ run_exp () {
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python $RUNNER \
         --backbone LPCast \
-        --dataset shanghai_lr_latent_32 \
+        --dataset sevir_lr_latent_32 \
         --img_channel 4 \
         --img_size 32 \
         --frames_in 5 \
@@ -30,9 +32,9 @@ run_exp () {
         --epochs 50 \
         --batch_size 4 \
         --num_workers 8 \
-        --exp_dir lpcast_shanghai_tuning \
+        --exp_dir lpcast_sevir_tuning \
         --exp_note $EXP_TAG \
-        --run_name LPCast_$EXP_TAG \
+        --run_name LPCast_$DATASET_$EXP_TAG \
         --wandb_project_name ACML \
         --wandb_state online \
         --gpu_use $GPU_ID \

@@ -495,7 +495,19 @@ class Runner(object):
             }
             model = get_model(**kwargs)
         
-       
+        elif self.args.backbone == 'lpcast_mse':
+                from models.LPCast.lpcast_mse import get_model
+                kwargs = {
+                    "total_steps":     total_steps,
+                    "const_ratio":     self.args.facl_const_ratio,
+                    "img_channels":    self.args.img_channel,
+                    "dim":             self.args.hidden_dim,
+                    "T_in":            self.args.frames_in,
+                    "T_out":           self.args.frames_out,
+                    "mlp_size_factor": self.args.mlp_size_factor,
+                }
+                model = get_model(**kwargs)
+    
         elif self.args.backbone == 'lastocast':
             from models.Lastocast.lastocast import get_model
             kwargs = {

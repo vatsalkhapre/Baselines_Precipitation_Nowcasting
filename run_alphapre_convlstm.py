@@ -410,6 +410,15 @@ class Runner(object):
             }
             model = TrajGRU_model(**kwargs)
         
+        elif self.args.backbone == "traj_gru_falfcl":
+            from models.trajGRU_falfcl import TrajGRU_model
+            kwargs = {
+                "total_steps"; total_steps, 
+                "future_seq_len": self.args.frames_out,
+                "batch_size": self.args.batch_size
+            }
+            model = TrajGRU_model(**kwargs)
+        
         elif self.args.backbone == 'e_lastocast_d':
             from models.model_novelty.trying_wsnet_encoder import get_model
             kwargs = {

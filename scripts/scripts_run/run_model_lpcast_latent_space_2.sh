@@ -48,9 +48,9 @@ run_exp () {
         --exp_note $EXP_TAG \
         --run_name lpcast_mse_$EXP_TAG \
         --wandb_project_name ACML \
-        --wandb_state online \
+        --wandb_state offline \
         --gpu_use $GPU_ID \
-        --valid
+        --eval
 }
 
 # ==========================================================

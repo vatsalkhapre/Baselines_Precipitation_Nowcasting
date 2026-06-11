@@ -413,7 +413,7 @@ class Runner(object):
         elif self.args.backbone == "traj_gru_falfcl":
             from models.trajGRU_falfcl import TrajGRU_model
             kwargs = {
-                "total_steps"; total_steps, 
+                "total_steps": total_steps, 
                 "future_seq_len": self.args.frames_out,
                 "batch_size": self.args.batch_size
             }

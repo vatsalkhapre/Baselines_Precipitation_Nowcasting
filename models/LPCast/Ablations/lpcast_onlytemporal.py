@@ -136,13 +136,14 @@ class PEM(nn.Module):
     def forward(self, x):
         # Temporal projection: (B, T_in, C, H, W) → (B, T_out, C, H, W)
         residual = self.temporal_projector(x.permute(0, 2, 3, 4, 1)).permute(0, 4, 1, 2, 3)
-
+        B, T, C, H, W = residual.shape
+        
         # Flatten time and feature dimensions into channels for joint horizon-feature-spatial mixing.: (B, T_out*C, H, W)
-        x = rearrange(residual, 'b t c h w -> (b c) t h w')
+        x = rearrange(residual, 'b t c h w -> (b c) t h w', c = C)
         x = self.lem(x)
 
         # Restore temporal dimension and add residual from temporal projection
-        x = rearrange(x, '(b c) t h w -> b t c h w', t=self.t_out)
+        x = rearrange(x, '(b c) t h w -> b t c h w', c = C)
         x = x + residual
         return x
 

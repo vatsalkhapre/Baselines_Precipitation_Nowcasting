@@ -172,7 +172,7 @@ class LPCBackbone(nn.Module):
         super().__init__()
         self.pre_seq_length = pre_seq_length
         self.aft_seq_length = aft_seq_length
-
+ 
         # Default to the original 3-stage arrangement if not provided.
         if lift_dims is None:
             lift_dims = [hidden_dim, hidden_dim, hidden_dim]

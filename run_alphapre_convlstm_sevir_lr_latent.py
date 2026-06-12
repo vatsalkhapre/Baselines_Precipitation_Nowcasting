@@ -145,8 +145,8 @@ MODEL_REGISTRY = {
         "kwargs_type": "lpcast",
     },
     
-    "LPCast_wspatiotemporal": {
-        "module": "models.LPCast.Ablations.lpcast_wspatiotemporal",
+    "LPCast_wospatiotemporal": {
+        "module": "models.LPCast.Ablations.lpcast_wospatiotemporal",
         "kwargs_type": "lpcast",
     },
 }   

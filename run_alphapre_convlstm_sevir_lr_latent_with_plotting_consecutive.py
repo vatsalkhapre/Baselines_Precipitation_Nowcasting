@@ -24,6 +24,7 @@ from diffusers import (
     get_linear_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
 )
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from tqdm import tqdm
 from datasets.dataset_mosdac import *
 from datasets.get_datasets import get_dataset
@@ -203,25 +204,137 @@ def get_model_config(backbone: str) -> dict:
 #                                           PLOTTING CODE                                          #
 #===================================================================================================
 
-def plot_image_sequence_colored(images_colored, path_save_imgs):
+def plot_image_sequence_colored(images_colored, path_save_imgs, 
+                                title_prefix="t", 
+                                cmap=None, norm=None, label=None):
     """
-    Plot a sequence of pre-colored RGBA images in a single row.
-    No titles, no axis, no colorbar — clean high-res output.
-    images_colored : np.ndarray (T, H, W, 4)
+    Plot a sequence of pre-colored RGBA images. Optionally add a colorbar
+    if cmap and norm are provided.
+
+    Args:
+        images_colored : np.ndarray of shape (T, H, W, 4), RGBA float64 from gray2color.
+        path_save_imgs : str, full path to save the figure.
+        title_prefix   : str, prefix for subplot titles.
+        cmap           : matplotlib colormap (optional, for colorbar).
+        norm           : matplotlib norm (optional, for colorbar).
+        label          : str, colorbar label.
     """
     T = images_colored.shape[0]
-    fig, axes = plt.subplots(1, T, figsize=(T * 2.5, 2.5))
-    if T == 1:
-        axes = [axes]
+
+    if T <= 10:
+        nrows, ncols = 1, T
+        fig_w = 2 * T
+        fig_h = 2.8
     else:
-        axes = axes.flatten()
+        nrows, ncols = 2, (T + 1) // 2
+        fig_w = 2 * ncols
+        fig_h = 5.0
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(fig_w, fig_h), constrained_layout=True)
+    if T == 1:
+        axes = np.array([axes])
+    axes_flat = axes.flatten()
+
     for i in range(T):
-        axes[i].imshow(images_colored[i], interpolation='nearest')
-        axes[i].axis("off")
-    plt.subplots_adjust(wspace=0.02, hspace=0)
-    fig.savefig(path_save_imgs, dpi=300, bbox_inches='tight', pad_inches=0.02)
+        axes_flat[i].imshow(images_colored[i], interpolation='nearest')
+        axes_flat[i].axis("off")
+
+    # Hide extra axes (if T is odd and nrows=2)
+    for j in range(T, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    # Add colorbar if cmap and norm are provided
+    if cmap is not None and norm is not None:
+        # Create a ScalarMappable for the colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(
+            sm, ax=axes_flat[:T].tolist(),
+            orientation='horizontal',
+            fraction=0.05, pad=0.08, aspect=40
+        )
+        cbar.ax.tick_params(labelsize=7)
+        if label:
+            cbar.set_label(label, fontsize=9)
+
+    fig.savefig(path_save_imgs, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
+
+
+
+def plot_difference_sequence(diff_seq, path_save_imgs, vmax=None):
+    """
+    diff_seq: (T,H,W)
+              positive  -> blue
+              zero      -> white
+              negative  -> red
+    """
+
+    T = diff_seq.shape[0]
+
+    if vmax is None:
+        vmax = np.max(np.abs(diff_seq))
+        vmax = max(vmax, 1e-6)
+
+    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
+
+    cmap = LinearSegmentedColormap.from_list(
+        "red_white_blue",
+        [
+            (0.0, "#b2182b"),   # red   (negative)
+            (0.5, "#ffffff"),   # white (zero)
+            (1.0, "#2166ac"),   # blue  (positive)
+        ]
+    )
+
+    if T <= 10:
+        nrows, ncols = 1, T
+        fig_w = 2 * T
+        fig_h = 2.8
+    else:
+        nrows, ncols = 2, (T + 1) // 2
+        fig_w = 2 * ncols
+        fig_h = 5.0
+
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(fig_w, fig_h),
+        constrained_layout=True
+    )
+
+    if T == 1:
+        axes = np.array([axes])
+
+    axes_flat = axes.flatten()
+
+    for i in range(T):
+        im = axes_flat[i].imshow(
+            diff_seq[i],
+            cmap=cmap,
+            norm=norm,
+            interpolation="nearest"
+        )
+        axes_flat[i].axis("off")
+
+    for j in range(T, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    cbar = fig.colorbar(
+        im,
+        ax=axes_flat[:T].tolist(),
+        orientation="horizontal",
+        fraction=0.05,
+        pad=0.08,
+        aspect=40,
+    )
+
+    cbar.set_label("GT - Prediction", fontsize=9)
+    cbar.ax.tick_params(labelsize=7)
+
+    fig.savefig(path_save_imgs, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 def denorm_and_colorize(seq, pixel_scale, gray2color_fn, data_type='vil'):
     """
@@ -238,7 +351,76 @@ def denorm_and_colorize(seq, pixel_scale, gray2color_fn, data_type='vil'):
     )
     return colored
 
+# Helper to resolve the plot directory from ckpt_milestone path
+# =============================================================================
 
+def resolve_plot_dir(ckpt_milestone_path):
+    """
+    Given ckpt_milestone (e.g. /path/to/Exps/<exp_dir>/<exp_name>/checkpoints/ckpt-best.pt)
+    return /path/to/Exps/<exp_dir>/plots/
+
+    Logic: parent of ckpt file -> 'checkpoints' dir -> parent is <exp_name>,
+           one more parent -> <exp_dir>, create plots/ there.
+    """
+    # if os.path.isfile(ckpt_milestone_path):
+    #     ckpt_dir = os.path.dirname(ckpt_milestone_path)       # .../checkpoints/
+    # else:
+    ckpt_dir = ckpt_milestone_path
+
+    # exp_name_dir = os.path.dirname(ckpt_dir)                   # .../<exp_name>/
+         
+    plot_dir     = os.path.join(ckpt_dir, "plots")
+    return plot_dir
+
+
+#Extract cmap and norm from gray2color for colorbar
+# =============================================================================
+
+def extract_cmap_norm_from_gray2color(gray2color_fn):
+    """
+    gray2color internally builds:
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+
+    We replicate that here by calling gray2color's closure variables.
+
+    If gray2color is a simple function that uses module-level COLOR_MAP and BOUNDS,
+    you can import those directly:
+        from <your_module> import COLOR_MAP, BOUNDS
+
+    Otherwise, the safest approach is to reconstruct from the function's globals
+    or __code__. But the EASIEST solution is just to import them.
+    
+    ---
+    
+    RECOMMENDED: In your gray2color module, expose COLOR_MAP and BOUNDS as module 
+    attributes, then do:
+    
+        from <module> import COLOR_MAP, BOUNDS
+        cmap = colors.ListedColormap(COLOR_MAP)
+        norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+        return cmap, norm
+    
+    Below is a fallback that tries to extract from gray2color's globals:
+    """
+    try:
+        # Try to get COLOR_MAP and BOUNDS from gray2color's global scope
+        g = gray2color_fn.__globals__
+        COLOR_MAP = g.get('COLOR_MAP')
+        BOUNDS = g.get('BOUNDS')
+        
+        if COLOR_MAP is not None and BOUNDS is not None:
+            cmap = colors.ListedColormap(COLOR_MAP)
+            norm = colors.BoundaryNorm(BOUNDS, cmap.N)
+            return cmap, norm
+    except AttributeError:
+        pass
+    
+    # Fallback: return None (colorbar won't be drawn)
+    print("[Plot Warning] Could not extract cmap/norm from gray2color. "
+          "Colorbar will be skipped. To fix, expose COLOR_MAP and BOUNDS "
+          "as module-level variables in your gray2color module.")
+    return None, None
 def subsample_frames(seq, target_count=10):
     """
     T > target_count : pick odd indices [1, 3, 5, ..., T-1]
@@ -1252,6 +1434,8 @@ class Runner(object):
             input_dir  = osp.join(plot_base, "Input")                            # <<< PLOT
             gt_dir     = osp.join(plot_base, "Ground_truth")                     # <<< PLOT
             pred_dir   = osp.join(plot_base, "Predicted")                        # <<< PLOT
+            diff_dir = osp.join(plot_base, "Difference")                         # <<< DIFFERENCE
+            os.makedirs(diff_dir, exist_ok=True)                                # <<< DIFFERENCE
             os.makedirs(input_dir,  exist_ok=True)                               # <<< PLOT
             os.makedirs(gt_dir,     exist_ok=True)                               # <<< PLOT
             os.makedirs(pred_dir,   exist_ok=True)                               # <<< PLOT
@@ -1361,7 +1545,12 @@ class Runner(object):
                         pred_colored,                                             # <<< PLOT
                         osp.join(pred_dir, f"Sample_{sid}.png"),                 # <<< PLOT
                     )                                                             # <<< PLOT
-                                                                                  # <<< PLOT
+                    diff_sub = gt_sub - pred_sub
+
+                    plot_difference_sequence(
+                        diff_sub,
+                        osp.join(diff_dir, f"Sample_{sid}.png"),
+                    )                                                            # <<< PLOT
                 print(f"[Plot] Saved batch {batch_idx} "                         # <<< PLOT
                       f"(samples {sample_counter}–{sample_counter+B-1})")        # <<< PLOT
             # ===================== END PLOTTING =================               # <<< PLOT

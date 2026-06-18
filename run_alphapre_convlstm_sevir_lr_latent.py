@@ -45,41 +45,14 @@ MODEL_REGISTRY = {
     # Existing Latent Space Models
     # -------------------------------------------------------------------------
     "alphapre": {
-        "module": "models.Latent_space_models.alphapre_latent",
+        "module": "models.alphapre",
         "kwargs_type": "basic",
     },
-    "alphapre_latent": {
-        "module": "models.Latent_space_models.alphapre_latent",
-        "kwargs_type": "basic",
+    "simvp": {
+        "module": "models.simvp",
+        "kwargs_type": "basic2",
     },
-    "alphapre_latent_amplinet_mseonly": {
-        "module": "models.Latent_space_models.alphapre_amplinet_MSE_only_latent",
-        "kwargs_type": "basic",
-    },
-    "amplinet": {
-        "module": "models.Full_space_models.alphapre_amplinet",
-        "kwargs_type": "basic",
-    },
-    "amplinet_latent_falfcl": {
-        "module": "models.Latent_space_models.alpha_amplinet_latent_FAL_FCL",
-        "kwargs_type": "standard",
-    },
-    "amplinet_latent_falfcl_mse_hybrid": {
-        "module": "models.Latent_space_models.alpha_amplinet_latent_hybrid_falfcl_MSE",
-        "kwargs_type": "hybrid",
-    },
-    "alpha_fnoamplinet_latent_falfcl_var1": {
-        "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_variant1_latent",
-        "kwargs_type": "standared",
-    },
-    "alpha_fnoamplinet_latent_falfcl": {
-        "module": "models.Latent_space_models.alphapre_fnoamplinet_falfcl_only_latent",
-        "kwargs_type": "standared",
-    },
-    "alpha_afnoamplinet_latent_falfcl": {
-        "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
-        "kwargs_type": "standared",
-    },
+    
     "FNO_ablation": {
         "module": "models.Ablations.FNO",
         "kwargs_type": "standared",
@@ -690,6 +663,13 @@ class Runner(object):
                 "amp_weight": self.args.amp_weight,
                 "spec_num": self.args.spec_num,
                 "aweight_stop_steps": self.args.aw_stop_step,
+            }
+
+        elif kwargs_type == "basic2":
+            kwargs = {
+                "in_shape": (self.args.img_channel, self.args.img_size, self.args.img_size),
+                "T_in": self.args.frames_in,
+                "T_out": self.args.frames_out
             }
 
         elif kwargs_type == "standared":

@@ -122,6 +122,10 @@ MODEL_REGISTRY = {
         "module": "models.LPCast.Ablations.lpcast_wospatiotemporal",
         "kwargs_type": "lpcast",
     },
+    "LPCast_woresidual": {
+        "module": "models.LPCast.Ablations.lpcast_woresidual",
+        "kwargs_type": "lpcast",
+    },
 }   
 
 # Ablation model prefixes that need dot→underscore conversion

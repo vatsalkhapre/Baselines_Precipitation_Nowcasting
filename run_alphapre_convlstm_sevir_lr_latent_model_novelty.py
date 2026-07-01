@@ -1332,7 +1332,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/statistical_analysis.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/gaboranalysis.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

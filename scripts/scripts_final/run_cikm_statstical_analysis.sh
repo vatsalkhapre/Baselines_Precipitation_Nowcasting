@@ -21,7 +21,7 @@ WAVE="db4";   LEVEL=2;   HF_MODE="separate"
 BLOCKS=1;     FACTOR=1;  K=7;   SPARSITY=0.01
 WS_LOW=0.1;   WS_HIGH=0.25
 A_LOW=1.0;    A_HIGH=1.0
-B_LOW=100;    B_HIGH=100
+B_LOW=50;    B_HIGH=5
 F_LOW=0.1;    F_HIGH=0.1
 
 # ─────────────────────────────────────────────────────────────
@@ -104,14 +104,14 @@ run_experiment() {
 
 # ─────────────────────────────────────────────────────────────
 run_gpu0() {
-    run_experiment 0 1
-    run_experiment 0 2
+    run_experiment 0 0
+    # run_experiment 0 2
 }
 
-run_gpu1() {
-    run_experiment 1 3
-    run_experiment 1 4
-}
+# run_gpu1() {
+#     run_experiment 1 3
+#     run_experiment 1 4
+# }
 
 echo "=============================================="
 echo "  Multi-Seed — CIKM (2 GPUs parallel)"
@@ -123,14 +123,14 @@ echo ""
 run_gpu0 &
 PID_GPU0=$!
 
-run_gpu1 &
-PID_GPU1=$!
+# run_gpu1 &
+# PID_GPU1=$!
 
 wait ${PID_GPU0}
 echo "GPU 0 complete! (seed 1, 2)"
 
-wait ${PID_GPU1}
-echo "GPU 1 complete! (seed 3, 4)"
+# wait ${PID_GPU1}
+# echo "GPU 1 complete! (seed 3, 4)"
 
 echo ""
 echo "=============================================="

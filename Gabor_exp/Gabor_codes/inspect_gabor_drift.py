@@ -407,7 +407,7 @@ def save_figure(stats_list, dataset, ckpt_name, out_dir):
         fontsize=10, y=1.01)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    fig_path = out_dir / f'gabor_inspect_{dataset}_{ckpt_name}.png'
+    fig_path = out_dir / f'gabor_inspect_{dataset}_{ckpt_name}_test1.png'
     plt.savefig(fig_path, bbox_inches='tight', dpi=130)
     plt.close(fig)
     print(f"  Figure saved → {fig_path}")

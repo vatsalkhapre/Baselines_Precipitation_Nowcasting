@@ -1181,7 +1181,7 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==30:
+            if (epoch+1)==35:
                 self.accelerator.wait_for_everyone()
                 self.accelerator.end_training()
                 break

@@ -1,13 +1,15 @@
 python3 inspect_gabor_drift.py \
-    --ckpt /home/vatsal/Dataserver2/Neurips/Current_best_models/CIKM/amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final_cikm_latent_32_configA_beta100_freq0.1/checkpoints/ckpt-best.pt \
+    --ckpt /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exps/multiseed_cikm/amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final_cikm_latent_32_seed0_db4_J2_separate/checkpoints/ckpt-best.pt \
     --dataset cikm \
     --model_type lastocast \
     --hf_mode separate \
     --level 2 \
-    --beta_low 100 \
-    --beta_high 100 \
+    --beta_low 50 \
+    --beta_high 5 \
     --freq_multiplier_low 0.1 \
     --freq_multiplier_high 0.1 \
+    --weight_scale_low 0.1 \
+    --weight_scale_high 0.25 \
     --save_fig \
     --save_csv \
     --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Gabor_testing/cikm/

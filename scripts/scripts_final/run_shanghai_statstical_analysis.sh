@@ -38,7 +38,7 @@ run_experiment() {
     local F_LOW=$2
     local F_HIGH=$3
 
-    local TAG="seed${SEED}_${WAVE}_J${LEVEL}_${HF_MODE}"
+    local TAG="Shanghai_flow${F_LOW}_fhigh${F_HIGH}"
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="

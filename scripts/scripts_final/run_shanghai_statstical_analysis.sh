@@ -116,7 +116,7 @@ GPU1_TASKS=()
 count=0
 for i in "${!FLOWS[@]}"; do
     for j in "${!FHIGHS[@]}"; do
-        [[ $i -eq $j ]] && continue
+        # [[ $i -eq $j ]] && continue
         if (( count % 2 == 0 )); then
             GPU0_TASKS+=("${FLOWS[$i]} ${FHIGHS[$j]}")
         else

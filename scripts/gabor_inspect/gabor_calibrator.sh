@@ -13,5 +13,11 @@ python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
 python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
     --dataset meteonet \
     --weight_scale_low 0.1 --gamma_learned_low 10.0460 \
-    --weight_scale_high 1.0 --gamma_learned_high 0.2075 \
-    --t_in 5 --t_out 10
+    --weight_scale_high 1.0 --gamma_learned_high 6.0882 \
+    --t_in 5 --t_out 20
+
+python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
+    --dataset shanghai \
+    --weight_scale_low 0.1 --gamma_learned_low 10.0481 \
+    --weight_scale_high 1.0 --gamma_learned_high 6.0480 \
+    --t_in 5 --t_out 20

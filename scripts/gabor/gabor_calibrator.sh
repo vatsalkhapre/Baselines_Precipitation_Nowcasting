@@ -10,7 +10,7 @@ python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
     --weight_scale_high 0.25 --gamma_learned_high 0.2075 \
     --t_in 5 --t_out 10
 
-python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
+python Exp_paper/Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
     --dataset meteonet \
     --weight_scale_low 0.1 --gamma_learned_low 10.0460 \
     --weight_scale_high 1.0 --gamma_learned_high 6.0882 \

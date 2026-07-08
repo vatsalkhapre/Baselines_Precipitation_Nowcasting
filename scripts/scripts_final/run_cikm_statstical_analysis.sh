@@ -107,16 +107,16 @@ run_experiment() {
         --wandb_state offline
 }
 
-FLOWS=(22.74 68.23 181.94 363.89 714.49)
-FHIGHS=(3.04 9.13 24.34 48.67 95.56)
+FLOWS=(22.74)
+FHIGHS=(9.13 24.34)
 
-GPU0_TASKS=()
-GPU1_TASKS=()
+# GPU0_TASKS=()
+# GPU1_TASKS=()
 
 count=0
 for i in "${!FLOWS[@]}"; do
   for j in "${!FHIGHS[@]}"; do
-    [[ $i -eq $j ]] && continue
+    # [[ $i -eq $j ]] && continue
     if (( count % 2 == 0 )); then
       GPU0_TASKS+=("${FLOWS[$i]} ${FHIGHS[$j]}")
     else

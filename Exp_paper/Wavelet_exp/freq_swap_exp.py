@@ -223,25 +223,98 @@ def run_sevir(args):
     print(f"[done] {n} figures in {args.out_dir}")
 
 
+def score_sequence(seq, active_thresh=50.0):
+    """
+    Catalog-free 'storm-likeness' score for a raw (T,H,W) CIKM sample (0-255 scale).
+    CIKM has no CATALOG.csv / event metadata like SEVIR, so storm-like events must
+    be found from the data itself. active_thresh is on the FIXED raw 0-255 scale,
+    not a per-sample percentile -- a percentile-relative threshold lets wide, weak
+    drizzle fields masquerade as high-coverage storms.
+    """
+    seq = seq.astype(np.float32)
+    frac_active = (seq > active_thresh).mean()
+    max_intensity = seq.max()
+    p95_intensity = np.percentile(seq, 95)
+
+    def centroid(frame, thr=active_thresh):
+        m = np.where(frame > thr, frame, 0.0)
+        mass = m.sum()
+        if mass <= 1e-6:
+            return None
+        ys, xs = np.mgrid[0:frame.shape[0], 0:frame.shape[1]]
+        return (ys * m).sum() / mass, (xs * m).sum() / mass
+
+    c0, c1 = centroid(seq[0]), centroid(seq[-1])
+    motion = 0.0
+    if c0 is not None and c1 is not None:
+        motion = float(np.hypot(c0[0] - c1[0], c0[1] - c1[1]))
+
+    return dict(frac_active=float(frac_active), max_intensity=float(max_intensity),
+                p95=float(p95_intensity), motion=motion)
+
+
+def combined_score(m, scale_max=255.0):
+    # Intensity gates out drizzle/noise; motion is a bonus so selected events
+    # actually show bulk translation, which is what makes the frozen-bulk vs
+    # frozen-turbulence swap visually legible.
+    intensity_term = (m["max_intensity"] / scale_max) * 2.0 + (m["p95"] / scale_max) * 1.5
+    coverage_term = m["frac_active"] * 1.0
+    motion_term = np.tanh(m["motion"] / 15.0) * 1.0
+    return intensity_term + coverage_term + motion_term
+
+
+def select_storm_like_cikm(data_path, split, n_select, scan_limit=None,
+                           active_thresh=50.0, seed=0):
+    """
+    Scans CIKM h5 samples directly (no catalog needed) and ranks them by a
+    catalog-free storm-likeness score. Returns a sorted list of 0-indexed
+    sample indices (best-first).
+    """
+    import h5py
+    with h5py.File(data_path, "r") as f:
+        total = int(f[split + "_len"][()])
+        n_scan = total if scan_limit is None else min(scan_limit, total)
+        rng = np.random.default_rng(seed)
+        scan_idx = (np.arange(n_scan) if scan_limit is None
+                    else rng.choice(total, size=n_scan, replace=False))
+        scored = []
+        for idx in scan_idx:
+            key = f"sample_{int(idx) + 1}"
+            seq = f[split][key][()]                    # (15,101,101) raw 0-255
+            m = score_sequence(seq, active_thresh=active_thresh)
+            scored.append((combined_score(m), int(idx)))
+    scored.sort(key=lambda x: -x[0])
+    return [idx for _, idx in scored[:n_select]]
+
+
 def run_cikm(args):
     import sys; sys.path.insert(0, args.code_dir)
-    from dataset_cikm import CIKM
+    from datasets.dataset_cikm import CIKM
     ds = CIKM(data_path=args.dataset_dir, type="test", img_size=args.img_size)
-    print(f"[info] CIKM test samples: {len(ds)}")
+    print(f"[info] CIKM test samples: {len(ds)}  (no catalog.csv -- CIKM has no "
+          f"event metadata, so selection is data-driven)")
     _, top = cmap_spec("cikm")
     os.makedirs(args.out_dir, exist_ok=True)
-    n = min(args.n_events, len(ds))
-    # spread indices across the split for event diversity
-    idxs = np.linspace(0, len(ds) - 1, n).astype(int)
+
+    if args.select == "storm_like":
+        idxs = select_storm_like_cikm(args.dataset_dir, split="test",
+                                      n_select=args.n_events,
+                                      scan_limit=args.scan_limit,
+                                      active_thresh=args.active_thresh)
+        print(f"[info] storm-like indices (data-driven, best-first): {idxs}")
+    else:
+        n = min(args.n_events, len(ds))
+        idxs = np.linspace(0, len(ds) - 1, n).astype(int).tolist()
+
     for k, idx in enumerate(idxs):
         seq = np.squeeze(np.asarray(ds[int(idx)]))    # [15,1,W,H] -> (15,W,H)
         assert seq.ndim == 3 and seq.shape[0] >= 15, f"bad shape {seq.shape}"
-        seq = seq[:15] * top                           # [0,1] -> [0,80] dBZ
+        seq = seq[:15] * top                           # [0,1] -> [0,80] dBZ (colorbar scale)
         out = os.path.join(args.out_dir, f"cikm_{k:02d}_s{idx}.png")
         make_event_figure(seq, f"CIKM sample #{idx}", out, cmap_kind="cikm",
                           wavelet=args.wavelet, level=args.level, last_k=5)
         print(f"[saved] {out}")
-    print(f"[done] {n} figures in {args.out_dir}")
+    print(f"[done] {len(idxs)} figures in {args.out_dir}")
 
 
 def run_demo(args):
@@ -274,6 +347,16 @@ def main():
     p.add_argument("--level", type=int, default=1)
     p.add_argument("--stride", type=int, default=49)     # SEVIR: ~1 window/event
     p.add_argument("--img_size", type=int, default=384)  # SEVIR 384; CIKM use 128
+    p.add_argument("--select", choices=["storm_like", "linspace"], default="storm_like",
+                   help="CIKM only: how to pick events (no catalog.csv exists for CIKM, "
+                        "so 'storm_like' scores samples directly from the data).")
+    p.add_argument("--scan_limit", type=int, default=None,
+                   help="CIKM only: cap how many test samples to scan when scoring "
+                        "(default None = scan all; use e.g. 1000 for a faster, "
+                        "random-subset scan on very large test splits).")
+    p.add_argument("--active_thresh", type=float, default=50.0,
+                   help="CIKM only: fixed raw-intensity threshold (0-255 scale) "
+                        "used to decide 'active' precipitation pixels for scoring.")
     args = p.parse_args()
 
     if args.demo:

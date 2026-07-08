@@ -5,8 +5,8 @@
 # GPU 0 and GPU 1 execute sequential jobs in parallel.
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
-RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novelty.py"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_expgabor_final"
+RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 
 DATASET="shanghai_lr_latent_32"
 SEQ_LEN=25
@@ -116,13 +116,6 @@ GPU1_TASKS=()
 count=0
 for i in "${!FLOWS[@]}"; do
     for j in "${!FHIGHS[@]}"; do
-
-        # Skip specific combinations
-        if [[ "${FLOWS[$i]}" == "8.74" ]] && \
-           ([[ "${FHIGHS[$j]}" == "0.14" ]] || [[ "${FHIGHS[$j]}" == "0.42" ]]); then
-            continue
-        fi
-
         if (( count % 2 == 0 )); then
             GPU0_TASKS+=("${FLOWS[$i]} ${FHIGHS[$j]}")
         else

@@ -264,7 +264,7 @@ def create_parser():
     parser.add_argument("--amp_weight",     type=float, default=0.01,            help="amplitute weight")
     parser.add_argument("--anet_weight",    type=float, default=0.1,             help="amplitute network mse weight")
     parser.add_argument("--aw_stop_step",   type=int,   default=5000,            help="training step at which the amplitude weight decays to 0")
-    parser.add_argument("--out_weight",     type=float, default=1.0,             help="final output weight")
+    parser.add_argument("--out_weight",     type=float, default=1.0,             help="Meteonet output weight")
     parser.add_argument("--tf",             action="store_false",                help="teacher force")
     parser.add_argument("--tf_stop_iter",     type=int,     default=2000,        help="teacher force stop iters")
     parser.add_argument("--tf_changing_rate", type=float,   default=0.,          help="teacher force changing rate")

@@ -986,7 +986,8 @@ class Runner(object):
                         for name, param in self.model.named_parameters():
                             if param.grad is None:
                                 print_log(name, self.is_main)   
-    
+
+
                 self.accelerator.wait_for_everyone()
                 # if self.accelerator.sync_gradients:
                 #     self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)

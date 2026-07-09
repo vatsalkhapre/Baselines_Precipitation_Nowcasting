@@ -107,7 +107,7 @@ run_experiment() {
         --wandb_state offline
 }
 
-FLOWS=(8.74 17.49 34.33)
+FLOWS=(1.09 3.28)
 FHIGHS=(0.14 0.42 1.13 2.25 4.43)
 
 GPU0_TASKS=()

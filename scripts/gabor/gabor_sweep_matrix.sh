@@ -3,8 +3,8 @@ python /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Gabor_exp/Gabor_codes
     --dataset cikm --thresholds 35 40 \
     --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Gabor_exp/Gabor_explainabillity_plots/cikm
 
-python /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paperGabor_exp/Gabor_codes/gabor_sweep_matrix.py \
+python /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_codes/gabor_sweep_matrix.py \
     --logs_glob 'Exps/gabor_exp_shanghai/*/logs/log.log' \
     --dataset cikm --thresholds 35 40 \
-    --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_explainabillity_plots/shanghai
+    --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_explainabillity_plots/stat_gamma_shanghai
     

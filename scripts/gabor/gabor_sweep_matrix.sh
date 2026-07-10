@@ -13,3 +13,7 @@ python /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/G
     --dataset shanghai --thresholds 24 32 \
     --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_explainabillity_plots/meteonet
     
+python /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_codes/gabor_sweep_matrix.py \
+    --logs_glob 'Exps/gabor_exp_meteo/*/logs/log.log' \
+    --dataset meteonet --thresholds 24 32 \
+    --out_dir /home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Exp_paper/Gabor_exp/Gabor_explainabillity_plots/meteonet_const_gamma

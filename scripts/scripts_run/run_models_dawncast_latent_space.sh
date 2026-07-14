@@ -7,54 +7,54 @@
 # ==============================================================
 
 # ---- GPU(s) — space-separated list passed to --gpu_use -------
-GPUS="0"
+GPUS="2"
 
 # ---- Runner --------------------------------------------------
 SCRIPT="run_alphapre_convlstm_sevir_lr_latent.py"
 
 # ---- Experiment ----------------------------------------------
-EXP_DIR="cikm_latent_32"
+EXP_DIR="sevir_lr_latent_32"
 EXP_NOTE="dawncast_latent"
-RUN_NAME="DAWNCast_latent_cikm"
+RUN_NAME="DAWNCast_latent_sevir"
 
 # ---- Dataset -------------------------------------------------
 # Latent dataset names:  sevir_lr_latent_32 | meteo_lr_latent_32
 #                        shanghai_lr_latent_32 | cikm_latent_32
-DATASET="cikm_latent_32"
+DATASET="sevir_lr_latent_32"
 IMG_SIZE=32                       # latent spatial size (32×32)
 IMG_CHANNEL=4                     # SD-VAE latent channels
 FRAMES_IN=5
-FRAMES_OUT=10
-SEQ_LEN=15
+FRAMES_OUT=20
+SEQ_LEN=25
 
 
 # ---- Autoencoder checkpoint ----------------------------------
-AE_CKPT_PATH="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"  # <-- SET THIS
+AE_CKPT_PATH="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_SEVIR.pth"  # <-- SET THIS
 
 
 
 # ---- DAWNCast: wavelet ---------------------------------------
-WAVE="db4"                        # haar | db4 | db6
+WAVE="db6"                        # haar | db4 | db6
 WAVELET_LEVEL=2                   # DWT decomposition levels J (1-4)
 HF_MODE="separate"                # shared | separate
 
 # ---- DAWNCast: Gabor LL subband (low-frequency) -------------
 WEIGHT_SCALE_LOW=0.1
 ALPHA_LOW=1.0
-BETA_LOW=100
+BETA_LOW=0.17
 FREQ_MULTIPLIER_LOW=0.1
 
 # ---- DAWNCast: Gabor HF subbands (high-frequency) -----------
-WEIGHT_SCALE_HIGH=0.25
+WEIGHT_SCALE_HIGH=1.0
 ALPHA_HIGH=1.0
-BETA_HIGH=100
-FREQ_MULTIPLIER_HIGH=0.1
+BETA_HIGH=0.17
+FREQ_MULTIPLIER_HIGH=4.0
 
 # ---- DAWNCast: SRST Block -----------------------------------
-SPECTRAL_BLOCKS=1                 # N_g: number of groups in STR module
-SPECTRAL_HIDDEN_SIZE_FACTOR=1     # rho_h: hidden expansion in STR module
+SPECTRAL_BLOCKS=4                 # N_g: number of groups in STR module
+SPECTRAL_HIDDEN_SIZE_FACTOR=4     # rho_h: hidden expansion in STR module
 SPARSITY_THRESHOLD=0.01           # soft-shrinkage lambda
-CONV_KERNEL=7                     # spatial depthwise conv kernel size k
+CONV_KERNEL=3                     # spatial depthwise conv kernel size k
 
 # ---- DAWNCast: general architecture -------------------------
 HIDDEN_DIM=64
@@ -66,7 +66,7 @@ WANDB_PROJECT="Neurips26"
 
 
 # ==============================================================
-python ${SCRIPT} \
+CUDA_VISIBLE_DEVICES=${GPUS} python ${SCRIPT} \
     --backbone                 DAWNCast \
     --seed                     0 \
     --exp_dir                  ${EXP_DIR} \

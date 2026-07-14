@@ -5,7 +5,7 @@
 # GPU 0 and GPU 1 execute sequential jobs in parallel.
 # ============================================================
 
-BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_expgabor_final"
+BACKBONE="amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_final"
 RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 
 DATASET="meteo_lr_latent_32"
@@ -110,47 +110,12 @@ run_experiment() {
 FLOWS=(1.09 3.28 8.74 17.49 34.34)
 FHIGHS=(0.14 0.42 1.12 2.25 4.41)
 
-GPU0_TASKS=()
-GPU1_TASKS=()
+echo "Starting Meteonet frequency sweep on GPU 1..."
 
-count=0
-for i in "${!FLOWS[@]}"; do
-    for j in "${!FHIGHS[@]}"; do
-        if (( count % 2 == 0 )); then
-            GPU0_TASKS+=("${FLOWS[$i]} ${FHIGHS[$j]}")
-        else
-            GPU1_TASKS+=("${FLOWS[$i]} ${FHIGHS[$j]}")
-        fi
-        ((count++))
+for F_LOW in "${FLOWS[@]}"; do
+    for F_HIGH in "${FHIGHS[@]}"; do
+        run_experiment 1 "$F_LOW" "$F_HIGH"
     done
 done
 
-run_gpu0() {
-    for task in "${GPU0_TASKS[@]}"; do
-        read F_LOW F_HIGH <<< "$task"
-        run_experiment 0 "$F_LOW" "$F_HIGH"
-    done
-}
-
-run_gpu1() {
-    for task in "${GPU1_TASKS[@]}"; do
-        read F_LOW F_HIGH <<< "$task"
-        run_experiment 1 "$F_LOW" "$F_HIGH"
-    done
-}
-
-echo "Starting 20 off-diagonal experiments..."
-
-run_gpu0 &
-PID0=$!
-
-run_gpu1 &
-PID1=$!
-
-wait $PID0
-echo "GPU 0 complete."
-
-wait $PID1
-echo "GPU 1 complete."
-
-echo "All 20 off-diagonal experiments finished."
+echo "All Meteonet experiments finished."

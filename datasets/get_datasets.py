@@ -108,7 +108,7 @@ DATAPATH = {
     'shanghai_lr_latent_32' : '/home/vatsal/NWM/Dataset/shanghai_latent_32/shanghai_latent_data.h5',
     'meteo'    : '/home/vatsal/NWM/Dataset/Meteonet/meteo_radar.h5',
     'meteo_lr_latent_32'    : '/home/vatsal/NWM/Dataset/meteonet_latent_32/meteonet_latent32.h5',
-    'sevir'    : '/home/vatsal/Dataserver2/Datasets/sevir/',
+    'sevir'    : '/home/vatsal/Dataserver/Dataset/sevir/',
     'sevir_lr_latent' : '/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/sevir_lr_latent',
     'sevir_lr_latent_32' : '/home/vatsal/NWM/Dataset/sevir_lr_latent_32_normalize_resize/',
     'mosdac'   : '/home/vatsal/Dataserver2/Datasets/MOSDAC/MOS_240_cleandataset_Modeltraining/Full_dataset_240/',

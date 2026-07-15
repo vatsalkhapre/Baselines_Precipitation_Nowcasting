@@ -57,6 +57,7 @@
 
 
 
+
 CUDA_VISIBLE_DEVICES=1 python3 run_alphapre_convlstm.py \
     --exp_dir sevir \
     --exp_note Simvp_on_sevir \

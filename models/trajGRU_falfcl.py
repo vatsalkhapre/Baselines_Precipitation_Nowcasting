@@ -274,7 +274,7 @@ class TrajGRUEncoder_128(nn.Module):
         )
         
         # ernn3 remains on 16x16
-        self.ernn3 = TrajGRU(input_channel=192, num_filter=192, b_h_w=(batch_size, 16, 16), L=9)
+        self.ernn3 = TrajGRU(input_channel=192, num_filter=192, b_h_w=(batch_size, 16, 16), L=9, h2h_kernel=(3,3))
 
     def forward(self, inputs):
         S = inputs.size(0)
@@ -313,7 +313,7 @@ class TrajGRUForecaster_128(nn.Module):
         super(TrajGRUForecaster_128, self).__init__()
         
         # frnn1 remains on 16x16
-        self.frnn1 = TrajGRU(input_channel=192, num_filter=192, b_h_w=(batch_size, 16, 16), L=9)
+        self.frnn1 = TrajGRU(input_channel=192, num_filter=192, b_h_w=(batch_size, 16, 16), L=9, h2h_kernel=(3,3))
         
         # Modified: fup1 (In: 16x16 -> Out: 32x32)
         self.fup1 = SequenceConv(

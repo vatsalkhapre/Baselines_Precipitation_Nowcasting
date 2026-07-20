@@ -245,7 +245,7 @@ class SimVP_Model(nn.Module):
         self.dec = Decoder(hid_S, C, N_S, spatio_kernel_dec, act_inplace=act_inplace)
 
         self.hid = MidIncepNet(self.T_in*hid_S, hid_T, N_T)
-
+            
         self.MSE_criterion = RandomScheduling(total_steps, 1, 0.1 )
 
     def forward(self, x_raw, **kwargs):

@@ -561,6 +561,7 @@ class RandomScheduling(nn.Module):
         _, _, _, H, W = pred.shape
         weight = np.sqrt(H*W)
         loss = prob*self.fal(fft_pred, fft_gt) + (1-prob) * self.fcl(fft_pred, fft_gt)
+        # loss = loss*weight
         loss = loss*weight*1.25
         # self.step += 1
         # loss = loss*weight

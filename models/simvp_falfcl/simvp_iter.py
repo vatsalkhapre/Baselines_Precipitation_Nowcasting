@@ -283,7 +283,7 @@ class SimVP_Model(nn.Module):
 config_dict = {
     "hid_S" : 64,
     "hid_T" : 256,
-    "N_T": 6,
+    "N_T": 4,
     "N_S": 2,
     "spatio_kernel_enc": 3,
     "spatio_kernel_dec": 3,

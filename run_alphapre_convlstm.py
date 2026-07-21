@@ -454,7 +454,7 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
-        elif self.args.backbone == 'dawncast':
+        elif self.args.backbone == 'DAWNCast':
             from models.DAWNCast.dawncast import get_model
             kwargs = {
                 "afno_blocks":              self.args.spectral_blocks,
@@ -690,6 +690,15 @@ class Runner(object):
                 betas=(0.9, 0.999),       # AdamW defaults as paper doesn't specify custom betas
                 weight_decay=0.00001
             )
+
+        elif self.args.backbone == 'simvp_falfcl':
+            self.optimizer = torch.optim.Adam(
+                trainable_params,
+                lr=self.args.lr if self.args.lr is not None else 1e-3,
+                betas=(0.9, 0.999),
+                weight_decay=0.0
+            )
+
 
         else:
             self.optimizer = torch.optim.AdamW(

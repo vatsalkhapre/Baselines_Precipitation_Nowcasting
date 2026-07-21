@@ -948,15 +948,15 @@ class Runner(object):
             except:
                 print_log(f"No record step", self.is_main)
             
-        if self.is_main:
-            ema_dict = data['ema']
-            for key, value in ema_dict.items():
-                # If the checkpoint has a scalar (size []), but we need a vector (size [1])
-                if value.dim() == 0:
-                    ema_dict[key] = value.unsqueeze(0)
+        # if self.is_main:
+        #     ema_dict = data['ema']
+        #     for key, value in ema_dict.items():
+        #         # If the checkpoint has a scalar (size []), but we need a vector (size [1])
+        #         if value.dim() == 0:
+        #             ema_dict[key] = value.unsqueeze(0)
 
             # 3. Load the fixed dictionary
-            self.ema.load_state_dict(ema_dict)
+            # self.ema.load_state_dict(ema_dict)
 
 
     def train(self):
@@ -1058,7 +1058,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%1==0:
+                if (epoch+1)%5==0:
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 

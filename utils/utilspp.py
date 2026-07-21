@@ -563,6 +563,7 @@ class RandomScheduling(nn.Module):
         loss = prob*self.fal(fft_pred, fft_gt) + (1-prob) * self.fcl(fft_pred, fft_gt)
         loss = loss*weight*1.25
         # self.step += 1
+        # loss = loss*weight
         return loss
 
 class RandomScheduling_linear(nn.Module):

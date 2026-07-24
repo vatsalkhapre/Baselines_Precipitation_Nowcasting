@@ -714,6 +714,14 @@ class Runner(object):
                 weight_decay=0.0
             )
 
+        elif self.args.backbone == 'wadepre':
+            # Paper: AdamW, lr=1.5e-4, betas=(0.9, 0.995), weight_decay=0.01
+            self.optimizer = torch.optim.AdamW(
+                trainable_params,
+                lr=self.args.lr,
+                betas=(self.args.lr_beta1, self.args.lr_beta2),
+                weight_decay=0.01
+            )
 
         else:
             self.optimizer = torch.optim.AdamW(
@@ -722,7 +730,17 @@ class Runner(object):
                 betas=(self.args.lr_beta1, self.args.lr_beta2),
                 weight_decay=0.00001
             )
-        if self.args.scheduler == 'constant':
+        if self.args.backbone == 'wadepre':
+            # Paper: plain (no-warmup) CosineAnnealingLR, T_max=200 epochs.
+            # The harness calls scheduler.step() once per training step (not
+            # once per epoch, unlike the original Lightning setup), so T_max
+            # is expressed in optimizer steps here -- with --epochs 200 this
+            # anneals to 0 exactly at the end of training, matching the
+            # paper's schedule.
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.global_steps,
+            )
+        elif self.args.scheduler == 'constant':
             self.scheduler = get_constant_schedule_with_warmup(
                 self.optimizer,
                 num_warmup_steps=warmup_steps,
@@ -932,7 +950,7 @@ class Runner(object):
             # save checkpoint and do test every epoch
             if self.args.valid:
 
-                if (epoch+1)%5==0 :
+                if (epoch+1)%10==0 :
                     cur_csi = self.test_samples(self.cur_step, (epoch+1))
         
 
@@ -1052,7 +1070,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/csv_files/models_falfcl.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/csv_files/Rebuttal_runs.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

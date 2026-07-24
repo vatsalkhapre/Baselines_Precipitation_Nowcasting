@@ -287,7 +287,7 @@ class WADEPre(nn.Module):
         return full.unsqueeze(2), None                  # (B, T_out, 1, H, W)
 
 
-def _safe_refine_hidden_dim(time_steps: int, target: int = 120) -> int:
+def _safe_refine_hidden_dim(time_steps: int, target: int = 576) -> int:
     """Smallest multiple of lcm(time_steps, 8) closest to `target`.
 
     The Refiner ties several GroupNorms to `time_steps` (min(32, T) groups and
@@ -305,25 +305,30 @@ def get_model(
     T_out: int = 20,
     img_channels: int = 1,
     dropout_rate: float = 0.1,
-    # detail network
-    detail_idr_dim: int = 32,
-    detail_feature_channel: int = 64,
+    # detail network            (defaults from models/WADEPre/train.py)
+    detail_idr_dim: int = 64,
+    detail_feature_channel: int = 128,
     detail_layer_channels=(64, 128, 256),
     detail_num_blocks: int = 4,
-    # approximation network
-    approx_hidden_size: int = 128,
+    # approximation network         (paper: "channel dimension is set to 256")
+    approx_hidden_size: int = 256,
     approx_cells: int = 3,
-    # refiner (auto-sized to satisfy group-norm constraints if None)
+    # refiner: paper reports hidden_dim=576, valid as-is only when
+    # timesteps == 6 (WADEPre's native horizon). Refiner.py asserts
+    # hidden_dim % time_steps == 0 and ties several GroupNorms to
+    # lcm(time_steps, 8), so for our timesteps=T_in=5 autoregressive setup we
+    # snap to the nearest valid multiple of lcm(time_steps, 8) instead
+    # (560 for T_in=5; recovers the paper's exact 576 for T_in=6).
     refine_hidden_dim=None,
     # wavelet (WADEPre native defaults; not the DAWNCast --wave args)
     wavelet_name: str = "bior2.4",
     wavelet_level: int = 3,
-    # loss weights
-    loss_a_weight: float = 1.0,
-    loss_a_constant_weight: float = 0.15,
-    loss_a_stop_step: int = 5000,
-    loss_d_weight: float = 1.0,
-    loss_recon_mean_weight: float = 0.1,
+    # loss weights              (defaults from models/WADEPre/train.py)
+    loss_a_weight: float = 0.1,
+    loss_a_constant_weight: float = 0.01,
+    loss_a_stop_step: int = 3000,
+    loss_d_weight: float = 0.05,
+    loss_recon_mean_weight: float = 0.005,
     **kwargs,
 ):
     if img_channels != 1:
@@ -334,7 +339,10 @@ def get_model(
     # same-length model runs T_in -> T_in and rolls out to T_out at inference
     timesteps = T_in
     if refine_hidden_dim is None:
-        refine_hidden_dim = _safe_refine_hidden_dim(timesteps)
+        refine_hidden_dim = _safe_refine_hidden_dim(timesteps)  # nearest valid to paper's 576
+    else:
+        # keep whatever was passed but ensure it satisfies the group-norm rules
+        refine_hidden_dim = _safe_refine_hidden_dim(timesteps, target=refine_hidden_dim)
 
     model = WADEPre(
         timesteps=timesteps,

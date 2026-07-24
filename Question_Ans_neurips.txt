@@ -1,0 +1,108 @@
+# AC: 
+
+Weaknesses: 
+1. 
+The main concern is limited conceptual novelty. Wavelet decomposition, spectral modeling, multi-scale processing, Gabor activations, and global-local refinement are all established ideas. 
+The paper does not clearly identify which component constitutes the main methodological advance beyond their integration.
+
+A. Main contribution: Gabor are adaptable to particular environmental location. Seperate FAT block for seperate wavelete decomposed data and seperate wavelet adapting to those environmental 
+characteristics is our novelty. As we see in the graph that on running different sinosoidal patterns for low and high wavelet frequencies settle at one set of sinosoidal behavior for the 
+frequency and not other frequency meanining that modeling of the particular wavelet frequency with this particular sinosoidal frequency gives optimal outputs leaing us to the conclusion that
+sinosoidal are accurately able to model different wavelet frequency and leading to SOTA results. Implying that wavelet decomposition and seperate gabor blocks for those wavelets hold significance
+but one could argue that there is no much score difference, this argument could be repelled by the fact that since FAT block has very less parameters as compared to refinement block of the 
+model so this is obvious hence in the paper we say in limitations section (line 462-467) "The learnable parameters of the FAT blocks constitute approximately minor percentage of the
+total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest." and in future work section (line 319-320)"scaling the adaptive part to a larger fraction of model capacity to assess its full potential" we also accept it, but this framework 
+possesses a future direction for adaptive model with SoTA results. So the paper is acting actually as the motivation on how the future precipitation nowcasting models can adapt to better 
+adaptive approach in the coming future in order to have better precipitation nowcasting in the near furture. 
+
+
+
+2. The ablation results also weaken the central claim. Removing the SRST block causes the largest performance drop, although this block mainly combines existing AFNO-style processing with depthwise convolution. 
+In contrast, removing the Gabor stream produces only modest degradation. This suggests that the main gains may not come from the proposed frequency-adaptive temporal mechanism. 
+
+A. Again the 2 limitations and future work arguments cited above i.e.  in limitations section (line 462-467) "The learnable parameters of the FAT blocks constitute approximately minor percentage of the
+total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest." and in future work section (line 319-320)"scaling the adaptive part to a larger fraction of model capacity to assess its full potential" we also accept it, but this framework 
+possesses a future direction for adaptive model. Also we could have given just this as the motivation but without convencing results it would be difficult for the community accept the idea 
+hence we added some of the convenctional spatio-temporal forecasting parts like global-local refinement in order to achieve better scores and eventually improving the chances of socital 
+acceptability on this idea. 
+
+3. The physical interpretation is not sufficiently supported because wavelet decomposition is applied to learned latent features rather than directly to radar fields. It is therefore unclear whether the 
+resulting subbands correspond to physically meaningful precipitation scales. The “climatic inductive bias” claim is also overstated, since the model does not use climate labels or environmental variables.
+
+A. So we used the autoencoder for the latent     latent - > physical data correspondance proof from some paper.  "Your Latent Mask is Wrong," arXiv:2512.05198, Dec 2025 and claude answer worth exploring on to. 
+We say climatic inductive bias because a particular data is taken from a particular location and every location has a certain climate. Now gabor application on wavelet decomposed(corresponding to a bulk and turbulance phenomenon - get another name for it) 
+data which correponds to certain characteristics only one gabor configuration can model it highlighting to the fact that the outputs from the FAT blocks are highly usable for the remaining refinement block in order to produce even better predictions. 
+That initial meaningful output from the FAT block provides the required inductive bias to the remaining model in order to have a better idea of the climatic evolution in the locality. As radar images are noting but the shadow of precipitation 
+bands and precipitation bands are directly affected by climate variables of the region, indirectly pointing that radar images movement and evolution are indirectly affected by the climate of the region. Hence we call it inductive bias. 
+
+4. The evaluation does not fully establish the proposed mechanism. Parameter-matched baselines, alternative decompositions, and comparisons between shared and subband-specific temporal modeling are missing. Part of the improvement may also come from the FACL loss rather than the architecture. 
+Moreover, the model does not improve MSE consistently, despite the motivation involving intensity errors at longer lead times.
+
+A. We have parameter matched baselines alpahpre (parameter), diffcast (parameter), Nowcastnet, Earthfarseer -> see all the models parameters and report.
+
+For other decompsition- fourier - alpahpre is the best example and also they have made use of the decomposition to the best possible way. Although the other transformations can be tried but in order to prevent the motive of why we used wavlet is 
+lost. The model is itself structured to make the best use od the wavelet transform, as alphapre did to make the best use of the fourier decomposition. But other transformations similar to wavelet can be explored, which can be posed as a future direction. 
+
+Run: With shared wavelet parameter and show why seperate is good. Proving that seperate modeling is actually required. 
+
+We also accept that part of improvement can come for FACL loss hence we also showed with mse but we also consider that mse is not the best loss for the task of precipitation nowcasting due to blurring issues (already highlighted by many papers). 
+Also FACL loss can as the motivation to improve precipitation nowcasting. Also model development also depends on how best one can make use of the loss being used, in our case also the model is orchastrated in the sense, how can one make best use 
+of FACL loss resulting into addition of Spectral Temporal refinement block rather than some commonly used other spatio temporal prediction specific blocks. 
+
+use of mse vs csi -  use the graph. 
+
+
+Potentially decision-changing response: 
+
+
+1. The recommendation could improve with controlled comparisons against recent wavelet and multi-scale nowcasting methods, together with parameter-matched ablations isolating wavelet decomposition, the Gabor stream, SRST, and FACL.
+
+
+A. Run wavelet based nowcasting model (https://github.com/sonderlau/WADEPre/tree/main). alpahpre is already there. Rest I dont know.  
+
+
+What are the step wise improvements coming like:
+Model	  Wavelet	Gabor	SRST	FACL
+Baseline	✗	      ✗	      ✗	     ✗
++ Wavelet	✓	      ✗	      ✗	     ✗
++ Gabor	    ✓	      ✓	      ✗	     ✗
++ SRST	    ✓	      ✓	      ✓	     ✗
+Full Model	✓	      ✓	      ✓	     ✓
+
+
+Q. Stronger evidence connecting latent subbands to interpretable radar structures would also be important.
+
+A. See if there is any proof. cleck claude response for the question. 
+
+
+Q. The authors should clarify why threshold-based metrics improve while MSE does not. 
+
+A. Show the frame of csi and mse and show there correlation that how mse in lesser in the models with high csi and highlight the point what creaters of pangu weather highlighted.  
+
+Q. Comparisons with Fourier decomposition, learned multi-resolution features, or shared temporal processing would further strengthen the paper.
+
+For fourier above ans (fourier - alpahpre is the best example and also they have made use of the decomposition to the best possible way. Although the other transformations can be tried but in order to prevent the motive of why we used wavlet is 
+lost. The model is itself structured to make the best use od the wavelet transform, as alphapre did to make the best use of the fourier decomposition.)
+
+Learned multi-resolution features - (e.g., U-Net, FPN, multi-scale CNN) - i am not sure on this - but I think we should learn the models having multi-resolution implicit capbilites and compare with them as well. 
+
+
+
+# Reviewer 1 
+
+1. Utilizing wavelet transforms for multi-scale separation is relatively common in the fields of meteorological forecasting and image processing (e.g., Reference [1]). 
+The authors should supplement the paper with relevant discussions and comparative experiments regarding these prior works.
+
+A. Run with . "WADEPre" 
+Respectfully ask the Reviewer if there are any more baselines that utilizes wavelet transform for the task of precipitation nowcasting we can also run them. 
+
+2. The claim (Line 54) that existing latent-space methods lack physical scale structures is inaccurate. In reality, methods such as SimVP implicitly capture and utilize multi-scale structural information through their downsampling and upsampling 
+network architectures. The authors need to clarify the fundamental differences between their approach and these existing methods.
+
+A. To answer correctly. Better would be answer in the way that how are we exploiting the data characteristics which models like simvp couldnt. 
+
+3. The ablation study reveals that removing the SRST Block results in the most significant performance drop. However, the SRST Block is essentially a combination of AFNO and depthwise convolution, which does not constitute a substantial innovation. 
+In contrast, removing the Gabor stream—the paper's primary claimed innovation—leads to a relatively minor performance decrease. This indicates that the model's main performance gains are actually driven by the SRST Block, 
+raising reasonable doubts about the actual effectiveness of the proposed frequency-adaptive core module.
+
+A. Answered above 

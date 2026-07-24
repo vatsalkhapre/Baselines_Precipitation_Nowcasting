@@ -211,7 +211,8 @@ class AlphaPre(nn.Module):
         self.itr = 0
         self.aweight_stop_steps = aweight_stop_steps
         self.sampling_changing_rate =  self.amp_weight/self.aweight_stop_steps
-        self.total_steps = total_steps
+        
+        self.faclloss = RandomScheduling(total_steps, 1, 0.1)
         h, w = input_shape
         spec_mask = torch.zeros(h, w//2+1)
         spec_mask[...,:spec_num,:spec_num] = 1.
@@ -232,12 +233,8 @@ class AlphaPre(nn.Module):
         xt, xps, xas, x_phas_t, x_amps = self(frames_in, frames_gt, compute_loss)
         pred = xt
         if compute_loss:
-            if self.itr < self.aweight_stop_steps:
-                self.amp_weight -= self.sampling_changing_rate
-            else:
-                self.amp_weight  = 0.
             loss = 0.
-            loss = RandomScheduling(self.total_steps, 1, 0.1)
+            loss = self.faclloss(pred, frames_gt)
             return pred, loss
         else:
             return pred, None

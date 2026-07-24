@@ -558,6 +558,7 @@ class Runner(object):
         elif self.args.backbone == 'alphapre_falfcl':
             from models.alphapre_falfcl import get_model
             kwargs = {
+                "total_steps": total_steps,
                 "input_shape": (self.args.img_size, self.args.img_size),
                 "T_in": self.args.frames_in,
                 "T_out": self.args.frames_out,

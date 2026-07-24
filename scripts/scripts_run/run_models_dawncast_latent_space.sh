@@ -7,15 +7,15 @@
 # ==============================================================
 
 # ---- GPU(s) — space-separated list passed to --gpu_use -------
-GPUS="2"
+GPUS="0"
 
 # ---- Runner --------------------------------------------------
 SCRIPT="run_alphapre_convlstm_sevir_lr_latent.py"
 
 # ---- Experiment ----------------------------------------------
 EXP_DIR="sevir_lr_latent_32"
-EXP_NOTE="dawncast_latent"
-RUN_NAME="DAWNCast_latent_sevir"
+EXP_NOTE="dawncast_latent_shared_gabor_parameters_lowfreq"
+RUN_NAME="DAWNCast_latent_sevir_shared_gabor_parameters_lowfreq"
 
 # ---- Dataset -------------------------------------------------
 # Latent dataset names:  sevir_lr_latent_32 | meteo_lr_latent_32
@@ -36,7 +36,7 @@ AE_CKPT_PATH="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_
 # ---- DAWNCast: wavelet ---------------------------------------
 WAVE="db6"                        # haar | db4 | db6
 WAVELET_LEVEL=2                   # DWT decomposition levels J (1-4)
-HF_MODE="separate"                # shared | separate
+HF_MODE="shared"                  # shared | separate
 
 # ---- DAWNCast: Gabor LL subband (low-frequency) -------------
 WEIGHT_SCALE_LOW=0.1
@@ -45,10 +45,10 @@ BETA_LOW=0.17
 FREQ_MULTIPLIER_LOW=0.1
 
 # ---- DAWNCast: Gabor HF subbands (high-frequency) -----------
-WEIGHT_SCALE_HIGH=1.0
+WEIGHT_SCALE_HIGH=0.1
 ALPHA_HIGH=1.0
 BETA_HIGH=0.17
-FREQ_MULTIPLIER_HIGH=4.0
+FREQ_MULTIPLIER_HIGH=0.1
 
 # ---- DAWNCast: SRST Block -----------------------------------
 SPECTRAL_BLOCKS=4                 # N_g: number of groups in STR module

@@ -7,7 +7,7 @@ The paper does not clearly identify which component constitutes the main methodo
 
 A. Main contribution: Gabor are adaptable to particular environmental location. Seperate FAT block for seperate wavelete decomposed data and seperate wavelet adapting to those environmental 
 characteristics is our novelty. As we see in the graph that on running different sinosoidal patterns for low and high wavelet frequencies settle at one set of sinosoidal behavior for the 
-frequency and not other frequency meanining that modeling of the particular wavelet frequency with this particular sinosoidal frequency gives optimal outputs leaing us to the conclusion that
+frequency and not other frequency meanining that modeling of the particular wavelet frequency with this particular sinosoidal frequency gives optimal outputs leading us to the conclusion that
 sinosoidal are accurately able to model different wavelet frequency and leading to SOTA results. Implying that wavelet decomposition and seperate gabor blocks for those wavelets hold significance
 but one could argue that there is no much score difference, this argument could be repelled by the fact that since FAT block has very less parameters as compared to refinement block of the 
 model so this is obvious hence in the paper we say in limitations section (line 462-467) "The learnable parameters of the FAT blocks constitute approximately minor percentage of the
@@ -37,7 +37,7 @@ bands and precipitation bands are directly affected by climate variables of the 
 
 4. The evaluation does not fully establish the proposed mechanism. Parameter-matched baselines, alternative decompositions, and comparisons between shared and subband-specific temporal modeling are missing. Part of the improvement may also come from the FACL loss rather than the architecture. 
 Moreover, the model does not improve MSE consistently, despite the motivation involving intensity errors at longer lead times.
-
++
 A. We have parameter matched baselines alpahpre (parameter), diffcast (parameter), Nowcastnet, Earthfarseer -> see all the models parameters and report.
 
 For other decompsition- fourier - alpahpre is the best example and also they have made use of the decomposition to the best possible way. Although the other transformations can be tried but in order to prevent the motive of why we used wavlet is 
@@ -99,10 +99,116 @@ Respectfully ask the Reviewer if there are any more baselines that utilizes wave
 2. The claim (Line 54) that existing latent-space methods lack physical scale structures is inaccurate. In reality, methods such as SimVP implicitly capture and utilize multi-scale structural information through their downsampling and upsampling 
 network architectures. The authors need to clarify the fundamental differences between their approach and these existing methods.
 
-A. To answer correctly. Better would be answer in the way that how are we exploiting the data characteristics which models like simvp couldnt. 
+The claim (Line 54) that existing latent-space methods lack physical scale structures is inaccurate. -> See how it can be related to claim 1 as it is claim 3. 
+
+A. To answer correctly. Better would be answer in the way that how are we exploiting the data characteristics which models like simvp couldnt. in the paper we wrote "First, most approaches do not explicitly exploit the multiscale structure of precipitation", 
+we refer to explicit decomposition here and not implicit multiscale decomposition done by the models here and we also give a seperate explaination on exeptions like alphapre (line 48-49).
 
 3. The ablation study reveals that removing the SRST Block results in the most significant performance drop. However, the SRST Block is essentially a combination of AFNO and depthwise convolution, which does not constitute a substantial innovation. 
 In contrast, removing the Gabor stream—the paper's primary claimed innovation—leads to a relatively minor performance decrease. This indicates that the model's main performance gains are actually driven by the SRST Block, 
 raising reasonable doubts about the actual effectiveness of the proposed frequency-adaptive core module.
 
 A. Answered above 
+(Main contribution: Gabor are adaptable to particular environmental location. Seperate FAT block for seperate wavelete decomposed data and seperate wavelet adapting to those environmental 
+characteristics is our novelty. As we see in the graph that on running different sinosoidal patterns for low and high wavelet frequencies settle at one set of sinosoidal behavior for the 
+frequency and not other frequency meanining that modeling of the particular wavelet frequency with this particular sinosoidal frequency gives optimal outputs leaing us to the conclusion that
+sinosoidal are accurately able to model different wavelet frequency and leading to SOTA results. Implying that wavelet decomposition and seperate gabor blocks for those wavelets hold significance
+but one could argue that there is no much score difference, this argument could be repelled by the fact that since FAT block has very less parameters as compared to refinement block of the 
+model so this is obvious hence in the paper we say in limitations section (line 462-467) "The learnable parameters of the FAT blocks constitute approximately minor percentage of the
+total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest." and in future work section (line 319-320)"scaling the adaptive part to a larger fraction of model capacity to assess its full potential" we also accept it, but this framework 
+possesses a future direction for adaptive model with SoTA results. So the paper is acting actually as the motivation on how the future precipitation nowcasting models can adapt to better 
+adaptive approach in the coming future in order to have better precipitation nowcasting in the near furture. )
+
+
+# Reviewer 2
+
+1. "The general problem is clear but the research gap in lines 45-55 is not a research gap."
+
+A. The research gap is not very imp section of the paper. 
+   The reviewer says that the short comings are essentially abstract. 
+   In the support: 
+   a. essentially the 2nd best model alphapre has blurring issues as can be observed in qualitative plots, also high intensity could not be captured in higher lead times as highlighted in the csi-leadtime plots as highlighted in (Figure 3: 
+   Lead time performance of DAWN-Cast vs baselines on the CIKM dataset.) - highlighted in most of convolution based models. 
+   b. Diffusion based model like DiffCast do not capture the high intensity positions accurately which is indicated by high MSE values, also the csi could be less because FN was high. 
+
+
+B. "This paragraph should describe what other methods are missing."
+    can be highlighted from qualitative and quantitative plots. 
+
+
+C. "For example, if a physical inconsistency would be visible from the sota but instead it only talks about technical things."
+    "...but this sounds like the MSE should be improved which then does not happen."
+
+   Our advantage of the model is correct intensity and structure evolution.The ability of model able to caputre being able to correctly predict intensity over time is highlighted in the qualitative scores and additional qualitative plots in the 
+   appendix section. Also even the training with MSE gives even gives better results comparatively like in sevir and shanghai dataset the improvement is considerable compared to the SoTA model. Also the little underperformance in other datasets
+   could be due to insufficient tuninig as best parameter configuration depends on loss as well we will inclued the improved scores in the revised paper if possible. 
+   But mse is high is essentially due to the problem highlighted by pangu weather(as stated above), the reason of high mse. 
+
+D. "I am not sure why I should be interested in 'not explicitly exploiting the multiscale structure'."
+
+    Because other models are implicitly able to do so. 
+
+E. "Therefore, this paper feels more like a report on something that was done more than a Problem -> Solution structure."
+
+    yes this is actually we tried to do by having explicity modelling wavelet multiscale behavior using seperate FAT block and bringing adaptive behaviour into picture as motivation.
+
+F. "Further, the paper fails to put the work into context." 
+
+    The motivation of the paper was how can we disitegrate the radar images in such a meaningful way and how a model can be designed to have to use this important disintegrated information for better purpose. Hence we come up with the 
+    idea of adaptive inductive bias, ability (and how is this inductive bias being introduced is explained above). 
+
+    Aplogise for the small formatting mistake in a table in mse field. 
+
+
+# Reviewer 3
+
+1. Multi-scale and cascade-based methods are widely studied in precipitation nowcasting. What is the main conceptual novelty of DAWN-Cast compared to prior cascade, spectral, or multi-resolution approaches? 
+   Is the key contribution the wavelet decomposition, the latent-space formulation, the FAT block, or their integration?
+
+A. New is how the sinosoidability inside the FAT block is able to model the evolution of large scale convective bulk and small scale turbulent structures so in all the real novelty is in the Wavelet Guided Temporal Modelling Block which includes
+wavelet decomposition and gabor layers taking seperate advantage of those seperate high and low frequency wavelet structures. The motivation of the paper was to present an adaptive approach, but due to limited parameter count (as state in limitations that 
+"The learnable parameters of the FAT blocks constitute approximately minor percentage of the total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest.") and why did we 
+include other parts is given in above paragraph. The gabor in FAT block hold significance (indicated by the frame tables). 
+
+
+2. Since wavelet decomposition is applied in latent space, can the authors provide stronger evidence that low-/high-frequency subbands correspond to physically meaningful precipitation structures in the original radar field?
+
+A. Latent to Original dataset physical significance and wavelet application as prompted by claude. 
+
+
+3. Are the autocorrelation and spectral analyses performed on the original radar fields, latent representations, or both? If primarily on original fields, how is the physical interpretation transferred to the latent-space decomposition?
+
+A. Autocorrelation was performed in the pixel space just in order to prove and establish the idea of wavelets. Although the autocorrelation values are from the pixel space. Relate latent to pixel space - try finding some proof  (If we get a proof we get from ).
+And also take correlation in the latent space for all the 4 datasets and give the values .
+
+4. To what extent do improvements come from true scale-specific temporal modeling versus increased model capacity? A parameter-matched shared-temporal baseline would help clarify this.
+
+A. Ablation + parameters
+
+5. The Gabor stream is described as introducing a “climatic” inductive bias. What aspect of the model makes it climate-aware, given that no explicit climate or environmental conditioning appears to be used?
+ Would “frequency-adaptive” or “event-regime-adaptive” be a more precise description?
+
+A. Climatic inductive bias answer is given above to be framed. Yes frequency-adaptive and event-regime-adaptive are obviously better technical terms but our main idea was how gabor can effectively adapt to the convective
+bulk temporal evolution and turbulance evolution over time. 
+
+The sinosoid behavior: 
+How different sinosoid behavior. 
+
+6. How does the proposed wavelet-based decomposition compare against alternative multi-scale strategies (e.g., Fourier-based decomposition, cascade models, Laplacian pyramids, or learned multi-resolution 
+feature hierarchies) under comparable computational budgets?
+
+A. Run the following
+
+Fourier:
+alphapre, fno, afno  
+
+Wavelet:
+WADEPre (2026) — a wavelet-based decomposition model for extreme precipitation that transitions modeling into the wavelet domain, using a dual-branch architecture with an Approximation Network for low-frequency advection and a spatially localized Detail Network for high-frequency stochastic convection. That's structurally your LL/HF split framed almost identically. ResearchGate
+WaveC2R (AAAI 2026) — wavelet-driven coarse-to-refined hierarchical learning, radar-adjacent.
+
+Cascade models: 
+Cascast
+LDCast if possible. 
+
+Learned multi-resolution hierarchies:
+Earthformer

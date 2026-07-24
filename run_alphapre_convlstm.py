@@ -573,6 +573,20 @@ class Runner(object):
             }
             model = get_model(**kwargs)
 
+        elif self.args.backbone == 'wadepre':
+            from models.WADEPre.wadepre import get_model
+            # WADEPre is a same-length model: it maps T_out input frames to
+            # T_out output frames, so the predict() wrapper pads the T_in
+            # observed frames up to T_out internally. Wavelet defaults are the
+            # model's native bior2.4/level-3 (not the DAWNCast --wave args).
+            kwargs = {
+                "input_shape":   (self.args.img_size, self.args.img_size),
+                "T_in":          self.args.frames_in,
+                "T_out":         self.args.frames_out,
+                "img_channels":  self.args.img_channel,
+            }
+            model = get_model(**kwargs)
+
         elif self.args.backbone == 'convlstm_paper':
             from models.convlstm import PaperModel
             # Build the paper's ConvLSTM encoder-forecaster

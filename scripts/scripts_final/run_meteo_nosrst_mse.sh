@@ -112,16 +112,22 @@ run_experiment() {
         --wandb_state offline
 }
 
-GPU=${1:-0}
-
-# Model 1: expgabor variant (frozen gamma) — flow=1.09, fhigh=1.12
-run_experiment ${GPU} \
+# Model 1: expgabor variant (frozen gamma) — GPU 0
+run_experiment 0 \
     "amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_expgabor_nosrst_mse_final" \
-    1.09 1.12
+    1.09 1.12 &
 
-# Model 2: gabor variant (learnable gamma) — flow=1.09, fhigh=4.41
-run_experiment ${GPU} \
+PID1=$!
+
+# Model 2: gabor variant (learnable gamma) — GPU 1
+run_experiment 1 \
     "amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_nosrst_mse_final" \
-    1.09 4.41
+    1.09 4.41 &
+
+PID2=$!
+
+# Wait for both experiments (train + eval) to complete
+wait $PID1
+wait $PID2
 
 echo "All Meteonet no-SRST MSE experiments finished."

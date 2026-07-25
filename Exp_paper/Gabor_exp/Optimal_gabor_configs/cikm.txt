@@ -1,0 +1,19 @@
+====================================================================================================
+  GABOR REGIME CALIBRATION — CIKM
+====================================================================================================
+  alpha = 1.0   T_in = 5   T_out = 10
+  weight_scale_low  = 0.1   learned gamma_LL = 0.0232
+  weight_scale_high = 0.25   learned gamma_HF = 0.2075
+
+  Derived beta_low  = 43.1034   (Gamma(1,beta) mean = 0.0232)
+  Derived beta_high = 4.8193   (Gamma(1,beta) mean = 0.2075)
+
+  ----------------------------------------------------------------------------------------------------
+  DESIGN TARGET (analytical, mean-field — use as a starting anchor)
+  ----------------------------------------------------------------------------------------------------
+  Level  z target  regime                    freq_mult_low  freq_mult_high
+  L0        0.100  near-linear                       22.74            3.04
+  L1        0.300  mild                              68.23            9.13
+  L2        0.800  transitional                     181.94           24.34
+  L3        1.600  peak-curvature (~pi/2)           363.89           48.67
+  L4        3.142  half-cycle (~pi)                 714.49           95.56

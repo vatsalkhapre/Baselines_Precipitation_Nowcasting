@@ -1,51 +1,57 @@
 #!/bin/bash
 # ============================================================
-# Ablation "+Gabor" (no SRST block) — CIKM, MSE loss
-# Runs 2 models in the "Wavelet + Gabor + MLP" configuration
-# (SRST block removed; trained with MSE, no FACL/RandomScheduling):
-#   1. gabor    variant : flow=22.74  fhigh=24.34
-#   2. expgabor variant : flow=22.74  fhigh=48.67
+# NeurIPS rebuttal ablation ladder — Meteonet
+# 6 DAWN-Cast ablations (frozen-gamma "expgabor"), split across 2 GPUs.
+#   ab1 MLP only            (MSE)
+#   ab2 Wavelet + MLP       (MSE)
+#   ab3 Wavelet+Gabor+MLP   (MSE, no SRST)
+#   ab4 + 1 SRSTResBlock+STR(MSE)
+#   ab5 + 2 SRSTResBlock+STR(MSE)  <- full model
+#   ab6 full + FACL         (FACL)
+# GPU0: ab1, ab3, ab5   |   GPU1: ab2, ab4, ab6   (run concurrently)
+# Hyperparameters mirror scripts/scripts_final/run_meteo_nosrst_mse.sh
 # ============================================================
 
 RUNNER="run_alphapre_convlstm_sevir_lr_latent_model_novel_ablations.py"
 
-DATASET="cikm_latent_32"
-SEQ_LEN=15
+DATASET="meteo_lr_latent_32"
+SEQ_LEN=25
 FRAMES_IN=5
-FRAMES_OUT=10
-AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_CIKM.pth"
-EXP_DIR="nosrst_mse_cikm"
+FRAMES_OUT=20
+AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
+EXP_DIR="neurips_rebuttal_meteo"
 EPOCHS=50
 SEED=0
 
-WAVE="db4"
-LEVEL=2
+WAVE="db6"
+LEVEL=1
 HF_MODE="separate"
 
-BLOCKS=1
-FACTOR=1
-K=7
+BLOCKS=4
+FACTOR=4
+K=3
 SPARSITY=0.01
 
 WS_LOW=0.1
-WS_HIGH=0.25
+WS_HIGH=1.0
 A_LOW=1.0
 A_HIGH=1.0
-B_LOW=43.1034
-B_HIGH=4.8193
+B_LOW=0.0995
+B_HIGH=0.1643
+
+# Gabor frequencies (used by ab3-ab6; ignored by ab1/ab2)
+F_LOW=1.09
+F_HIGH=1.12
 
 run_experiment() {
     local GPU=$1
     local BACKBONE=$2
-    local F_LOW=$3
-    local F_HIGH=$4
 
-    local TAG="CIKM_nosrst_mse_flow${F_LOW}_fhigh${F_HIGH}"
+    local TAG="Meteonet_${BACKBONE}"
     local DS_SHORT=$(echo ${DATASET} | cut -d'_' -f1)
 
     echo "=============================================="
-    echo "GPU ${GPU} | ${BACKBONE}"
-    echo "flow=${F_LOW} | fhigh=${F_HIGH}"
+    echo "GPU ${GPU} | ${BACKBONE} | flow=${F_LOW} fhigh=${F_HIGH}"
     echo "=============================================="
 
     # ---- Train ----
@@ -57,7 +63,6 @@ run_experiment() {
         --epochs ${EPOCHS} \
         --ae_ckpt_path "${AE_CKPT}" \
         --valid \
-        --res_opt \
         --seq_len ${SEQ_LEN} \
         --seed ${SEED} \
         --frames_in ${FRAMES_IN} \
@@ -79,8 +84,8 @@ run_experiment() {
         --conv_kernel ${K} \
         --num_workers 8 \
         --wandb_state online \
-        --wandb_project_name DAWNCAST_nosrst_mse \
-        --run_name "CIKM_${BACKBONE}_${DS_SHORT}_${TAG}"
+        --wandb_project_name DAWNCAST_neurips_rebuttal \
+        --run_name "${DS_SHORT}_${BACKBONE}"
 
     # ---- Eval ----
     CUDA_VISIBLE_DEVICES=${GPU} python3 ${RUNNER} \
@@ -113,16 +118,30 @@ run_experiment() {
         --wandb_state offline
 }
 
-GPU=1
+GPU0_TASKS=(
+    "dawncast_ab1_mlp_only"
+    "dawncast_ab3_wavelet_mlp_gabor"
+    "dawncast_ab5_full"
+)
+GPU1_TASKS=(
+    "dawncast_ab2_wavelet_mlp"
+    "dawncast_ab4_srst1"
+    "dawncast_ab6_full_facl"
+)
 
-# Model 1: gabor variant (learnable gamma) — flow=22.74, fhigh=24.34
-run_experiment ${GPU} \
-    "amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_nosrst_mse_final" \
-    22.74 24.34
+run_gpu0() { for b in "${GPU0_TASKS[@]}"; do run_experiment 0 "$b"; done; }
+run_gpu1() { for b in "${GPU1_TASKS[@]}"; do run_experiment 1 "$b"; done; }
 
-# Model 2: expgabor variant (frozen gamma) — flow=22.74, fhigh=48.67
-# run_experiment ${GPU} \
-#     "amplinet_latent_falfcl_only_2_3_13_2_AFNO2D_relu_convparallelwaveletafnogabor_expgabor_nosrst_mse_final" \
-#     22.74 48.67
+echo "=============================================="
+echo "GPU0 runs ${#GPU0_TASKS[@]} ablations | GPU1 runs ${#GPU1_TASKS[@]} ablations"
+echo "=============================================="
 
-echo "All CIKM no-SRST MSE experiments finished."
+run_gpu0 &
+PID0=$!
+run_gpu1 &
+PID1=$!
+
+wait $PID0; echo "GPU0 finished."
+wait $PID1; echo "GPU1 finished."
+
+echo "All Meteonet NeurIPS-rebuttal ablations finished."

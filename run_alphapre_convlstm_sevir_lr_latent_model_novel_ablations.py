@@ -78,6 +78,34 @@ MODEL_REGISTRY = {
         "module": "models.Latent_space_models.alphapre_AFNOamplinet_falfcl_only_latent",
         "kwargs_type": "standard",
     },
+    # -------------------------------------------------------------------------
+    # NeurIPS rebuttal ablation ladder (DAWN-Cast; frozen-gamma "expgabor")
+    # All MSE except ab6 (FACL). kwargs_type reuses the gabor/wavelet/afno set.
+    # -------------------------------------------------------------------------
+    "dawncast_ab1_mlp_only": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab1_mlp_only",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
+    "dawncast_ab2_wavelet_mlp": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab2_wavelet_mlp",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
+    "dawncast_ab3_wavelet_mlp_gabor": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab3_wavelet_mlp_gabor",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
+    "dawncast_ab4_srst1": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab4_srst1",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
+    "dawncast_ab5_full": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab5_full",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
+    "dawncast_ab6_full_facl": {
+        "module": "models.ablations_neurips_rebuttal.dawncast_ab6_full_facl",
+        "kwargs_type": "gabor_convparallel_wavelet_final",
+    },
 }
 
 # Ablation model prefixes that need dot→underscore conversion
@@ -1187,10 +1215,10 @@ class Runner(object):
             epoch_time = time.time() - epoch_start_time
             print_log(f"Epoch {epoch+1} completed in {epoch_time:.2f} seconds.")
 
-            if (epoch+1)==30:
-                self.accelerator.wait_for_everyone()
-                self.accelerator.end_training()
-                break
+            # if (epoch+1)==30:
+            #     self.accelerator.wait_for_everyone()
+            #     self.accelerator.end_training()
+            #     break
 
             time.sleep(10)
         
@@ -1338,7 +1366,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/Final_model_ablations.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/Rebuttal_runs.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

@@ -29,7 +29,7 @@ One could argue that there is not much score difference; this argument can be co
 
 **A.** Again, the two limitations/future-work arguments cited above apply — limitations section (lines 462–467): *"The learnable parameters of the FAT blocks constitute approximately minor percentage of the total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest."* and future work section (lines 319–320): *"scaling the adaptive part to a larger fraction of model capacity to assess its full potential."* We accept this, but this framework presents a future direction for an adaptive model.
 
-We could have presented just this as the motivation, but without convincing results it would be difficult for the community to accept the idea. Hence we added some of the conventional spatio-temporal forecasting parts, like global–local refinement, in order to achieve better scores and eventually improve the chances of the idea's acceptability.
+We could have presented just this as the motivation, but without convincing results it would be difficult for the community to accept the idea. Hence we added some of the conventional spatio-temporal forecasting parts, like global–local refinement, in order to achieve better scores and eventually improve the chances of the idea's acceptability by achieving SoTA results.
 
 ### 3. Physical interpretation and "climatic inductive bias"
 
@@ -39,7 +39,8 @@ We could have presented just this as the motivation, but without convincing resu
 
 > ▶️ **RUN / CHECK:** Verify the latent→physical correspondence argument against arXiv:2512.05198; also review the Claude response on this question as it is worth exploring.
 
-We say *climatic* inductive bias because a particular dataset is taken from a particular location, and every location has a certain climate. Gabor application on the wavelet-decomposed data (corresponding to a bulk phenomenon and a turbulence phenomenon) means that only one Gabor configuration can model each — highlighting that the outputs from the FAT Blocks are highly usable by the remaining refinement block to produce even better predictions. That initial meaningful output from the FAT Block provides the inductive bias the remaining model needs for a better idea of the climatic evolution in the locality. As radar images are nothing but the shadow of precipitation bands, and precipitation bands are directly affected by the climate variables of the region, this indirectly implies that the movement and evolution of radar images are indirectly affected by the climate of the region. Hence we call it an inductive bias.
+The word climatic inductive bias is motivated by the idea clearified below: 
+We say *climatic* inductive bias because a particular dataset is taken from a particular location, and every location has a certain climate. Gabor application on the wavelet-decomposed data (corresponding to a bulk phenomenon and a turbulence phenomenon) means that only one optimal  Gabor configuration can model each (as shown in the sinosoidal frequency plot) highlighting that the outputs from the FAT Blocks can provide a better inductive bias, to be used by the remaining refinement block to produce even better predictions. That initial meaningful output from the FAT Block provides the inductive bias the remaining model needs for a better idea of the climatic evolution in the locality. As radar images are nothing but the shadow of precipitation bands, and precipitation bands are directly affected by the climate variables of the region, this indirectly implies that the movement and evolution of radar images are indirectly affected by the climate of the region. Hence we call it as climatic inductive bias.
 
 > **Note (terminology):** the paper already uses *"climatic inductive bias"* / *"climatically-aware inductive bias"* (Abstract, Sec. 2.1.1). Reviewer 3 suggests *"frequency-adaptive"* / *"event-regime-adaptive"* — see [Reviewer 3, Q5](#5-climatic-inductive-bias--terminology).
 
@@ -51,13 +52,17 @@ We say *climatic* inductive bias because a particular dataset is taken from a pa
 
 > ▶️ **RUN:** Collect the parameter counts of all baseline models (AlphaPre, DiffCast, NowcastNet, EarthFarseer, …) and report them.
 
-For other decompositions — Fourier — AlphaPre is the best example, and it makes use of the decomposition in the best possible way. Other transformations could be tried, but doing so would risk losing the motive of why we used wavelets. The model is itself structured to make the best use of the wavelet transform, just as AlphaPre made the best use of the Fourier decomposition. Other transformations similar to wavelet can be explored, which can be posed as a future direction.
+For other decompositions — Fourier — AlphaPre is the best example, and it makes use of the decomposition in the best possible way. Other transformations could be tried, but doing so would risk losing the motive of why we used wavelets. The model is itself structured to make the best use of the wavelet transform, just as AlphaPre made the best use of the Fourier decomposition. Other transformations similar to wavelet can be explored, which can be posed as a future direction. (This could be posed as a secondary argument after running fourier based transform)
 
+> ▶️ **RUN:** Forier decomposition experiment in DAWNCast instead of wavelet. 
 > ▶️ **RUN:** Shared-wavelet-parameter experiment — use a single shared wavelet parameter and show why separate is better, proving that separate modeling is actually required.
 
-We also accept that part of the improvement can come from the FACL loss, hence we also showed results with MSE. But we consider that MSE is not the best loss for precipitation nowcasting due to blurring issues (already highlighted by many papers). FACL loss can also serve as motivation to improve precipitation nowcasting. Model development also depends on how best one can make use of the loss being used; in our case the model is orchestrated to make the best use of the FACL loss, resulting in the addition of the Spectral Refinement Spatio-Temporal (SRST) Block rather than some other commonly used spatio-temporal-prediction-specific blocks.
+We also accept that part of the improvement can come from the FACL loss, hence we also showed results with MSE. But we consider that MSE is not the best loss for precipitation nowcasting due to blurring issues (already highlighted by many papers). FACL loss can also serve as motivation to improve precipitation nowcasting. Model development also depends on how best one can make use of the loss being used; <span style="color:red;">Modify this statement</span>(in our case the model is orchestrated to make the best use of the FACL loss, resulting in the addition of the Spectral Refinement Spatio-Temporal (SRST) Block rather than some other commonly used spatio-temporal-prediction-specific blocks. OR in our case the model is tuned to FACL loss.)
 
-> ▶️ **RUN:** MSE vs CSI — use the CSI–MSE plot.
+> ▶️ **RUN:** Frequency grid on MSE loss in order to have best mse loss numbers (cikm(P1) and meteonet dataset(P2))
+> ▶️ **PUt:** MSE vs CSI — use the CSI–MSE plot.
+
+Use peer-reviewed papers (Ebert & McBride, Roberts & Lean, Buschow et al., Keil & Craig) to establish the double-penalty problem.
 
 ---
 
@@ -73,28 +78,38 @@ We also accept that part of the improvement can come from the FACL loss, hence w
 
 Stepwise (parameter-matched) ablation showing incremental improvements:
 
-| Model       | Wavelet | Gabor | SRST | FACL |
-|-------------|:-------:|:-----:|:----:|:----:|
-| Baseline    | ✗       | ✗     | ✗    | ✗    |
-| + Wavelet   | ✓       | ✗     | ✗    | ✗    |
-| + Gabor     | ✓       | ✓     | ✗    | ✗    |
-| + SRST      | ✓       | ✓     | ✓    | ✗    |
-| Full Model  | ✓       | ✓     | ✓    | ✓    |
+| Model        | Wavelet | Gabor (FAT) | SRST | FACL | Configuration | Loss |
+|--------------|:-------:|:-----------:|:----:|:----:|---------------|------|
+| **Baseline** | ✗ | ✗ | ✗ | ✗ | MLP only | MSE |
+| **+ Wavelet** | ✓ | ✗ | ✗ | ✗ | Wavelet + MLP | MSE |
+| **+ Gabor** | ✓ | ✓ | ✗ | ✗ | Wavelet + Gabor + MLP (optimal parameters) | MSE |
+| **+ SRST** | ✓ | ✓ | ✓ | ✗ | Wavelet + Gabor + MLP + SRST (optimal parameters). Evaluate: SRST (Block 1), SRST (Blocks 1+2), SRST (Blocks 1+2+3) | MSE |
+| **Full Model** | ✓ | ✓ | ✓ | ✓ | Wavelet + Gabor + MLP + SRST + FACL | FACL |
 
 > ▶️ **RUN:** Produce the stepwise ablation numbers for the table above.
 
 ### 2. Latent subbands ↔ interpretable radar structures
 
 > Stronger evidence connecting latent subbands to interpretable radar structures would also be important.
-
 **A.**
 > ▶️ **CHECK:** See if there is any proof; check the Claude response for this question.
+
+> ▶️ **RUN:** lag-1 autocorrelation and radial PSD validation directly on the latent tensor Z
+
+This "spectral-analysis-on-latents" methodology is established in mainstream latent-diffusion ML (Diffusability, ICML 2025; Scale-wise Distillation; Spectrum Matching), which find that "the latent frequency spectrum approximately follows a power law, similar to natural images" (SwD, arXiv:2503.16397).
 
 ### 3. Why threshold-based metrics improve while MSE does not
 
 > The authors should clarify why threshold-based metrics improve while MSE does not.
 
 **A.** Show the CSI–MSE plot and their correlation — how MSE is lower in the models with high CSI — and highlight the point the creators of Pangu-Weather raised.
+
+state: 
+
+A. long‐term assessment of precipitation forecast skill using the Fractions Skill Score (FSS for double mse problem)
+B. Verification of precipitation in weather systems: determination of systematic errors
+
+*Both the above papers address the problem of 2x mse.*
 
 > ▶️ **RUN:** Produce the CSI–MSE correlation plot; reference the Pangu-Weather argument on MSE.
 
@@ -117,6 +132,12 @@ Learned multi-resolution features (e.g., U-Net, FPN, multi-scale CNN) — not ce
 **A.**
 > ▶️ **RUN:** WADEPre.
 
+*Comparison with WADEPre* : 
+1. WADEPre in unable to predict frames where Tout not equual to Tin. 
+2. Comparison with our DAWNCast model: 1. We are exploiting  wavelet characteristics to model specific component movement of the radar using specialised learnable gabors in order to similarly model their evolution which might differ from region to region. Whereas for other wavelet based models like Wadepre the initial convept looks same but hte model composition did not explain anything about how the model is contributing to effectively models the actual radar fields rather it more looks like specialized multiscale spatio temporal forecasting used in the field of precipitation nowcasting. 
+
+
+
 Respectfully ask the reviewer whether there are any further baselines that utilize wavelet transforms for precipitation nowcasting, which we can also run.
 
 ### 2. SimVP already captures multi-scale structure implicitly
@@ -126,6 +147,8 @@ Respectfully ask the reviewer whether there are any further baselines that utili
 > **Note:** the claim at Line 54 relates to claim 3; see how it can be linked.
 
 **A.** Better to answer in terms of how we exploit data characteristics that models like SimVP could not. In the paper we wrote *"First, most approaches do not explicitly exploit the multiscale structure of precipitation"* — we refer here to **explicit** decomposition, not the implicit multiscale decomposition done by these models. We also give a separate explanation of exceptions like AlphaPre (lines 48–49).
+
+**A2.** In DAWNCast we are doing explicit multiscale wavelet decomposition through component specialized gabors in FAT Blocks to match region specific motion trend of these radar image charactersitics whereas models like simvp although possess the inherent multiscle ability but theere is neither explicit multiscle modelling nor some physics based loss or mechanism that can intuitively guide the model for the task of Precipitation nowcassting is absent, leaving the model to rely only on gradient based optimization. Leaving simvp like models without any specialization for the task of precipitation nowcasting. this particular design choice of DAWNCast specially makes it suitable for the task of precipitation nowcasting, which is reflected in Quantitative scores spcially. 
 
 ### 3. SRST drives the gains, not the Gabor core
 
@@ -148,6 +171,8 @@ Main contribution: the Gabor activations are adaptable to a particular environme
 - **a.** The second-best model, AlphaPre, has blurring issues, as can be observed in the qualitative plots; also, high intensity could not be captured at higher lead times, as highlighted in the CSI–lead-time plots (Figure 3: Lead-time performance of DAWN-Cast vs baselines on the CIKM dataset) — an issue seen in most convolution-based models.
 - **b.** Diffusion-based models like DiffCast do not capture high-intensity positions accurately, indicated by high MSE values; the CSI can also be lower because FN was high.
 
+I am not very sure what to write. 
+
 ### B. Describe what other methods are missing
 
 > "This paragraph should describe what other methods are missing."
@@ -164,7 +189,7 @@ Main contribution: the Gabor activations are adaptable to a particular environme
 
 > "I am not sure why I should be interested in 'not explicitly exploiting the multiscale structure'."
 
-**A.** Because other models are only able to do so **implicitly**.
+**A.** Because other models are only able to do so **implicitly**. and show the frequency plot . 
 
 ### E. Reads more like a report than a Problem → Solution
 

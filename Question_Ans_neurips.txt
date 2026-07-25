@@ -212,3 +212,11 @@ LDCast if possible.
 
 Learned multi-resolution hierarchies:
 Earthformer
+
+
+
+
+
+From Rombach et. al 
+We propose latent diffusion models (LDMs) as an effective generative model and a separate mild compression stage that only eliminates imperceptible details.
+From figure 2. 

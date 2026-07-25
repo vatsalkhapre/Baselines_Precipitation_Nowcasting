@@ -61,51 +61,51 @@ HIDDEN_DIM=64
 SIZE_FACTOR=1.0
 
 # ---- Wandb ---------------------------------------------------
-WANDB_STATE="online"
+WANDB_STATE="offline"
 WANDB_PROJECT="Neurips26"
 
 
 # ==============================================================
-CUDA_VISIBLE_DEVICES=${GPUS} python ${SCRIPT} \
-    --backbone                 DAWNCast \
-    --seed                     0 \
-    --exp_dir                  ${EXP_DIR} \
-    --exp_note                 ${EXP_NOTE} \
-    \
-    --dataset                  ${DATASET} \
-    --img_size                 ${IMG_SIZE} \
-    --img_channel              ${IMG_CHANNEL} \
-    --frames_in                ${FRAMES_IN} \
-    --frames_out               ${FRAMES_OUT} \
-    --seq_len                  ${SEQ_LEN} \
-    \
-    --wave                     ${WAVE} \
-    --wavelet_level            ${WAVELET_LEVEL} \
-    --hf_mode                  ${HF_MODE} \
-    --weight_scale_low         ${WEIGHT_SCALE_LOW} \
-    --alpha_low                ${ALPHA_LOW} \
-    --beta_low                 ${BETA_LOW} \
-    --freq_multiplier_low      ${FREQ_MULTIPLIER_LOW} \
-    --weight_scale_high        ${WEIGHT_SCALE_HIGH} \
-    --alpha_high               ${ALPHA_HIGH} \
-    --beta_high                ${BETA_HIGH} \
-    --freq_multiplier_high     ${FREQ_MULTIPLIER_HIGH} \
-    --spectral_blocks          ${SPECTRAL_BLOCKS} \
-    --spectral_hidden_size_factor ${SPECTRAL_HIDDEN_SIZE_FACTOR} \
-    --sparsity_threshold       ${SPARSITY_THRESHOLD} \
-    --conv_kernel              ${CONV_KERNEL} \
-    --hidden_dim               ${HIDDEN_DIM} \
-    --size_factor              ${SIZE_FACTOR} \
-    \
-    --wandb_state              ${WANDB_STATE} \
-    --wandb_project_name       ${WANDB_PROJECT} \
-    --run_name                 ${RUN_NAME} \
-    --gpu_use                  ${GPUS} \
-    --ae_ckpt_path             ${AE_CKPT_PATH} \
-    \
-    --valid \
+# CUDA_VISIBLE_DEVICES=${GPUS} python ${SCRIPT} \
+#     --backbone                 DAWNCast \
+#     --seed                     0 \
+#     --exp_dir                  ${EXP_DIR} \
+#     --exp_note                 ${EXP_NOTE} \
+#     \
+#     --dataset                  ${DATASET} \
+#     --img_size                 ${IMG_SIZE} \
+#     --img_channel              ${IMG_CHANNEL} \
+#     --frames_in                ${FRAMES_IN} \
+#     --frames_out               ${FRAMES_OUT} \
+#     --seq_len                  ${SEQ_LEN} \
+#     \
+#     --wave                     ${WAVE} \
+#     --wavelet_level            ${WAVELET_LEVEL} \
+#     --hf_mode                  ${HF_MODE} \
+#     --weight_scale_low         ${WEIGHT_SCALE_LOW} \
+#     --alpha_low                ${ALPHA_LOW} \
+#     --beta_low                 ${BETA_LOW} \
+#     --freq_multiplier_low      ${FREQ_MULTIPLIER_LOW} \
+#     --weight_scale_high        ${WEIGHT_SCALE_HIGH} \
+#     --alpha_high               ${ALPHA_HIGH} \
+#     --beta_high                ${BETA_HIGH} \
+#     --freq_multiplier_high     ${FREQ_MULTIPLIER_HIGH} \
+#     --spectral_blocks          ${SPECTRAL_BLOCKS} \
+#     --spectral_hidden_size_factor ${SPECTRAL_HIDDEN_SIZE_FACTOR} \
+#     --sparsity_threshold       ${SPARSITY_THRESHOLD} \
+#     --conv_kernel              ${CONV_KERNEL} \
+#     --hidden_dim               ${HIDDEN_DIM} \
+#     --size_factor              ${SIZE_FACTOR} \
+#     \
+#     --wandb_state              ${WANDB_STATE} \
+#     --wandb_project_name       ${WANDB_PROJECT} \
+#     --run_name                 ${RUN_NAME} \
+#     --gpu_use                  ${GPUS} \
+#     --ae_ckpt_path             ${AE_CKPT_PATH} \
+#     \
+#     --valid \
 
-python ${SCRIPT} \
+CUDA_VISIBLE_DEVICES=${GPUS} python ${SCRIPT} \
     --backbone                 DAWNCast \
     --seed                     0 \
     --exp_dir                  ${EXP_DIR} \

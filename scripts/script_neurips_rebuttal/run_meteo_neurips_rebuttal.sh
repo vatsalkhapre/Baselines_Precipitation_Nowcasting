@@ -20,7 +20,7 @@ FRAMES_IN=5
 FRAMES_OUT=20
 AE_CKPT="/home/vatsal/NWM/Baselines_Precipitation_Nowcasting/Pretrained_ae_checkpoints/autoencoder_checkpoint_32_METEONET.pth"
 EXP_DIR="neurips_rebuttal_meteo"
-EPOCHS=50
+EPOCHS=60
 SEED=0
 
 WAVE="db6"

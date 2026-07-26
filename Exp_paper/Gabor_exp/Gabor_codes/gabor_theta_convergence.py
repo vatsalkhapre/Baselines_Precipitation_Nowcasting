@@ -74,9 +74,11 @@ RE_MODEL_PARAMS = re.compile(r"model parameters\s*:?\s*(\{.*\})\s*$")
 
 # Known directory-naming conventions from your .sh scripts, tried in order.
 DEFAULT_PATH_REGEXES = [
-    r"freq_(?P<freq_low>[\d.]+)_(?P<freq_high>[\d.]+)_cikm_betas",     # CIKM
-    r"Shanghai_flow(?P<freq_low>[\d.]+)_fhigh(?P<freq_high>[\d.]+)",   # Shanghai (new, unique-tag)
-    r"freq_(?P<freq_low>[\d.]+)_(?P<freq_high>[\d.]+)",                # generic fallback
+    r"freq_(?P<freq_low>[\d.]+)_(?P<freq_high>[\d.]+)_cikm_betas",          # CIKM
+    r"Shanghai_flow(?P<freq_low>[\d.]+)_fhigh(?P<freq_high>[\d.]+)",        # Shanghai
+    r"Meteonet_flow(?P<freq_low>[\d.]+)_fhigh(?P<freq_high>[\d.]+)",        # Meteonet
+    r"flow(?P<freq_low>[\d.]+)_fhigh(?P<freq_high>[\d.]+)",                 # Generic flow/fhigh
+    r"freq_(?P<freq_low>[\d.]+)_(?P<freq_high>[\d.]+)",                     # Generic freq_low/freq_high
 ]
 
 

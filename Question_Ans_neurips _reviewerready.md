@@ -40,7 +40,7 @@ We could have presented just this as the motivation, but without convincing resu
 > ▶️ **RUN / CHECK:** Verify the latent→physical correspondence argument against arXiv:2512.05198; also review the Claude response on this question as it is worth exploring.
 
 The word climatic inductive bias is motivated by the idea clearified below: 
-We say *climatic* inductive bias because a particular dataset is taken from a particular location, and every location has a certain climate. Gabor application on the wavelet-decomposed data (corresponding to a bulk phenomenon and a turbulence phenomenon) means that only one optimal  Gabor configuration can model each (as shown in the sinosoidal frequency plot) highlighting that the outputs from the FAT Blocks can provide a better inductive bias, to be used by the remaining refinement block to produce even better predictions. That initial meaningful output from the FAT Block provides the inductive bias the remaining model needs for a better idea of the climatic evolution in the locality. As radar images are nothing but the shadow of precipitation bands, and precipitation bands are directly affected by the climate variables of the region, this indirectly implies that the movement and evolution of radar images are indirectly affected by the climate of the region. Hence we call it as climatic inductive bias.
+We say *climatic* inductive bias because a particular dataset is taken from a particular location, and every location has a certain climate. Gabor application on the wavelet-decomposed data (corresponding to a bulk phenomenon and a turbulence phenomenon) means that only one optimal  Gabor configuration can model each (as shown in the sinosoidal frequency plot) highlighting that the outputs from the FAT Blocks can provide a better inductive bias, to be used by providing a more informative initialization of the latent precipitation dynamics for the subsequent refinement blocks. That initial meaningful output from the FAT Block provides the inductive bias the remaining model needs for a better idea of the climatic evolution in the locality. As radar images are nothing but the shadow of precipitation bands, and precipitation bands are directly affected by the climate variables of the region, this indirectly implies that the movement and evolution of radar images are indirectly affected by the climate of the region. Hence we call it as climatic inductive bias.
 
 > **Note (terminology):** the paper already uses *"climatic inductive bias"* / *"climatically-aware inductive bias"* (Abstract, Sec. 2.1.1). Reviewer 3 suggests *"frequency-adaptive"* / *"event-regime-adaptive"* — see [Reviewer 3, Q5](#5-climatic-inductive-bias--terminology).
 
@@ -130,15 +130,54 @@ Learned multi-resolution features (e.g., U-Net, FPN, multi-scale CNN) — not ce
 > Utilizing wavelet transforms for multi-scale separation is relatively common in the fields of meteorological forecasting and image processing (e.g., Reference [1]). The authors should supplement the paper with relevant discussions and comparative experiments regarding these prior works.
 
 **A.**
-> ▶️ **RUN:** WADEPre.
 
-*Comparison with WADEPre* : 
-1. WADEPre in unable to predict frames where Tout not equual to Tin. 
-2. Comparison with our DAWNCast model: 1. We are exploiting  wavelet characteristics to model specific component movement of the radar using specialised learnable gabors in order to similarly model their evolution which might differ from region to region. Whereas for other wavelet based models like Wadepre the initial convept looks same but hte model composition did not explain anything about how the model is contributing to effectively models the actual radar fields rather it more looks like specialized multiscale spatio temporal forecasting used in the field of precipitation nowcasting. 
+We thank the reviewer for this. WADEPre (arXiv:2602.02096) and WaveC2R (AAAI 2026) should have been discussed, and we add a dedicated related-work subsection in the camera-ready. WaveC2R addresses satellite-to-radar retrieval rather than temporal forecasting, so it is not a nowcasting comparator; WADEPre is the closest work and we have now run it.
+
+**Protocol**. WADEPre's published results use T_in = T_out = 6 at 10-min (SEVIR) and 12-min (Shanghai) sampling. We follow the DiffCast/AlphaPre protocol (5→20 at 5-min; 5→10 on CIKM), so their published table is not directly comparable and we re-trained WADEPre under our setting. [TABLE]
+
+**Architectural constraint**. WADEPre's A-Net compresses the temporal axis into channels and its Stationary Texture Assumption (their Eq. 6) repeats the last observed detail frame across the horizon. The design ties output length to input structure and does not natively support T_out ≠ T_in, which every setting in our evaluation requires. 
+
+**Where the decompositions differ.** Both works apply a DWT and route bands to separate branches. **The difference is which axis the decomposition specializes**. WADEPre differentiates the bands spatially — a dilated ResNet for the approximation branch, an FPN for the detail branch — while both branches use the same class of temporal operator: A-Net mixes time-as-channels with an MLP (their Eq. 5) and D-Net projects the sequence with a shared temporal MLP across all levels (their Eq. 7). DAWN-Cast differentiates the temporal axis: each subband receives an operator whose response characteristic, from smooth-linear to oscillatory, is a per-subband parameter. 
+
+**Which axis is specialized.** WADEPre differentiates the bands spatially — a dilated ResNet for the approximation branch, an FPN for the detail branch — while both branches use the same class of temporal operator: A-Net mixes time-as-channels with an MLP (their Eq. 5), and D-Net projects the sequence with a temporal MLP shared across all detail levels (their Eq. 7). DAWN-Cast differentiates the temporal axis: each subband receives an operator whose response characteristic, from smooth-linear to oscillatory, is a per-subband parameter.
+
+**Compute difference**:  WADEPre's own limitations note the computational cost of its multi-scale transforms, and their reported setup uses four H100 GPUs; DAWN-Cast trains on a single RTX A6000 (L217). WADEPre also requires a four-term objective with curriculum annealing; DAWN-Cast uses a single loss.
+-============================================================================================================================
+
+We appreciate the reviewer's observation that wavelet transforms are a well-established for multi-scale signal decomposition in meteorological forecasting and image processing. However, we emphasize that the novelty of DAWN-Cast does not lie in the use of the wavelet transform, but in how the resulting decomposition is exploited for temporal modelling. Our analysis of precipitation dynamics from a multi-scale perspective demonstrates that the 2D discrete wavelet decomposition separates the latent precipitation field into components with markedly different characteristics: the low-frequency (LL) component captures the slowly evolving **large-scale precipitation structure**, whereas the high-frequency (LH/HL/HH) components represent localized **fine-scale variability**, as shown in (Fig 1 & 5). This empirical observation motivates the proposed architecture, in which each wavelet subband is assigned a dedicated Frequency Adaptive Temporal (FAT) block, enabling the model to learn scale-specific temporal dynamics rather than relying on a shared temporal operator across all frequency bands.
+
+
+**Comparision with WADEPre (ArXiv Feb 2026)**
+
+The Wavelet based method "WADEPre (ArXiv Feb 2026)" recommended by the reviewer is a very recent relevant work, which addresses the dual challenges of blurry extremes and spatial localization errors through wavelet-based disentanglement and a stable coarse-to-fine curriculum learning framework. We have compared against this Model under our evaluation protocol: 
+
+Table: 
+| Model | **SEVIR** |  |  |  |  |  | **CIKM** |  |  |  |  |  |
+|------|:---------:|:------:|:------:|:----:|:----:|:----:|:-----------:|:------:|:------:|:----:|:----:|:----:|
+|      | CSI-M↑ | CSI-181↑ | CSI-219↑ | HSS↑ | SSIM↑ | MSE↓ | CSI-M↑ | CSI-35↑ | CSI-40↑ | HSS↑ | SSIM↑ | MSE↓ |
+| WADEPre | 0.3524 | 0.1867 | 0.1031 | 0.4497 | 0.6424 | 398.82 | 0.2957 | 0.1908 | 0.1203 | 0.3825 | 0.6576 | **36.19** |
+| DAWN-Cast (*ours*)| **0.3638** | **0.1950** | **0.1077** | **0.4668** | **0.7284** | **371.34** | **0.3303** | **0.2349** | **0.1591** | **0.4266** | **0.6696** | 38.64 |
+
+As shown above, DAWN-Cast consistently outperforms WADEPre across the majority of forecasting metrics.
+
+WADEPre is naturally designed for equal input/output horizons (6→6 in their experiments), whereas our architecture directly supports arbitrary forecasting horizons without modifying the temporal modelling mechanism. 
+
+
+Although both DAWN-Cast and WADEPre employ a Discrete Wavelet Transform, the role of the wavelet decomposition is fundamentally different. In WADEPre, the decomposition primarily serves as a representation mechanism: the approximation coefficients are processed by an Approximation Network while the detail coefficients are processed by a Detail Network before being fused through a refinement stage.
+
+In contrast, our motivation is not simply to process different wavelet bands separately, but to model their temporal evolution differently. We hypothesize that the LL component and the LH/HL/HH components exhibit different characteristics, as supported by our wavelet statistics (Fig. 5 and Appendix C). Consequently, each subband is assigned an independent Frequency Adaptive Temporal (FAT) block, allowing the model to learn distinct temporal dynamics for each frequency regime rather than relying on a shared temporal operator.
 
 
 
-Respectfully ask the reviewer whether there are any further baselines that utilize wavelet transforms for precipitation nowcasting, which we can also run.
+<!-- The Gabor operator was specifically chosen because its learnable sinusoidal response can continuously vary from nearly linear to highly oscillatory behaviour through its frequency parameter. Furthermore, Eq. (2) assigns an independent Gabor response using learnable sinosoids to each prediction horizon. Thus, our contribution is not the wavelet transform itself, but combining explicit wavelet decomposition with scale-specific and horizon-specific temporal evolution. -->
+
+
+<!-- We thank the reviewer for this suggestion. We agree that recent wavelet-based methods should have been discussed in greater detail. We have therefore compared against the most relevant prior work, WADEPre, under our evaluation protocol, and will expand the related work in the camera-ready to include both WADEPre and WaveC2R. While WaveC2R employs wavelet decomposition for satellite-to-radar retrieval rather than temporal nowcasting, WADEPre is the closest architectural comparison. -->
+
+
+
+
+
 
 ### 2. SimVP already captures multi-scale structure implicitly
 
@@ -146,19 +185,86 @@ Respectfully ask the reviewer whether there are any further baselines that utili
 
 > **Note:** the claim at Line 54 relates to claim 3; see how it can be linked.
 
-**A.** Better to answer in terms of how we exploit data characteristics that models like SimVP could not. In the paper we wrote *"First, most approaches do not explicitly exploit the multiscale structure of precipitation"* — we refer here to **explicit** decomposition, not the implicit multiscale decomposition done by these models. We also give a separate explanation of exceptions like AlphaPre (lines 48–49).
+**A.** 
 
-**A2.** In DAWNCast we are doing explicit multiscale wavelet decomposition through component specialized gabors in FAT Blocks to match region specific motion trend of these radar image charactersitics whereas models like simvp although possess the inherent multiscle ability but theere is neither explicit multiscle modelling nor some physics based loss or mechanism that can intuitively guide the model for the task of Precipitation nowcassting is absent, leaving the model to rely only on gradient based optimization. Leaving simvp like models without any specialization for the task of precipitation nowcasting. this particular design choice of DAWNCast specially makes it suitable for the task of precipitation nowcasting, which is reflected in Quantitative scores spcially. 
+<!-- The reviewer is right that our phrasing at L54 is too absolute, and we will revise it in the camera-ready to "do not explicitly decompose the signal across spatial scales." We note the paper already distinguishes methods that use a unified representation (L48–49, on AlphaPre). Our intended claim is about explicit decomposition, and we make it precise here.
+SimVP's multi-scale capacity comes from strided encoder downsampling and multi-kernel Inception modules (3, 5, 7, 11) in the Translator. Three properties distinguish this from an explicit decomposition:
+(i) Invertibility. The DWT is a perfect-reconstruction transform: subbands can be processed independently and recombined exactly. Strided convolution is lossy and non-invertible, so scales cannot be separated, treated differently, and losslessly reassembled.
+(ii) Addressability. In DAWN-Cast, S^LL is identifiably the coarse-scale field and {S^LH, S^HL, S^HH} the fine-scale residual. We verify this corresponds to a physical property, not just a mathematical one: across all four datasets, LL maintains lag-1 autocorrelation ρ > 0.95 while high-frequency subbands fall to ρ ≤ 0 (Fig. 5, Appendix C). No equivalent statement can be made about any SimVP feature channel — its hierarchy is learned without constraint and carries no scale label.
+(iii) Scale-specific parameterization. SimVP applies the same Inception module to all channels. DAWN-Cast assigns a distinct temporal operator per subband. This is the operative difference: the decomposition is not a representation choice but a routing mechanism enabling different physics to receive different treatment.
+Empirically, SimVP is among our baselines. Comparing against DAWN-Cast(mse), which shares SimVP's loss function and therefore isolates the architectural difference: SEVIR CSI-M 0.3108 → 0.3413 (+9.8%), MeteoNet 0.3351 → 0.3753 (+12.0%), Shanghai 0.3850 → 0.4368 (+13.5%), CIKM 0.3052 → 0.3136 (+2.8%). SSIM improves on all four (SEVIR 0.6508 → 0.7137; Shanghai 0.7795 → 0.8098).
+The controlled test is our w/o Wavelet transform ablation, which holds backbone and parameter budget fixed and removes only the explicit decomposition: SEVIR 0.3638 → 0.3591, MeteoNet 0.4085 → 0.4024. -->
+
+We thank the reviewer for raising this point. We believe there may be a misunderstanding regarding the referenced statement. The cited Line 54 ("existing latent-space methods compress radar...") does not discuss multi-scale representations. Rather, our statement regarding multi-scale structure appears earlier (Line 46): "most approaches do not explicitly exploit the multiscale structure of precipitation." We will revise this wording in the camera-ready to further emphasize the distinction between implicit learned hierarchies and explicit multi-scale decomposition, thereby avoiding any ambiguity.
+
+Methods such as SimVP indeed learn hierarchical multi-resolution features through encoder-decoder downsampling and upsampling, and we do not intend to suggest otherwise. Our distinction is that these hierarchies are implicitly learned feature representations, whereas DAWN-Cast employs an explicit, interpretable wavelet decomposition whose subbands are subsequently assigned dedicated temporal models.
+
+Specifically, three properties distinguish our approach:
+
+(i) Invertibility. The Discrete Wavelet Transform (DWT) is a perfect-reconstruction transform, allowing individual subbands to be processed independently and reconstructed exactly. In contrast, encoder-decoder downsampling via strided convolutions is inherently lossy and does not provide an explicit decomposition into identifiable scales.
+
+(ii) Addressability. The wavelet subbands have explicit semantic meaning: the LL component captures the coarse precipitation structure, while the LH/HL/HH components capture fine-scale spatial variability. Our wavelet analysis (Fig. 5 and Appendix C) further demonstrates that the LL component exhibits substantially higher temporal persistence than the high-frequency subbands, motivating independent temporal modelling. In contrast, the feature channels learned by SimVP do not possess an explicit scale interpretation.
+
+(iii) Scale-specific temporal modelling. Existing implicit multiscale decomposition methods apply a shared temporal operator across the learned feature hierarchy. In DAWN-Cast, each wavelet subband is assigned an independent Frequency Adaptive Temporal (FAT) block, enabling the model to learn distinct temporal dynamics for different spatial-frequency regimes. Thus, the wavelet decomposition serves not merely as a representation, but as a routing mechanism for scale-specific temporal evolution. 
+
+
+This distinction is also supported empirically. Under the same MSE training objective, DAWN-Cast consistently improves CSI-M over SimVP across all four benchmarks: SEVIR (0.3108 → 0.3413, +9.8%), MeteoNet (0.3351 → 0.3753, +12.0%), Shanghai (0.3850 → 0.4368, +13.5%), and CIKM (0.3052 → 0.3136, +2.8%), while also achieving consistent improvements in the remaining evaluation metrics reported in the paper. Furthermore, our w/o Wavelet ablation isolates the contribution of the explicit decomposition by keeping the backbone and parameter budget fixed, confirming that the observed gains arise from explicit scale-specific temporal modelling rather than simply using a latent hierarchy.
+
+We also share the shared fat-block scores below using the same fat block for different wavelet components for comparison. 
+
+| Model | **SEVIR** |  |  |  |  |  | **CIKM** |  |  |  |  |  |
+|------|:---------:|:------------:|:-------------:|:----:|:----:|:----:|:---------:|:------------:|:--------------:|:----:|:----:|:----:|
+| | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ |
+| DAWN-Cast (same-FAT)-low freq params  | 0.3435 | 0.3715 | 0.4389 | 0.4403 | 0.7092 | 400.24 | 0.3201 | 0.3430 | 0.4003 | 0.4144 | 0.6627 | 39.07 |
+| DAWN-Cast (same-FAT)-high freq params | 0.3444 | 0.3714 | 0.4365 | 0.4417 | 0.7102 | 400.76 | 0.3219 | 0.3450 | 0.4034 | 0.4168 | 0.6596 | 39.01 |
+DAWN-Cast (without gabor)- mlp with matched parameters | 0.3566 | 
+| DAWN-Cast(*ours*) (diff-FAT) - high and low freq| **0.3638** | **0.4054** | **0.4856** | **0.4668** | **0.7284** | **371.34** | **0.3303** | **0.3543** | **0.4135** | **0.4266** | **0.6696** | **38.64** |
+
+The above table clearly demonstrates the original reason for improvement is our novel different FAT blocks.
 
 ### 3. SRST drives the gains, not the Gabor core
 
 > The ablation study reveals that removing the SRST Block results in the most significant performance drop. However, the SRST Block is essentially a combination of AFNO and depthwise convolution, which does not constitute a substantial innovation. In contrast, removing the Gabor stream — the paper's primary claimed innovation — leads to a relatively minor performance decrease. This indicates that the model's main performance gains are actually driven by the SRST Block, raising reasonable doubts about the actual effectiveness of the proposed frequency-adaptive core module.
 
-**A.** Answered above ([AC Weakness 1](#1-limited-conceptual-novelty) and [AC Weakness 2](#2-ablation-weakens-the-central-claim-srst-vs-gabor)):
+This is the central concern raised and we address it with four pieces of evidence.
 
-Main contribution: the Gabor activations are adaptable to a particular environmental location. A separate FAT Block for each separately wavelet-decomposed band, with each Gabor adapting to those environmental characteristics, is our novelty. As we see in the sinusoidal-frequency plot, running different sinusoidal patterns for the low and high wavelet frequencies settles at one set of sinusoidal behavior for a given frequency and not another — meaning that modeling a particular wavelet frequency with this particular sinusoidal frequency gives optimal outputs. This leads us to conclude that sinusoids are accurately able to model different wavelet frequencies, leading to SOTA results, and implying that wavelet decomposition and separate Gabor blocks for those wavelets hold significance. One could argue there is not much score difference; this is countered by the fact that the FAT Block has very few parameters compared to the refinement block, so this is expected — hence the limitations section (lines 462–467): *"The learnable parameters of the FAT blocks constitute approximately minor percentage of the total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest."* and future work (lines 319–320): *"scaling the adaptive part to a larger fraction of model capacity to assess its full potential."* We accept this, but the framework presents a future direction for an adaptive model with SOTA results, acting as motivation for how future precipitation-nowcasting models can adopt a better adaptive approach.
+1. The Gabor stream is not additive — the WGTM depends on it. Table 2 shows that removing the Gabor stream while retaining the WGTM (SEVIR 0.3541) is worse than removing the entire WGTM block (0.3566). The ordering replicates on MeteoNet (0.4002 vs 0.4054). Wavelet-guided temporal modelling with an MLP-only stream is net-negative relative to not having the block at all; it becomes beneficial only when paired with the subband-specific operator (0.3638 / 0.4085). We further ran a parameter-matched control in which the Gabor stream is replaced by a width-matched MLP, holding parameter count fixed: [INSERT]. The Gabor is therefore not a marginal addition to a block that works without it — it is what makes the decomposition pay for itself.
+
+2. The SRST is not a stack of two known modules. Removing the spectral and spatial branches individually costs 0.0112 and 0.0086 CSI-M on SEVIR (sum 0.0198), while removing the block costs 0.0336 — 70% more than additive. MeteoNet shows the same super-additivity (0.0305 vs 0.0384). Two independently-composed known modules would predict additivity; the observed interaction between global spectral and local spatial refinement is what the block contributes.
+
+3. Contribution per parameter. The FAT blocks are 0.27% of model parameters (83.8K) and yield ΔCSI-M = 0.0097 on SEVIR; the SRST blocks are 99.29% (59.1M) and yield 0.0336. Per unit of parameter budget the FAT block contributes roughly 106× more on SEVIR and 80× more on MeteoNet. We raise this not to dispute the reviewer's reading of raw deltas but because the comparison as posed weighs a 0.27%-parameter structural prior against a 99%-parameter refinement stack; the raw deltas are the expected outcome of that asymmetry, not evidence that the prior is inert.
+
+4. Behavioural evidence. Table 4 reports a reversal, not a magnitude: on SEVIR Storm events the strongly sinusoidal configuration outperforms the near-linear one (CSI 0.3060 vs 0.3017), and on SEVIR Random events the ordering inverts (0.3071 vs 0.3147). A parameter-count argument cannot produce a sign flip. Table 3 additionally shows learnable Gabor parameters outperforming fixed ones on both datasets tested.
+We accept the reviewer's framing that the per-dataset deltas attributable to the adaptive component are modest, as stated in Sec. A(i) and L319–320. Our claim is scoped accordingly: the SRST provides refinement capacity, and the FAT block provides the scale-separated structure that makes it a physically-organised model rather than a generic one — at 0.27% of the parameter budget.
 
 ---
+
+We thank the reviewer for the insightful comment. We would like to clarify that the proposed WGTM is not intended to replace the refinement backbone, but to provide an explicit multiscale temporal inductive bias before refinement. By decomposing the latent representation into wavelet subbands and assigning each subband an independent Frequency Adaptive Temporal (FAT) block, the model learns scale-specific temporal evolution before the SRST reconstructs globally consistent latent features.
+
+This behaviour is consistently supported by the ablation studies (Table 2). Removing the wavelet decomposition, removing the Gabor/FAT module, or replacing the adaptive with non adaptive gabors (Table 3) or using FAT blocks with identical parameter initializations for all scales(table above in last weakness) all reduce performance across datasets. These results indicate that explicitly modelling the temporal dynamics of different wavelet subbands using specialized temporal operator (FAT block), supporting the contribution of the proposed WGTM.
+
+
+We also respectfully disagree that the SRST is simply a stack of two existing modules. The SRST derives its effectiveness from the interaction between global spectral refinement and local spatial refinement.If these branches contributed independently, one would expect their individual ablation drops to be approximately additive. However, this is not observed. On SEVIR, removing the spectral branch decreases CSI-M by 0.0112, while removing the spatial branch decreases it by 0.0086; their sum is 0.0198. In contrast, removing the complete SRST block results in a substantially larger drop of 0.0336 (approximately 70% larger than the additive expectation). A similar super-additive behaviour is observed on MeteoNet (0.0305 vs. 0.0384) (Ref Table 2 of paper). This indicates that the performance gain arises from the complementary interaction between the spectral and spatial refinement streams rather than from simply stacking two independent modules.
+
+Contribution per parameter: the FAT block delivers ~13× more CSI-M gain per parameter than the SRST. 
+
+| Component | Parameters | % of Model | ΔCSI-M (SEVIR) | ΔCSI-M (MeteoNet) | Gain per 1M (SEVIR) | Gain per 1M (MeteoNet) | Relative efficiency |
+|-----------|-----------:|-----------:|---------------:|------------------:|--------------------:|-----------------------:|--------------------:|
+| FAT (Gabor) | ~1 M | ~2% | 0.0097 | 0.0083 | 0.00970 | 0.00830 | ≈13× |
+| SRST | ~51 M | ~98% | 0.0336 | 0.0384 | 0.00066 | 0.00075 | 1× |
+
+Also we would like to state that other models in the field of precipitation nowcasting had similar parameter count. Paramter count table of other models made for the field of precipitation nowcasting. 
+
+| Model | Parameters (M) |
+|-------|---------------:|
+| AlphaPre | 89.03 |
+| EarthFarseer | 148.57 |
+| DiffCast | 49.36 |
+| NowcastNet | 34.90 |
+|WadePre | 43.20 |
+|Cascast | 311.7 |
+| DAWNCast (latent) | 51.41 |
+
 
 # Reviewer 2
 
@@ -204,8 +310,70 @@ I am not very sure what to write.
 **A.** The motivation of the paper was: how can we disintegrate radar images in a meaningful way, and how can a model be designed to use this important disintegrated information for a better purpose? Hence we arrived at the idea of an adaptive inductive bias (and how this inductive bias is introduced is explained above).
 
 > **Note:** apologize for the small formatting mistake in the MSE field of one table.
+---------------------------------------------------------------------------------------------------------------------------------------------------------
 
----
+We totally understand your point and wish to refine and increase the current research gap section in revised version by including the visible inconsistency problems as well like blurring, position inconsistency, inconsistency over lead times, retaination of high intensity over larger lead times and other similar visible inconsistent factors across various models, and also how our model is trying to improve on any of these inconsistencies. 
+
+To further clarify our model's motivation, the objective of explicitly exploiting the multi-scale structure is to better model the evolution of precipitation systems. By decomposing radar observations into multiple spatial scales, the model can more effectively capture the dynamics of both large-scale precipitation bands and finer-scale convective structures, leading to more accurate precipitation nowcasting, <as highlighted by previous papers previously>. Hence we do  explicit multiscale decomposition of the radar observations and notice that they correspond to characteristics which can be correlated with actual precipitation structure characteristics as stated in the contribution 1 statement "low-frequency values correspond to the large-scale structure and high-frequency values correspond to the fine-scale variability of the precipitation field.".  We observe different precipitation field characteristics pose different motion trends which we use as motivation for building different specialized gabor based FAT blocks, and we notice that sinosoids in gabor can help us do that. Sinosoids can vary from near linear(small z in sin(z)) to oscillatory trend (large z). We also show in Table 4. how different gabor configurations help to model different situations effectively, technically giving us manual ability to have a best model for different atmospheric dynamics (Ref Table 4). 
+
+We would like to clarify that MSE is a point-wise error metric that evaluates forecasts through exact grid-point correspondence. Such metrics do not explicitly account for spatial displacement errors and are therefore known to be less suitable for evaluating high-resolution precipitation forecasts. Previous work has demonstrated through idealized displacement experiments that forecasts with only small spatial location errors can receive poor scores under grid-point evaluation despite remaining meteorologically similar to the observations, while spatially aware verification methods provide more meaningful assessments (Ref [1]).
+
+Consistent with these findings, our additional experiments on frequency sweep also reveals that lower MSE does not necessarily correspond to better csi scores. For example, the configuration with the lowest MSE (11.2099) yields the lowest CSI (0.3945), whereas the configuration achieving the highest CSI (0.4114) has a comparatively larger MSE (11.7235). Similarly, another high-CSI configuration (0.4091) corresponds to the largest MSE (11.9392). These observations further indicate that point-wise error alone is insufficient to characterize forecast quality in precipitation nowcasting, motivating the use of other methods such as CSI alongside MSE.
+
+
+Meteonet frequency sweep 
+CSI HEATMAP: 
+Legend:
+⬜ ≥ 0.4100 (Highest), 🟨 ≥ 0.4070, 🟥 ≥ 0.4040, ⬛ < 0.4040 (Lowest)
+⭐ Best ❌ Worst
+| HF \ LL | 1.09 | 3.28 | 8.74 | 17.49 | 34.34 |
+|:-------:|:----:|:----:|:----:|:-----:|:-----:|
+| **4.41** | ⬜ **0.4114 ⭐** | 🟨 0.4084 | 🟨 0.4070 | 🟥 0.4056 | 🟨 0.4070 |
+| **2.25** | ⬛ 0.4032 | ⬛ **0.3945 ❌** | 🟨 0.4080 | 🟨 0.4091 | 🟨 0.4083 |
+| **1.12** | 🟥 0.4040 | 🟥 0.4040 | 🟥 0.4066 | 🟨 0.4082 | 🟥 0.4058 |
+| **0.42** | ⬛ 0.3993 | 🟥 0.4062 | 🟨 0.4078 | 🟥 0.4050 | 🟥 0.4053 |
+| **0.14** | 🟥 0.4058 | 🟥 0.4043 | 🟥 0.4066 | 🟨 0.4087 | 🟥 0.4059 |
+
+MSE HEATMAP:
+Legend: ⬜ < 11.3 (Best), 🟨 11.3 – <11.5, 🟥 11.5 – <11.7, ⬛ ≥ 11.7 (Worst)
+| HF \ LL | 1.09 | 3.28 | 8.74 | 17.49 | 34.34 |
+|:-------:|:----:|:----:|:----:|:-----:|:-----:|
+| **4.41** | ⬛ 11.7235 | ⬛ 11.7033 | 🟥 11.6145 | 🟥 11.5906 | ⬛ 11.7424 |
+| **2.25** | 🟥 11.6426 | ⬜ **11.2099 ⭐** | ⬛ 11.8800 | ⬛ **11.9392 ❌** | ⬛ 11.8561 |
+| **1.12** | 🟥 11.6555 | 🟥 11.5354 | 🟥 11.6250 | ⬛ 11.9265 | 🟥 11.6057 |
+| **0.42** | 🟨 11.4663 | 🟥 11.5854 | ⬛ 11.8545 | 🟥 11.6017 | 🟥 11.5312 |
+| **0.14** | ⬛ 11.7509 | 🟥 11.5493 | ⬛ 11.8147 | ⬛ 11.8839 | ⬛ 11.7315 |
+
+
+We will insert the recommended citations (Gabor, CSI, HSS) in the revised version paper. 
+
+[1] Roberts, Nigel M., and Humphrey W. Lean. "Scale-selective verification of rainfall accumulations from high-resolution forecasts of convective events." Monthly Weather Review 136.1 (2008): 78-97.
+
+
+Question: What is the motivation for developing an architecture like this other than the idea of it being closer to physics should make it unspecifically better?
+
+**A** We thank the reviewer for this important question. Our motivation is not that a more physics-inspired architecture is inherently better. Rather, we hypothesize that explicitly separating precipitation into components with different characteristics(large salce convective bulk and fine scale variability) simplifies the learning problem in approximation of precipitation field movement through radar observations. 
+
+So our motivation is modelling precipitation for mulit-scale components makes it easier to model precipitation evolution. For E.g. large-scale storm structure evolves smoothly over time, whereas fine-scale structures exhibit faster and more irregular dynamics (as shown in fig 5, Appendix C). When these components are represented jointly, a single temporal operator must simultaneously model both slowly varying and rapidly evolving processes. This places conflicting demands on a shared representation and increases the complexity of the learning task.
+
+DAWN-Cast addresses this by first explicitly decomposing the latent representation into wavelet subbands and then assigning an independent Frequency Adaptive Temporal (FAT) block to each subband. Consequently, each temporal operator (FAT Block) only needs to learn the dynamics of a narrower frequency regime instead of modelling the entire spectrum simultaneously. We therefore view the wavelet decomposition primarily as a mechanism for reducing temporal heterogeneity, rather than simply introducing a physics-inspired representation.
+
+The choice of a Gabor-based temporal operator follows the same motivation. Because its sinusoidal component can vary from nearly linear to highly oscillatory behaviour through learnable frequency parameters, it provides a flexible family of temporal responses capable of representing both slowly evolving convective organization and rapidly varying fine-scale structures. Furthermore, Eq. (2) defines independent Gabor responses across prediction horizons, allowing different future lead times to learn different temporal behaviours instead of enforcing a single global evolution function across the entire forecast sequence.
+
+Our empirical analyses support this hypothesis. The wavelet statistics presented in Fig. 5 and Appendix C demonstrate that the low-frequency component and high-frequency componets exhibit different charactercteristic and can be treated seperately. In addition, the adaptive Gabor frequency sweeps converge to different optima across datasets, suggesting that different precipitation regimes favour different temporal frequency responses. Finally, the adaptive FAT blocks consistently outperform fixed Gabor configurations (ref Table3) and removing the gabor and wavelet-guided temporal modelling degrades performance (ref Table 2),introducing FAT with same parameters for both all the scales also degrades the performance as shown in the table below, indicating that the gains arise from modelling scale-specific temporal dynamics rather than from the wavelet transform alone.
+
+| Model | **SEVIR** |  |  |  |  |  | **CIKM** |  |  |  |  |  |
+|------|:---------:|:------------:|:-------------:|:----:|:----:|:----:|:---------:|:------------:|:--------------:|:----:|:----:|:----:|
+| | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ |
+| DAWN-Cast (same-FAT)-low freq params  | 0.3435 | 0.3715 | 0.4389 | 0.4403 | 0.7092 | 400.24 | 0.3201 | 0.3430 | 0.4003 | 0.4144 | 0.6627 | 39.07 |
+| DAWN-Cast (same-FAT)-high freq params | 0.3444 | 0.3714 | 0.4365 | 0.4417 | 0.7102 | 400.76 | 0.3219 | 0.3450 | 0.4034 | 0.4168 | 0.6596 | 39.01 |
+DAWN-Cast (without gabor)- mlp with matched parameters | 0.3566 | 
+| DAWN-Cast(*ours*) (diff-FAT) - high and low freq| **0.3638** | **0.4054** | **0.4856** | **0.4668** | **0.7284** | **371.34** | **0.3303** | **0.3543** | **0.4135** | **0.4266** | **0.6696** | **38.64** |
+
+
+**Limitations**: The authors claim that this could be used for other problems of Computervision (line 321) but i cannot see how that is true.
+
+**A** We appreciate the reviewer's comment. Although our original statement was broad, our intention was not to claim applicability to all computer vision problems, but rather to certain spatiotemporal prediction tasks that share similar characteristics with precipitation nowcasting, namely the forecasting of structured spatial fields evolving over time. Examples include satellite imagery forecasting, remote sensing, dynamic medical imaging (e.g., cardiac MRI or ultrasound sequence prediction), and related scientific imaging applications. We will revise the manuscript to explicitly state these application domains and avoid the broader term "computer vision.
 
 # Reviewer 3
 
@@ -213,7 +381,50 @@ I am not very sure what to write.
 
 > Multi-scale and cascade-based methods are widely studied in precipitation nowcasting. What is the main conceptual novelty of DAWN-Cast compared to prior cascade, spectral, or multi-resolution approaches? Is the key contribution the wavelet decomposition, the latent-space formulation, the FAT block, or their integration?
 
-**A.** What is new is how the sinusoidal behavior inside the FAT Block is able to model the evolution of large-scale convective bulk and small-scale turbulent structures. So the real novelty is in the **Wavelet Guided Temporal Modelling (WGTM) Block**, which includes the wavelet decomposition and Gabor layers taking separate advantage of those separate high- and low-frequency wavelet structures. The motivation of the paper was to present an adaptive approach, but due to the limited parameter count (as stated in the limitations: *"The learnable parameters of the FAT blocks constitute approximately minor percentage of the total model parameter count. Consequently, the per-dataset ablation score deltas attributable to the adaptive component alone are modest."*), and the reason for including the other parts is given in the paragraph above. The Gabor in the FAT Block holds significance (indicated by the sinusoidal-frequency plot / adaptive-Gabor tables).
+**A.** Thank you for this important question. We agree that wavelet decomposition, latent-space forecasting, and spectral refinement are individually established ideas. Our contribution is not introducing any one of these components in isolation, but proposing a new frequency-adaptive temporal modelling framework for precipitation nowcasting.
+
+The conceptual novelty lies in the Wavelet Guided Temporal Modelling (WGTM) block. Rather than processing all spatial scales with a shared temporal operator, WGTM first explicitly decomposes the latent representation into physically distinct wavelet subbands and assigns an independent Frequency Adaptive Temporal (FAT) block to each subband. Each FAT block learns its own Gabor parameters, allowing different temporal responses to emerge for large-scale (LL) and fine-scale (HF) precipitation dynamics.
+
+We agree that wavelet decomposition, latent-space forecasting, spectral representations, and cascade refinement have all been explored individually in prior precipitation nowcasting literature. Our contribution is not another multi-scale representation, but a frequency-adaptive temporal modelling paradigm. Specifically, DAWN-Cast introduces the Wavelet Guided Temporal Modelling (WGTM) block, where an we used explicit wavelet decomposition to extract more from radar observations and then tried orchastrated the model in a way that can make the most of the decomposition by assigning independent Frequency Adaptive Temporal (FAT) blocks to different frequency bands. This enables large-scale convective structures (LL) and high-frequency turbulent structures (LH/HL/HH) to evolve through different temporal operators rather than sharing a single dynamics model.Conceptually, prior methods separate information spatially, spectrally, or hierarchically; DAWN-Cast is the first to use that explicit separation as a mechanism for learning distinct temporal evolution operators for different frequency regimes.
+
+This behaviour is supported by two pieces of evidence already included in the paper:
+
+Adaptive vs. fixed Gabor (Table 3): learning the Gabor parameters consistently outperforms fixed parameters, demonstrating that adaptation itself is beneficial.
+Contrasting atmospheric regimes (Table 4): different Gabor initializations become optimal under storm-dominated versus slowly evolving precipitation regimes, supporting our hypothesis that different temporal regimes benefit from different frequency responses. Introducing same hyperparameter initialized FAT blocks  for both all the scales also degrades the performance as shown in the table below. 
+
+| Model | **SEVIR** |  |  |  |  |  | **CIKM** |  |  |  |  |  |
+|------|:---------:|:------------:|:-------------:|:----:|:----:|:----:|:---------:|:------------:|:--------------:|:----:|:----:|:----:|
+| | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ |
+| DAWN-Cast (same-FAT)-low freq params  | 0.3435 | 0.3715 | 0.4389 | 0.4403 | 0.7092 | 400.24 | 0.3201 | 0.3430 | 0.4003 | 0.4144 | 0.6627 | 39.07 |
+| DAWN-Cast (same-FAT)-high freq params | 0.3444 | 0.3714 | 0.4365 | 0.4417 | 0.7102 | 400.76 | 0.3219 | 0.3450 | 0.4034 | 0.4168 | 0.6596 | 39.01 |
+DAWN-Cast (without gabor)- mlp with matched parameters | 0.3566 | 
+| DAWN-Cast(*ours*) (diff-FAT) - high and low freq| **0.3638** | **0.4054** | **0.4856** | **0.4668** | **0.7284** | **371.34** | **0.3303** | **0.3543** | **0.4135** | **0.4266** | **0.6696** | **38.64** |
+
+In addition, during hyperparameter exploration we observed that the optimal Gabor frequency multipliers differ across datasets (examples shown below in the attached heatmaps). Rather than a single universal configuration, each dataset converges to a different optimum, suggesting that the adaptive temporal operator specializes to the underlying statistics of the dataset. While these sweeps were not included in the paper due to space constraints, they are consistent with our proposed motivation.
+
+CSI HEATMAPS: 
+CIKM frequency sweep 
+| HF \ LL | 22.74 | 68.23 | 181.94 | 363.89 | 714.49 |
+|:-------:|:-----:|:-----:|:------:|:------:|:------:|
+| **95.56** | 0.3269 | 0.3292 | 0.3201 | 0.3289 | 0.3264 |
+| **48.67** | **0.3362 🥇** | 0.3235 | 0.3224 | 0.3217 | 0.3252 |
+| **24.34** | 0.3276 | 0.3243 | 0.3292 | 0.3246 | 0.3248 |
+| **9.13**  | 0.3275 | 0.3296 | 0.3256 | 0.3237 | 0.3273 |
+| **3.04**  | 0.3266 | *0.3311 🥈* | 0.3253 | 0.3270 | 0.3234 |
+
+Meteonet frequency sweep 
+Legend:
+| HF \ LL | 1.09 | 3.28 | 8.74 | 17.49 | 34.34 |
+|:-------:|:----:|:----:|:----:|:-----:|:-----:|
+| **4.41** | **0.4114 🥇** | 0.4084 | 0.4070 | 0.4056 | 0.4070 |
+| **2.25** | 0.4032 | 0.3945 | 0.4080 | *0.4091 🥈* | 0.4083 |
+| **1.12** | 0.4040 | 0.4040 | 0.4066 | 0.4082 | 0.4058 |
+| **0.42** | 0.3993 | 0.4062 | 0.4078 | 0.4050 | 0.4053 |
+| **0.14** | 0.4058 | 0.4043 | 0.4066 | 0.4087 | 0.4059 |
+
+
+
+<!-- Finally, we acknowledge that the adaptive FAT block constitutes only a small fraction of the overall model capacity (Appendix A). Consequently, removing it produces smaller absolute ablation drops than removing the larger SRST refinement module. We view this as evidence that a lightweight adaptive temporal module can provide measurable gains with relatively few parameters, rather than evidence that the mechanism is unimportant. -->
 
 ### 2. Stronger evidence that latent subbands correspond to physical radar structures
 
@@ -236,19 +447,72 @@ I am not very sure what to write.
 **A.** Ablation + parameters (see the parameter-matched shared-temporal experiment above).
 > ▶️ **RUN:** parameter-matched shared-temporal baseline (same as the shared-wavelet-parameter experiment in [AC Weakness 4](#4-evaluation-does-not-fully-establish-the-mechanism)).
 
+CIKM Dataset (Ablation Study)
+
+| Model | Configuration | Loss | Params (M) | CSI-M↑ | CSI-4↑ | CSI-16↑ | HSS↑ | SSIM↑ | MSE↓ |
+|------|---------------|:----:|-----------:|-------:|-------:|--------:|-----:|------:|-----:|
+| ab1_mlp_only | MLP only | MSE | 0.267 | 0.2847 | 0.2997 | 0.3457 | 0.3653 | 0.6135 | 47.84 |
+| ab2_wavelet_mlp | Wavelet + MLP | MSE | 0.345 | 0.3000 | 0.3133 | 0.3515 | 0.3869 | 0.6074 | 48.56 |
+| ab3_wavelet_mlp_gabor | Wavelet + MLP + Gabor | MSE | 0.424 | 0.2990 | 0.3179 | 0.3656 | 0.3849 | 0.6315 | 45.90 |
+| ab4_srst1 | Wavelet + MLP + Gabor + 1 SRST | MSE | 8.692 | 0.3150 | 0.3252 | 0.3623 | 0.4085 | 0.6649 | 37.73 |
+| ab5_full | Wavelet + MLP + Gabor + 2 SRST | MSE | 15.320 | 0.3152 | 0.3306 | 0.3743 | 0.4065 | 0.6795 | 36.40 |
+| ab6_full | Wavelet + MLP + Gabor + 2 SRST | FACL | 15.320 | 0.3303 | 0.3543 | 0.4135 | 0.4266 | 0.6696 | 38.64 |
+
+
+MeteoNet Dataset (Ablation Study)
+| Model | Configuration | Loss | Params (M) | CSI-M↑ | CSI-4↑ | CSI-16↑ | HSS↑ | SSIM↑ | MSE↓ |
+|------|---------------|:----:|-----------:|-------:|-------:|--------:|-----:|------:|-----:|
+| ab1_mlp_only | MLP only | MSE | 0.267 | 0.3418 | 0.3516 | 0.3903 | 0.4702 | 0.8330 | 11.10 |
+| ab2_wavelet_mlp | Wavelet + MLP | MSE | 0.309 | 0.3459 | 0.3573 | 0.3913 | 0.4756 | 0.8308 | 11.30 |
+| ab3_wavelet_mlp_gabor | Wavelet + MLP + Gabor | MSE | 0.350 | 0.3413 | 0.3537 | 0.3968 | 0.4691 | 0.8342 | 10.97 |
+| ab4_srst1 | Wavelet + MLP + Gabor + 1 SRST | MSE | 33.193 | 0.3782 | 0.4006 | 0.4536 | 0.5108 | 0.8409 | 10.58 |
+| ab5_full | Wavelet + MLP + Gabor + 2 SRST | MSE | 59.468 | 0.4067 | 0.4399 | 0.4900 | 0.5451 | 0.8413 | 10.44 |
+| ab6_full | Wavelet + MLP + Gabor + 2 SRST | FACL | 59.468 | 0.4085 | 0.4838 | 0.5989 | 0.5482| 0.8389 |  11.54|
+
+
+
+**DAWNCast Shared temporal hyperparameters**
+| Model | **SEVIR** |  |  |  |  |  | **CIKM** |  |  |  |  |  |
+|------|:---------:|:------------:|:-------------:|:----:|:----:|:----:|:---------:|:------------:|:--------------:|:----:|:----:|:----:|
+| | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ | CSI-M↑ | CSI-4 (POOL)↑ | CSI-16 (POOL)↑ | HSS↑ | SSIM↑ | MSE↓ |
+| Shared-matched FAT-init w low freq params  | 0.3435 | 0.3715 | 0.4389 | 0.4403 | 0.7092 | 400.24 | 0.3201 | 0.3430 | 0.4003 | 0.4144 | 0.6627 | 39.07 |
+| Shared-matched FAT-init w high freq params | 0.3444 | 0.3714 | 0.4365 | 0.4417 | 0.7102 | 400.76 | 0.3219 | 0.3450 | 0.4034 | 0.4168 | 0.6596 | 39.01 |
+| Mlp replaced Gabor (matched parameters)    |
+| Seperate FAT(*ours*)| **0.3638** | **0.4054** | **0.4856** | **0.4668** | **0.7284** | **371.34** | **0.3303** | **0.3543** | **0.4135** | **0.4266** | **0.6696** | **38.64** |
 ### 5. "Climatic" inductive bias — terminology
 
 > The Gabor stream is described as introducing a "climatic" inductive bias. What aspect of the model makes it climate-aware, given that no explicit climate or environmental conditioning appears to be used? Would "frequency-adaptive" or "event-regime-adaptive" be a more precise description?
 
-**A.** The climatic-inductive-bias answer is given above (to be framed). Yes, *frequency-adaptive* and *event-regime-adaptive* are obviously better technical terms, but our main idea was how the Gabor can effectively adapt to the convective-bulk temporal evolution and the turbulence evolution over time.
+**A.** We thank the reviewer for this observation and agree that frequency-adaptive is a more precise technical description. Our use of the term climatic inductive bias was intended to convey the following intuition rather than claim explicit climate conditioning.
 
-The sinusoidal behavior: how the different sinusoidal behaviors settle (per the sinusoidal-frequency plot).
+Radar observations from a given dataset originate from a specific geographical region, whose long-term climate governs the statistical characteristics of precipitation evolution. The proposed Frequency Adaptive Temporal (FAT) block operates on wavelet-separated components corresponding to large-scale convective structures (LL) and small-scale turbulent structures (LH/HL/HH). Each component is modelled using a learnable Gabor operator whose frequency response adapts during training. Our frequency sweep experiments show that each dataset converges to a distinct optimal Gabor frequency configuration, suggesting that different precipitation regimes favour different temporal frequency responses.
+
+Therefore, the inductive bias introduced by the FAT block *is not derived from explicit climate variables, but from learning dataset-specific temporal frequency dynamics that best describe the evolution of precipitation in that region*is not climate-aware; rather, it learns dataset-specific temporal frequency responses, which implicitly capture the characteristic precipitation dynamics of the region using radar represented by the training data. Since these precipitation dynamics are ultimately shaped by the regional climate, our original wording referred to this as a climatic inductive bias. We agree, however, that this terminology may overstate the claim because the model is conditioned only on radar observations. To avoid this ambiguity, we will replace the phrase throughout the paper with frequency-adaptive inductive bias, and clarify that the learned temporal filters implicitly adapt to the statistical precipitation regime represented by the training dataset rather than to explicit climatic variables.
 
 ### 6. Comparison against alternative multi-scale strategies under comparable budgets
 
 > How does the proposed wavelet-based decomposition compare against alternative multi-scale strategies (e.g., Fourier-based decomposition, cascade models, Laplacian pyramids, or learned multi-resolution feature hierarchies) under comparable computational budgets?
 
 **A.**
+
+We thank the reviewer for this suggestion. Our goal was not to claim that wavelet decomposition universally outperforms every multi-scale representation, but that it provides properties particularly well suited for scale-specific temporal modelling. Compared with Fourier-based methods, wavelets preserve both spatial locality and frequency information, allowing moving precipitation structures to be modelled without the globally supported basis functions of the Fourier transform. Compared with learned multi-resolution hierarchies (e.g., encoder-decoder or multi-kernel architectures), the decomposition is explicit, invertible, and yields identifiable LL/LH/HL/HH components, enabling independent temporal operators for each frequency regime. Compared with cascade approaches, which progressively refine predictions, DAWN-Cast incorporates scale-specific temporal evolution directly into the forecasting backbone rather than as a post-hoc refinement stage. Finally, compared with existing wavelet-based forecasting approaches such as WADEPre, our work differs in that each wavelet subband is assigned a dedicated adaptive temporal model (FAT block), whereas WADEPre primarily uses the wavelet decomposition as a representation and relies on the Stationary Texture Assumption for high-frequency evolution. Therefore, the contribution is not the use of wavelets alone, but employing an explicit, localized, invertible decomposition as a routing mechanism for learning distinct temporal dynamics across precipitation scales.
+
+**wadepre, cascast, alphapre, simvp table scores for comparison**
+
+We thank the reviewer for this question. We believe the choice of decomposition should be guided by the modelling objective rather than by the transform itself. Our motivation is fundamentally different from prior spectral, cascade, and multi-resolution approaches.
+
+Spectral methods such as AlphaPre separate the latent representation into Fourier amplitude and phase components and process them using dedicated model components. Their objective is to model complementary spectral quantities of a global Fourier representation. In contrast, our objective is to model how different physical precipitation scales evolve through time. Therefore, we employ an explicit wavelet decomposition that separates the latent representation into coarse (LL) and fine-scale (LH/HL/HH) components, which correspond to convective bulk structures and localized turbulent structures, respectively. The decomposition is therefore not the contribution itself, but a routing mechanism that enables scale-specific temporal evolution.
+
+This design naturally motivates the proposed Frequency Adaptive Temporal (FAT) block. Unlike a shared temporal operator applied to all features, each wavelet subband is assigned an independent Gabor-based temporal model. Since the Gabor activation is sinusoidal, it can continuously vary from an almost linear response to highly oscillatory behaviour through its learnable frequency parameter. We hypothesize that this flexibility is particularly well suited for precipitation evolution, where different scales exhibit markedly different temporal behaviour. Importantly, Eq. (2) defines a separate Gabor function for every predicted output timestep, allowing each future timestep to learn its own temporal frequency response instead of relying on a single global evolution function. This explicit per-timestep modelling provides substantially greater flexibility than learning a single holistic temporal representation shared across all scales and prediction horizons.
+
+The same distinction applies to other multi-scale approaches. Cascade methods such as CasCast progressively refine predictions from an upstream nowcasting model using diffusion, but do not explicitly model the temporal evolution of different frequency components. Likewise, wavelet-based methods such as WADEPre and WaveC2R employ wavelet decompositions primarily as hierarchical feature representations. For example, WADEPre models low-frequency advection through an Approximation Network while relying on the Stationary Texture Assumption for high-frequency details, rather than learning independent temporal evolution for each wavelet subband. In contrast, DAWN-Cast explicitly learns the dynamics of every wavelet component through dedicated FAT blocks.
+
+This modelling principle is also supported empirically. The adaptive Gabor frequency sweeps (attached heatmaps) show that different datasets converge to different optimal combinations of low- and high-frequency responses, suggesting that there is no single temporal frequency configuration suitable for all precipitation regimes. Furthermore, DAWN-Cast consistently outperforms representative methods from these families, including spectral (AlphaPre), cascade (CasCast), and wavelet-based (WADEPre) approaches, supporting the effectiveness of explicit scale-specific temporal evolution.
+
+Each prediction horizon is associated with its own learnable Gabor temporal response. Consequently, the model is not constrained to explain the entire forecast sequence with a single temporal evolution pattern; instead, it can learn distinct temporal responses across future lead times, providing additional flexibility for modelling precipitation evolution.
+
+
+
 > ▶️ **RUN the following comparisons:**
 >
 > **Fourier:** AlphaPre, FNO, AFNO

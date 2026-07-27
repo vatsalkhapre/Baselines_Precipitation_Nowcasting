@@ -24,14 +24,14 @@
 # =============================================================================
 
 # ---------------------------- SEVIR (train + valid) --------------------------
-CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
+CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm.py \
     --exp_dir sevir \
-    --exp_note wadepre_on_sevir \
+    --exp_note wadepre_on_shanghai \
     --batch_size 4 \
     --backbone wadepre \
-    --dataset sevir \
+    --dataset shanghai \
     --seq_len 25 \
-    --epochs 100 \
+    --epochs 150 \
     --valid \
     --img_size 128 \
     --img_channel 1 \
@@ -44,7 +44,7 @@ CUDA_VISIBLE_DEVICES=2 python3 run_alphapre_convlstm.py \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "wadepre_sevir"
+    --run_name "wadepre_shanghai"
 
 
 # ---------------------------- Shanghai (train + valid) -----------------------

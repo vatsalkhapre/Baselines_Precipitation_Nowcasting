@@ -4,7 +4,7 @@ from einops import rearrange, repeat
 from .submodules.FPN import FPN
 from torch.nn import Module
 import torch.nn as nn
-
+from typing import Tuple
 from .utils.wavelet_transform import WaveletTransform, WaveletCoeffDict
 
 
@@ -113,7 +113,7 @@ class DetailNetwork(Module):
 
     def forward(
         self, data: torch.Tensor, wavelet: WaveletTransform
-    ) -> tuple[torch.Tensor, WaveletCoeffDict]:
+    ) -> Tuple[torch.Tensor, WaveletCoeffDict]:
 
         if self.fpn is None:
             raise RuntimeError("FPN is not initialized, please run dummy_run() first.")

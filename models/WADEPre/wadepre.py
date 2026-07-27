@@ -339,7 +339,7 @@ def get_model(
     # same-length model runs T_in -> T_in and rolls out to T_out at inference
     timesteps = T_in
     if refine_hidden_dim is None:
-        refine_hidden_dim = _safe_refine_hidden_dim(timesteps)  # nearest valid to paper's 576
+        refine_hidden_dim = timesteps * 96
     else:
         # keep whatever was passed but ensure it satisfies the group-norm rules
         refine_hidden_dim = _safe_refine_hidden_dim(timesteps, target=refine_hidden_dim)

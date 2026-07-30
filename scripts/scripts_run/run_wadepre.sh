@@ -97,18 +97,18 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm.py \
 
 # ---------------------------- CIKM (5 -> 10, 2x rollout) ---------------------
 CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm.py \
-    --exp_dir cikm \
-    --exp_note wadepre_on_cikm \
+    --exp_dir meteo \
+    --exp_note wadepre_on_meteo \
     --batch_size 4 \
     --backbone wadepre \
-    --dataset cikm \
-    --seq_len 15 \
+    --dataset meteo \
+    --seq_len 25 \
     --epochs 150 \
     --valid \
     --img_size 128 \
     --img_channel 1 \
     --frames_in 5 \
-    --frames_out 10 \
+    --frames_out 20 \
     --lr 1.5e-4 \
     --lr_beta1 0.9 \
     --lr_beta2 0.995 \
@@ -116,7 +116,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_alphapre_convlstm.py \
     --num_workers 8 \
     --wandb_state 'online' \
     --wandb_project_name 'Alphapre_all_other_models' \
-    --run_name "wadepre_cikm"
+    --run_name "wadepre_meteonet"
 
 
 # ---------------------------- Evaluation (from checkpoint) -------------------

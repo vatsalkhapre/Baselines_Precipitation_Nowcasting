@@ -10,47 +10,78 @@ Axes
   x-axis = freq_multiplier_low   (LL / large-scale convective bulk)   low -> high sinusoid
   y-axis = freq_multiplier_high  (HF / turbulence)                    low -> high sinusoid
 
-Two log layouts are both supported automatically
-─────────────────────────────────────────────────
-  * CIKM style: one log.log PER run, each inside its own exp directory
+Three log layouts are all supported automatically
+───────────────────────────────────────────────────
+  * CIKM (latent) style: one log.log PER run, each inside its own exp directory,
+    with an explicit "model parameters :" dict logged per run.
       Exps/<exp_dir>/<backbone>_<dataset>_<exp_note>/logs/log.log
     -> pass --logs_glob 'Exps/multiseed_cikm/*/logs/log.log'
        (or --logs_root and let the script find them)
 
   * Shanghai style: ALL runs concatenated in ONE log.log (exp_note constant,
-    files overwritten but the file handler appends run after run):
+    files overwritten but the file handler appends run after run), each run
+    still logging its own "model parameters :" dict:
       train-block, eval-block, train-block, eval-block, ...
     -> pass --logs_glob '/path/to/shanghai/logs/log.log'  (single file, many runs)
+
+  * CIKM (pixel-space) style: one log.log per run, but the runner
+    (run_alphapre_convlstm.py) NEVER logs a "model parameters :" dict at all.
+    freq_low/freq_high must instead be recovered from checkpoint-path lines
+    that ARE logged, e.g.:
+      "Save best checkpoint to .../gabor_exp_cikm_pixel/CIKM_pixel_flow22.74_fhigh95.56/checkpoints"
+    -> pass --logs_glob 'Exps/gabor_exp_cikm_pixel/*/logs/log.log'
+    If your directory naming differs from "...flowX_fhighY..." or
+    "freq_X_Y_cikm_betas...", pass --path_regex with named groups
+    (?P<freq_low>...) and (?P<freq_high>...) to override.
 
 The parser does not care which layout it gets. It scans every file, splits it
 into runs, and pairs each run's (freq_low, freq_high) with that run's TEST
 metrics. De-duplication keeps the LAST occurrence of any (freq_low, freq_high)
 pair (so a re-run overrides an earlier one).
 
+How a run's freq_low / freq_high are located (tried in this order)
+────────────────────────────────────────────────────────────────────
+  1. A "model parameters : {... 'freq_multiplier_low': X, 'freq_multiplier_high': Y ...}"
+     line (a python-dict literal, parsed with ast — robust to key order).
+     This is the most explicit source, used whenever present.
+  2. Any line elsewhere in the log that contains a recognizable freq-encoding
+     path fragment (checked on EVERY line, not just "Save checkpoint" ones,
+     so it's robust to whichever exact wording a given runner uses):
+       - "flow<freq_low>_fhigh<freq_high>"       (prefix-agnostic: matches
+         "Shanghai_flowX_fhighY", "CIKM_pixel_flowX_fhighY", etc.)
+       - "freq_<freq_low>_<freq_high>_cikm_betas..."
+     Whichever of the two sources appears is used to (re)set the current
+     run's freqs as the file is scanned top to bottom; if a file has neither,
+     nothing is set from content and step 3 is tried.
+  3. LAST RESORT: the log FILE'S OWN filesystem path is checked against the
+     same patterns (plus any --path_regex override), in case the freqs are
+     only encoded in the directory name and never appear in the log text
+     itself. Only tried once, when a "Test Results:" line is reached with no
+     freqs found by steps 1-2.
+
 How a run's metrics are located
 ────────────────────────────────
-  * freq_low / freq_high: parsed from the
-        "model parameters : {... 'freq_multiplier_low': X, 'freq_multiplier_high': Y ...}"
-    line (a python-dict literal, parsed with ast — robust to key order).
   * CSI-M, HSS, MSE, SSIM, PSNR, etc.: from the single-line
         "Test Results: {'csi': ..., 'hss': ..., 'mse': ..., 'ssim': ..., 'psnr': ...}"
-    dict. This line marks the END of a run's real test evaluation.
+    dict. This line marks the END of a run's real test evaluation, in all
+    three log formats.
   * CSI-35 / CSI-40 (per-threshold means): NOT in Test Results. They live in the
     evaluation block that immediately PRECEDES the Test Results line, under
         "====================Threshold: 35 with melthod 1===================="
         "<CSI> : 0.229...; [ ... ]"
-    We take the scalar before the ';' as the threshold-mean CSI.
+    We take the scalar before the ';' as the threshold-mean CSI. This format
+    is identical across all three log layouts.
 
-A "run" for parsing = the text span from one "model parameters :" line up to
-(and including) the next "Test Results:" line. Only spans that contain BOTH a
-model-parameters line and a Test Results line are treated as complete test runs;
-train-only spans (Valid Results, no Test Results) are skipped.
+A "run" for parsing = the text span up to (and including) the next
+"Test Results:" line. Only spans that end in a Test Results line AND have
+freqs resolved (by any of the 3 methods above) are treated as complete test
+runs; train-only spans (Valid Results, no Test Results) are skipped.
 
 Usage
 ─────
-  # CIKM (per-run directories)
+  # CIKM latent (per-run directories, explicit model-parameters line)
   python gabor_sweep_matrix.py \
-      --logs_glob 'Exps/multiseed_cikm/*/logs/log.log' \
+      --logs_glob 'Exps/gabor_exp_cikm_pixel/*/logs/log.log' \
       --dataset cikm --thresholds 35 40 \
       --out_dir cikm_matrices
 
@@ -59,6 +90,18 @@ Usage
       --logs_glob '/home/vatsal/.../gabor_exp_shanghai/.../logs/log.log' \
       --dataset shanghai --thresholds 35 40 \
       --out_dir shanghai_matrices
+
+  python gabor_sweep_matrix.py \
+      --logs_glob 'Exps/multiseed_cikm/*/logs/log.log' \
+      --dataset cikm --thresholds 35 40 \
+      --out_dir cikm_matrices
+
+  # CIKM pixel-space (no model-parameters line at all — freqs come from
+  # checkpoint-path lines / directory names instead)
+  python gabor_sweep_matrix.py \
+      --logs_glob 'Exps/gabor_exp_cikm_pixel/*/logs/log.log' \
+      --dataset cikm_pixel --thresholds 35 40 \
+      --out_dir cikm_pixel_matrices
 
 Requirements: numpy, matplotlib  (pandas optional, only for nicer CSV)
 """
@@ -81,6 +124,32 @@ RE_TEST_RESULTS = re.compile(r"Test Results\s*:\s*(\{.*\})\s*$")
 RE_THRESHOLD_HDR = re.compile(r"={2,}\s*Threshold:\s*(\d+)\s*with\s*melthod\s*\d+\s*={2,}")
 # <CSI> : 0.229...;  [ ... ]   -> capture the scalar before ';'
 RE_CSI_SCALAR = re.compile(r"<CSI>\s*:\s*([0-9.eE+-]+)\s*;")
+
+# Fallback freq sources for logs that never emit a "model parameters :" dict
+# (e.g. the pixel-space runner run_alphapre_convlstm.py). Tried against every
+# line of the log content first; if nothing matches anywhere in the file, the
+# same patterns are tried once more against the log FILE'S OWN path as a last
+# resort. Prefix-agnostic on purpose: "flow<X>_fhigh<Y>" matches both
+# "Shanghai_flowX_fhighY" and "CIKM_pixel_flowX_fhighY" with one pattern.
+DEFAULT_FREQ_REGEXES = [
+    re.compile(r"freq_(?P<freq_low>[\d.]+)_(?P<freq_high>[\d.]+)_cikm_betas"),
+    re.compile(r"flow(?P<freq_low>[\d.]+)_fhigh(?P<freq_high>[\d.]+)"),
+]
+
+
+def try_freqs_from_text(text: str, extra_regex: str = None):
+    """Try DEFAULT_FREQ_REGEXES (plus an optional user override) against a
+    single string (a log line, or a file path). Returns (freq_low, freq_high)
+    or None."""
+    regexes = ([re.compile(extra_regex)] if extra_regex else []) + DEFAULT_FREQ_REGEXES
+    for rx in regexes:
+        m = rx.search(text)
+        if m:
+            try:
+                return float(m.group('freq_low')), float(m.group('freq_high'))
+            except (ValueError, IndexError):
+                continue
+    return None
 
 
 # Metrics we pull straight from the Test Results dict, mapped to friendly names.
@@ -116,26 +185,27 @@ def _round_key(x, ndigits=2):
     return round(float(x), ndigits)
 
 
-def parse_log_file(path: str, thresholds: list) -> list:
+def parse_log_file(path: str, thresholds: list, path_regex: str = None) -> list:
     """
     Parse ONE log file (which may contain one run OR many concatenated runs).
 
     Returns a list of dicts, one per complete test run:
         {'freq_low': float, 'freq_high': float,
          'CSI-M': float, 'HSS': float, ..., 'CSI-35': float, 'CSI-40': float,
-         'source_file': str}
+         'source_file': str, 'freq_source': str}
     """
     with open(path, 'r', errors='replace') as f:
         lines = f.readlines()
 
     runs = []
     # State for the run currently being assembled.
-    cur_freqs = None            # (freq_low, freq_high) from the most recent model-params line
+    cur_freqs = None            # (freq_low, freq_high), from whichever source fires
+    cur_freq_source = None      # 'model_params' | 'log_line' | 'file_path' (for debugging)
     cur_thr_csi = {}            # {threshold_int: csi_scalar} accumulated in the current eval block
     pending_threshold = None    # threshold whose <CSI> line we're waiting for
 
     for line in lines:
-        # --- model parameters line: starts a new run's parameter context ---
+        # --- model parameters line: most explicit freq source, tried first ---
         m = RE_MODEL_PARAMS.search(line)
         if m:
             # A new model-parameters line means a new phase (train or eval).
@@ -144,11 +214,28 @@ def parse_log_file(path: str, thresholds: list) -> list:
                 d = ast.literal_eval(m.group(1))
                 cur_freqs = (float(d['freq_multiplier_low']),
                              float(d['freq_multiplier_high']))
+                cur_freq_source = 'model_params'
             except (ValueError, SyntaxError, KeyError):
                 cur_freqs = None
+                cur_freq_source = None
             cur_thr_csi = {}
             pending_threshold = None
             continue
+
+        # --- fallback: any line containing a recognizable freq-encoding path
+        #     fragment (e.g. a "Save best checkpoint to .../flowX_fhighY/..."
+        #     line). Tried on every line, since runners vary in exact wording;
+        #     the regex itself is specific enough not to false-positive.
+        #     Only used to SET freqs when they haven't been resolved another
+        #     way for the run currently being scanned, so it doesn't clobber
+        #     a more explicit model-params result if one already fired for
+        #     this run.
+        if cur_freqs is None:
+            line_freqs = try_freqs_from_text(line, path_regex)
+            if line_freqs is not None:
+                cur_freqs = line_freqs
+                cur_freq_source = 'log_line'
+                continue
 
         # --- threshold header: next <CSI> line belongs to this threshold ---
         m = RE_THRESHOLD_HDR.search(line)
@@ -168,7 +255,15 @@ def parse_log_file(path: str, thresholds: list) -> list:
         m = RE_TEST_RESULTS.search(line)
         if m:
             if cur_freqs is None:
-                # Test Results with no preceding model-params freqs -> skip.
+                # LAST RESORT: neither a model-params line nor any in-content
+                # line matched for this run — try the log FILE'S OWN path.
+                path_freqs = try_freqs_from_text(str(path), path_regex)
+                if path_freqs is not None:
+                    cur_freqs = path_freqs
+                    cur_freq_source = 'file_path'
+
+            if cur_freqs is None:
+                # Still nothing — genuinely can't resolve this run, skip it.
                 cur_thr_csi = {}
                 continue
             try:
@@ -178,7 +273,7 @@ def parse_log_file(path: str, thresholds: list) -> list:
                 continue
 
             run = {'freq_low': cur_freqs[0], 'freq_high': cur_freqs[1],
-                   'source_file': path}
+                   'source_file': path, 'freq_source': cur_freq_source}
             for k, friendly in TEST_DICT_METRICS.items():
                 if k in td:
                     run[friendly] = float(td[k])
@@ -189,18 +284,23 @@ def parse_log_file(path: str, thresholds: list) -> list:
             runs.append(run)
             # reset for any subsequent concatenated run
             cur_thr_csi = {}
-            # keep cur_freqs? No — next run will set its own via model params.
+            # keep cur_freqs? No — next run will set its own, by whichever
+            # method fires first (model-params, in-content line, or as a
+            # last resort the unchanged file path — harmless to re-derive).
             cur_freqs = None
+            cur_freq_source = None
 
     return runs
 
 
-def collect_runs(log_paths: list, thresholds: list) -> list:
+def collect_runs(log_paths: list, thresholds: list, path_regex: str = None) -> list:
     all_runs = []
     for p in log_paths:
-        runs = parse_log_file(p, thresholds)
+        runs = parse_log_file(p, thresholds, path_regex)
         all_runs.extend(runs)
-        print(f"  parsed {len(runs):>3} test run(s) from {p}")
+        sources = {r['freq_source'] for r in runs}
+        print(f"  parsed {len(runs):>3} test run(s) from {p}"
+              f"  (freq source: {', '.join(sources) if sources else 'n/a'})")
     return all_runs
 
 
@@ -308,13 +408,14 @@ def save_heatmap(M, x_vals, y_vals, metric, dataset, out_dir: Path,
 
 def write_long_csv(runs: list, metrics: list, dataset: str, out_path: Path):
     import csv
-    fields = ['dataset', 'freq_low', 'freq_high'] + metrics + ['source_file']
+    fields = ['dataset', 'freq_low', 'freq_high'] + metrics + ['freq_source', 'source_file']
     with open(out_path, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
         w.writeheader()
         for r in sorted(runs, key=lambda d: (d['freq_low'], d['freq_high'])):
             row = {'dataset': dataset, 'freq_low': r['freq_low'],
-                   'freq_high': r['freq_high'], 'source_file': r.get('source_file', '')}
+                   'freq_high': r['freq_high'], 'freq_source': r.get('freq_source', ''),
+                   'source_file': r.get('source_file', '')}
             for m in metrics:
                 row[m] = r.get(m, '')
             w.writerow(row)
@@ -355,6 +456,12 @@ def build_parser():
     p.add_argument('--out_dir', default='gabor_matrices')
     p.add_argument('--no_plots', action='store_true',
                    help='Only write CSVs, skip heatmap PNGs.')
+    p.add_argument('--path_regex', default=None,
+                   help="Override/extra regex (with named groups (?P<freq_low>...) "
+                        "and (?P<freq_high>...)) for logs whose naming convention "
+                        "doesn't match the built-in 'flowX_fhighY' or "
+                        "'freq_X_Y_cikm_betas' patterns. Tried before the built-ins, "
+                        "against both log lines and the log file's own path.")
     return p
 
 
@@ -372,7 +479,7 @@ def main():
         raise SystemExit("No log files found. Check --logs_glob.")
 
     print(f"Found {len(log_paths)} log file(s).")
-    runs = collect_runs(log_paths, args.thresholds)
+    runs = collect_runs(log_paths, args.thresholds, args.path_regex)
     print(f"Total raw test runs parsed: {len(runs)}")
 
     runs = deduplicate(runs)

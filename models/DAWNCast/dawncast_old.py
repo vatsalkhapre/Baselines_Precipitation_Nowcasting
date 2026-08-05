@@ -165,18 +165,21 @@ class ResneSpectralBlock(nn.Module):
         return h + self.res_conv(x)
     
 class GaborLayer(nn.Module):
-    def __init__(self, in_features, out_features, weight_scale, alpha=1.0, beta=1.0, freq_multiplier=1.5):
+    def __init__(self, in_features, out_features, weight_scale,
+                 alpha=1.0, beta=1.0, freq_multiplier=1.5):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
         self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
-        self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        )
+ 
+        gamma = torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
+        self.register_buffer('gamma', gamma)      # <-- frozen: buffer, not Parameter
+ 
         self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
-        self.linear.bias.data.uniform_(-np.pi, np.pi)
+        self.linear.bias.data = (2 * torch.rand(out_features) - 1) * weight_scale * torch.sqrt(self.gamma)
+ 
         self.freq = nn.Parameter(torch.rand(out_features))
         self.freq_multiplier = freq_multiplier
-
+ 
     def forward(self, x):
         D = (
             (x ** 2).sum(-1)[..., None]

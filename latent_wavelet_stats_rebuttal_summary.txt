@@ -1,0 +1,28 @@
+
+[CIKM]  (n=200 paired samples)
+   GT: rho_pixel=+0.959  rho_latent=+0.562  (paired r=+0.692)   LFE(pix/lat)=0.999/0.986   HFE(pix/lat)=0.000/0.003   PSD-shape r=+0.983
+   LL: rho_pixel=+0.939  rho_latent=+0.573  (paired r=+0.804)   LFE(pix/lat)=0.998/0.971   HFE(pix/lat)=0.000/0.001   PSD-shape r=+0.990
+   LH: rho_pixel=+0.222  rho_latent=+0.162  (paired r=+0.819)   LFE(pix/lat)=0.610/0.391   HFE(pix/lat)=0.077/0.164   PSD-shape r=+0.544
+   HL: rho_pixel=+0.233  rho_latent=+0.088  (paired r=+0.941)   LFE(pix/lat)=0.641/0.349   HFE(pix/lat)=0.070/0.198   PSD-shape r=+0.708
+   HH: rho_pixel=-0.064  rho_latent=-0.050  (paired r=-0.014)   LFE(pix/lat)=0.231/0.216   HFE(pix/lat)=0.354/0.325   PSD-shape r=+0.439
+
+[Meteonet]  (n=200 paired samples)
+   GT: rho_pixel=+0.895  rho_latent=+0.562  (paired r=+0.940)   LFE(pix/lat)=0.995/0.972   HFE(pix/lat)=0.000/0.006   PSD-shape r=+0.943
+   LL: rho_pixel=+0.791  rho_latent=+0.591  (paired r=+0.876)   LFE(pix/lat)=0.984/0.965   HFE(pix/lat)=0.001/0.004   PSD-shape r=+0.992
+   LH: rho_pixel=-0.135  rho_latent=-0.025  (paired r=+0.285)   LFE(pix/lat)=0.110/0.211   HFE(pix/lat)=0.359/0.286   PSD-shape r=+0.811
+   HL: rho_pixel=-0.159  rho_latent=-0.028  (paired r=+0.418)   LFE(pix/lat)=0.099/0.214   HFE(pix/lat)=0.381/0.285   PSD-shape r=+0.788
+   HH: rho_pixel=-0.411  rho_latent=-0.088  (paired r=-0.068)   LFE(pix/lat)=0.039/0.168   HFE(pix/lat)=0.718/0.366   PSD-shape r=+0.798
+
+[Shanghai]  (n=154 paired samples)
+   GT: rho_pixel=+0.947  rho_latent=+0.652  (paired r=+0.821)   LFE(pix/lat)=0.998/0.975   HFE(pix/lat)=0.000/0.006   PSD-shape r=+0.945
+   LL: rho_pixel=+0.880  rho_latent=+0.674  (paired r=+0.668)   LFE(pix/lat)=0.993/0.955   HFE(pix/lat)=0.000/0.004   PSD-shape r=+0.987
+   LH: rho_pixel=-0.115  rho_latent=-0.043  (paired r=+0.331)   LFE(pix/lat)=0.106/0.216   HFE(pix/lat)=0.310/0.289   PSD-shape r=+0.986
+   HL: rho_pixel=-0.182  rho_latent=-0.042  (paired r=+0.107)   LFE(pix/lat)=0.082/0.216   HFE(pix/lat)=0.415/0.303   PSD-shape r=+0.902
+   HH: rho_pixel=-0.446  rho_latent=-0.062  (paired r=+0.065)   LFE(pix/lat)=0.033/0.195   HFE(pix/lat)=0.751/0.334   PSD-shape r=+0.792
+
+[SEVIR_Storm]  (n=141 paired samples)
+   GT: rho_pixel=+0.937  rho_latent=+0.566  (paired r=-0.020)   LFE(pix/lat)=0.999/0.968   HFE(pix/lat)=0.000/0.009   PSD-shape r=+0.926
+   LL: rho_pixel=+0.859  rho_latent=+0.611  (paired r=+0.476)   LFE(pix/lat)=0.994/0.958   HFE(pix/lat)=0.000/0.004   PSD-shape r=+0.992
+   LH: rho_pixel=-0.125  rho_latent=-0.004  (paired r=+0.610)   LFE(pix/lat)=0.110/0.233   HFE(pix/lat)=0.337/0.257   PSD-shape r=+0.325
+   HL: rho_pixel=-0.140  rho_latent=-0.024  (paired r=+0.636)   LFE(pix/lat)=0.110/0.204   HFE(pix/lat)=0.365/0.274   PSD-shape r=+0.491
+   HH: rho_pixel=-0.462  rho_latent=-0.098  (paired r=-0.762)   LFE(pix/lat)=0.031/0.180   HFE(pix/lat)=0.758/0.372   PSD-shape r=+0.811

@@ -1,0 +1,9 @@
+[
+  {
+    "model": "WADEPre",
+    "params_M": 24.99,
+    "flops_G": 1274.92,
+    "gpu_memory_GB": 0.42,
+    "throughput_samples_per_sec": 6.6
+  }
+]

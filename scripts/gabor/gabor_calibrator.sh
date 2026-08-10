@@ -1,4 +1,4 @@
-python Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
+python Exp_paper/Gabor_exp/Gabor_codes/gabor_regime_calibrator.py \
     --dataset sevir \
     --weight_scale_low 0.1 --gamma_learned_low 9.7925 \
     --weight_scale_high 1.0 --gamma_learned_high 5.8113 \

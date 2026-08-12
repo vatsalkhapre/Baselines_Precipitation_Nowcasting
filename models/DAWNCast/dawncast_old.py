@@ -171,8 +171,9 @@ class GaborLayer(nn.Module):
         self.linear = nn.Linear(in_features, out_features)
         self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
  
-        gamma = torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        self.register_buffer('gamma', gamma)      # <-- frozen: buffer, not Parameter
+        self.gamma = nn.Parameter(
+                    torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
+                )
  
         self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
         self.linear.bias.data = (2 * torch.rand(out_features) - 1) * weight_scale * torch.sqrt(self.gamma)

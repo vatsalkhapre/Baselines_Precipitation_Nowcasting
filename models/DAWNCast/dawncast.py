@@ -219,40 +219,28 @@ class SRSTResBlock(nn.Module):
 # ============================================================
 
 class GaborLayer(nn.Module):
-    """
-    Adaptive Gabor activation for subband-specific climatic inductive bias.
-
-    Learnable parameters:
-        mu    : Gaussian envelope center (localization in feature space)
-        gamma : bandwidth (initialized from Gamma(alpha, beta) prior)
-        freq  : per-neuron base frequency
-        freq_multiplier : global frequency scaling lambda
-
-    Behavioral regimes (see paper Section 3):
-        - Small lambda*freq, small gamma => near-linear (slowly evolving subbands)
-        - Large lambda*freq, large gamma => oscillatory + localized (turbulent subbands)
-    """
     def __init__(self, in_features, out_features, weight_scale,
                  alpha=1.0, beta=1.0, freq_multiplier=1.5):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
         self.mu = nn.Parameter(2 * torch.rand(out_features, in_features) - 1)
+ 
         self.gamma = nn.Parameter(
-            torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
-        )
+                    torch.distributions.gamma.Gamma(alpha, beta).sample((out_features,))
+                )
+ 
         self.linear.weight.data *= weight_scale * torch.sqrt(self.gamma[:, None])
-        self.linear.bias.data.uniform_(-np.pi, np.pi)
+        self.linear.bias.data = (2 * torch.rand(out_features) - 1) * weight_scale * torch.sqrt(self.gamma)
+ 
         self.freq = nn.Parameter(torch.rand(out_features))
         self.freq_multiplier = freq_multiplier
-
+ 
     def forward(self, x):
-        # Distance term D(x) = ||x - mu||^2
         D = (
             (x ** 2).sum(-1)[..., None]
             + (self.mu ** 2).sum(-1)[None, :]
             - 2 * x @ self.mu.T
         )
-        # Gabor activation: sin(lambda * f * W^T x) * exp(-0.5 * gamma * D)
         return torch.sin(self.freq_multiplier * self.freq * self.linear(x)) * \
                torch.exp(-0.5 * D * self.gamma[None, :])
 

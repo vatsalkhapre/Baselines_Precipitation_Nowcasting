@@ -53,6 +53,7 @@ from ema_pytorch import EMA
 from utils.tools import print_log
 
 # Shared machinery - imported, not duplicated.
+import utils.results_logger_csv as results_logger_csv
 import finetune_temporal_path_transfer as LATENT
 from finetune_temporal_path_transfer import (
     NORM_TYPES,
@@ -60,7 +61,6 @@ from finetune_temporal_path_transfer import (
     audit_trainable,
     lock_frozen_norms,
     snapshot_frozen,
-    patch_results_logger,
 )
 
 from run_alphapre_convlstm import Runner, create_parser
@@ -92,6 +92,31 @@ SPECTRAL_MARKERS = ('.srst.', '.conv_spectral.')
 
 PRETRAINED_PIXEL_CKPT = ("/home/vatsal/Dataserver2/Neurips/DAWNCast_pixelspace/"
                          "dawncast_sevir_pixel/checkpoints/ckpt-best.pt")
+
+# Filled in by _build_model once the trainable count is known, then written to
+# the CSV "Why?" column. A holder (not a fixed string) because the count is only
+# known after the model is built, while the logger is patched before that.
+RUN_DESCRIPTION = {'text': ''}
+
+
+def patch_results_logger_dynamic(target_csv):
+    """
+    Runner.test_samples does `from utils.results_logger_csv import ResultsLogger`
+    inside the function with a hard-coded csv_path. Rebinding the class here
+    redirects the row to the pixel CSV and stamps it with the live run
+    description, without editing the runner.
+    """
+    base_cls = results_logger_csv.ResultsLogger
+
+    class PixelTransferResultsLogger(base_cls):
+        def __init__(self, csv_path=None):          # runner's path is overridden
+            super().__init__(csv_path=target_csv)
+
+        def log_results(self, *args, **kwargs):
+            kwargs.setdefault("why", RUN_DESCRIPTION['text'])
+            return super().log_results(*args, **kwargs)
+
+    results_logger_csv.ResultsLogger = PixelTransferResultsLogger
 
 
 # =============================================================================
@@ -232,8 +257,19 @@ class PixelTransferRunner(Runner):
         self._load_pretrained(self.ft_args.pretrained_ckpt)
 
         sel, union = apply_unfreeze(self.model, self.ft_args.unfreeze)
-        _, _, _, self.trainable_names = audit_trainable(
+        total, trainable, _, self.trainable_names = audit_trainable(
             self.model, sel, union, self.is_main, zero_shot=self.ft_args.zero_shot)
+
+        # Report the TRAINABLE count in the CSV, not the model total: for a
+        # transfer run the adapted budget is the number that matters. The Why?
+        # column keeps both so the two can never be confused.
+        surface = "zero-shot" if self.ft_args.zero_shot else '+'.join(self.ft_args.unfreeze)
+        self.model_params = 0 if self.ft_args.zero_shot else trainable
+        RUN_DESCRIPTION['text'] = (
+            f"PIXEL SEVIR->{self.args.dataset} | unfrozen: {surface} | "
+            f"trainable {0 if self.ft_args.zero_shot else trainable:,}/{total:,} "
+            f"({0.0 if self.ft_args.zero_shot else 100.0 * trainable / total:.4f}%) | "
+            f"lr {self.args.lr} | train_frac {self.ft_args.train_frac}")
 
         locked = lock_frozen_norms(self.model)
         print_log(f"Locked {len(locked)} frozen norm layers into eval()", self.is_main)
@@ -373,11 +409,8 @@ def main():
     if ft_args.target_tag is None:
         ft_args.target_tag = args.dataset
 
-    surface = "zero-shot (no training)" if ft_args.zero_shot else '+'.join(ft_args.unfreeze)
-    patch_results_logger(
-        ft_args.results_csv,
-        transfer_why=f"PIXEL SEVIR->{args.dataset} transfer | unfrozen: {surface} | lr {args.lr}",
-    )
+    # Description is filled in by _build_model once the trainable count is known.
+    patch_results_logger_dynamic(ft_args.results_csv)
 
     exp = PixelTransferRunner(args, ft_args)
 

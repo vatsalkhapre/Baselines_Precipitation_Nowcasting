@@ -1077,7 +1077,7 @@ class Runner(object):
             res = eval.done()
             if self.is_main and self.args.eval:
                 from utils.results_logger_csv import ResultsLogger
-                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/csv_files/Rebuttal_runs.csv")
+                logger = ResultsLogger(csv_path="/home/vatsal/Dataserver2/Neurips/csv_files/Reduce_DAWNCAST_params_CIKM.csv")
                 logger.log_results(
                     res_dict=res,
                     backbone=self.args.backbone,

@@ -1,0 +1,33 @@
+# Working-tree baseline. Entries below pre-date or are outside this experiment.
+# Refreshed 2026-08-28: added user-created untracked paths (models/falfcl_baselines/,
+#   run_diffcast_falfcl.py, scripts/claude_script/) and PROMPT/, which holds
+#   dawncast_pixel_prompt.md -- edited at the user's explicit request.
+# The SHA256 list below is the real invariant: those files must never change.
+M  Parameter_budget.csv
+MM datasets/dataset_meteonet.py
+MM datasets/dataset_shanghai.py
+ M models/Earthfarseer/FoTF_module.py
+ M models/Earthfarseer/Global_Fourier_Transformer.py
+ M models/Earthfarseer/Local_CNN_Branch.py
+ M run_alphapre_convlstm.py
+MM scripts/scripts_run/run_models_dawncast_pixel_space.sh
+A  scripts/scripts_run/run_models_dawncast_pixel_space_2.sh
+?? "All_Papers /"
+?? Claude/
+?? PROMPT/
+?? baseline_work/
+?? models/falfcl_baselines/
+?? run_alphapre_convlstm_multigpu.py
+?? run_baselines.py
+?? run_diffcast_falfcl.py
+?? scripts/claude_script/
+# --- sha256 of files that must never be modified by this experiment ---
+SHA256 89784cbfd41b182866d6723dd01d2127548b453633b52f57b3b20cde27bae2ac run_alphapre_convlstm.py
+SHA256 5fd1ba5cfa442a597368cac13f087ccdc281cfd2beb8bbe4f8ca7b0d7bf35a9d run_alphapre_convlstm_sevir_lr_latent.py
+SHA256 340b89241cb1dceafdcccfff5142d669ef00a03461ebf9a11ed18740366b0a1b models/DAWNCast/dawncast.py
+SHA256 c3276f317f1055babdb122850b469fd01554b54f29b22e0bbbb5465e208f189b datasets/dataset_sevir.py
+SHA256 70bfb9ec68351af66bbfce671299a3bf5ded681da7b989e1bdecb3a61bbf4915 datasets/dataset_sevir_lr_latent.py
+SHA256 eab532e5ef25e047b7a55ee60b9396a04a6e133bd3a8fcf22b7fa1e03e6ce71b datasets/get_datasets.py
+SHA256 aa726ce2da3e4384fbab8b7993bf0cba1685a5a09a8b81a71d29166e80fc06fb utils/utilspp.py
+SHA256 e7c7e04bc967a5eadfd13dcc0a0a2f2af72ac8813503aa0e268da363f98c678f utils/metrics.py
+SHA256 c80c102bbb0a2219a83cdb5456687454fcfe87b8428b6e4a583ddf00531d6dc0 utils/metrics_valid.py

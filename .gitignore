@@ -47,3 +47,13 @@ earthformer_clone.yml
 earthformer_env_21.yml
 vil_frames
 meteonet_sweep.out
+# --- ICLR26 campaign (added 2026-09-07) ---
+# Papers: ~88 MB of PDFs; they bloat every clone permanently.
+All_Papers /
+All_Papers/
+# Training/eval stdout is tqdm progress spam full of \r characters.
+ICLR26/logs/
+THE_GABOR/logs/
+# Model weights: ~15 GB, must never enter git.
+THE_GABOR/checkpoints/
+ICLR26/eval/*.log

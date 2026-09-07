@@ -1,0 +1,77 @@
+\begin{table}[t]
+\centering
+\caption{Performance of FACL-trained baselines and DAWN-Cast on SEVIR, MeteoNet, Shanghai and CIKM (all $128\times128$, $T_{in}{=}5$). Best in \textbf{bold}, second \underline{underlined}, third \textit{italic}. CSI-H/CSI-E are the two highest intensity thresholds for each dataset. All baselines are trained with FACL except those marked $^{\dagger}$, which use their own native loss and curriculum as specified by their papers.}
+\label{tab:facl_baselines}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|cccccccc}
+\toprule
+\multicolumn{9}{c}{\textbf{SEVIR}} \\
+\midrule
+Model & CSI-M$\uparrow$ & CSI-181$\uparrow$ & CSI-219$\uparrow$ & CSI-pool4$\uparrow$ & CSI-pool16$\uparrow$ & HSS$\uparrow$ & SSIM$\uparrow$ & MSE$\downarrow$ \\
+\midrule
+ConvLSTM & 0.3166 & 0.1499 & 0.0446 & 0.3737 & 0.4925 & 0.4036 & 0.6627 & 462.42 \\
+TrajGRU & \underline{0.3676} & \textit{0.2029} & \underline{0.1154} & \underline{0.4136} & 0.5048 & \underline{0.4738} & 0.6671 & \underline{369.83} \\
+PhyDNet & 0.3477 & 0.1863 & 0.0990 & 0.3983 & \underline{0.5289} & 0.4505 & \textit{0.6861} & 400.84 \\
+MAU & 0.3340 & 0.1603 & 0.0770 & 0.3554 & 0.4031 & 0.4312 & 0.6457 & 401.84 \\
+SimVP & 0.3579 & 0.1885 & \textit{0.1057} & 0.3979 & \textit{0.5194} & 0.4600 & \underline{0.6899} & 376.53 \\
+EarthFormer & 0.3284 & 0.1465 & 0.0564 & 0.3386 & 0.3717 & 0.4244 & 0.6467 & 373.64 \\
+EarthFarseer & 0.3148 & 0.1381 & 0.0691 & 0.3517 & 0.4236 & 0.4080 & 0.5745 & 429.62 \\
+AlphaPre & \textit{0.3634} & \underline{0.2033} & 0.0982 & \textit{0.3998} & 0.4704 & \textit{0.4639} & 0.6596 & \textit{373.25} \\
+exPreCast & 0.3420 & 0.1694 & 0.0851 & 0.3727 & 0.4408 & 0.4386 & \textbf{0.6965} & 387.06 \\
+DiffCast & 0.3089 & 0.1522 & 0.0784 & 0.3764 & \textbf{0.5321} & 0.4030 & 0.6350 & 545.34 \\
+WADEPre$^{\dagger}$ & 0.3524 & 0.1867 & 0.1032 & 0.3762 & 0.4356 & 0.4497 & 0.6425 & 398.83 \\
+\textbf{DAWN-Cast} & \textbf{0.3787} & \textbf{0.2177} & \textbf{0.1184} & \textbf{0.4211} & 0.4862 & \textbf{0.4847} & 0.6821 & \textbf{340.90} \\
+\midrule
+\multicolumn{9}{c}{\textbf{MeteoNet}} \\
+\midrule
+Model & CSI-M$\uparrow$ & CSI-24$\uparrow$ & CSI-32$\uparrow$ & CSI-pool4$\uparrow$ & CSI-pool16$\uparrow$ & HSS$\uparrow$ & SSIM$\uparrow$ & MSE$\downarrow$ \\
+\midrule
+ConvLSTM & 0.4358 & 0.4282 & 0.2455 & 0.5073 & 0.5980 & 0.5716 & 0.8229 & 10.12 \\
+TrajGRU & 0.4155 & 0.4020 & 0.2340 & 0.4772 & 0.5822 & 0.5513 & \textit{0.8314} & 10.59 \\
+PhyDNet & 0.4112 & 0.4033 & 0.2282 & 0.4869 & \textit{0.6316} & 0.5504 & 0.8285 & 10.74 \\
+MAU & 0.4181 & 0.4029 & 0.2353 & 0.4591 & 0.5326 & 0.5575 & 0.8167 & \textit{9.89} \\
+SimVP & \textit{0.4404} & \underline{0.4331} & \textit{0.2621} & \textit{0.5079} & 0.6134 & \underline{0.5808} & 0.8265 & 10.35 \\
+EarthFormer & 0.3919 & 0.3847 & 0.2126 & 0.4515 & 0.5143 & 0.5342 & 0.7974 & 12.73 \\
+EarthFarseer & 0.3578 & 0.3320 & 0.1478 & 0.3690 & 0.4060 & 0.4909 & 0.7817 & 11.52 \\
+AlphaPre & \underline{0.4433} & \textit{0.4320} & \underline{0.2702} & \textbf{0.5210} & \underline{0.6356} & \textit{0.5791} & \textbf{0.8473} & \underline{9.84} \\
+exPreCast & 0.3953 & 0.3794 & 0.2077 & 0.4529 & 0.5439 & 0.5289 & 0.8180 & 11.37 \\
+DiffCast & 0.3680 & 0.3503 & 0.1934 & 0.4719 & \textbf{0.6504} & 0.4991 & 0.7969 & 15.20 \\
+WADEPre$^{\dagger}$ & 0.4200 & 0.4054 & 0.2388 & 0.4619 & 0.5412 & 0.5497 & 0.7807 & 10.26 \\
+\textbf{DAWN-Cast} & \textbf{0.4529} & \textbf{0.4449} & \textbf{0.2758} & \underline{0.5159} & 0.6132 & \textbf{0.5890} & \underline{0.8419} & \textbf{9.31} \\
+\midrule
+\multicolumn{9}{c}{\textbf{Shanghai}} \\
+\midrule
+Model & CSI-M$\uparrow$ & CSI-35$\uparrow$ & CSI-40$\uparrow$ & CSI-pool4$\uparrow$ & CSI-pool16$\uparrow$ & HSS$\uparrow$ & SSIM$\uparrow$ & MSE$\downarrow$ \\
+\midrule
+ConvLSTM & 0.4274 & 0.3945 & \textit{0.2822} & \textbf{0.5136} & \textbf{0.6498} & 0.5652 & \underline{0.7675} & 29.58 \\
+TrajGRU & 0.4182 & 0.3857 & 0.2712 & 0.4515 & 0.4882 & 0.5581 & 0.6817 & 27.17 \\
+PhyDNet & 0.4181 & 0.3864 & 0.2743 & 0.4954 & \textit{0.6235} & 0.5599 & 0.7430 & 29.32 \\
+MAU & 0.4217 & 0.3860 & 0.2724 & 0.4731 & 0.5228 & 0.5638 & 0.6681 & 29.03 \\
+SimVP & \textit{0.4341} & \textit{0.3973} & 0.2799 & 0.4947 & 0.5658 & \textit{0.5762} & 0.7253 & \textit{26.53} \\
+EarthFormer & 0.4000 & 0.3679 & 0.2553 & 0.4469 & 0.4928 & 0.5427 & 0.6903 & 32.68 \\
+EarthFarseer & 0.3444 & 0.3007 & 0.1856 & 0.4101 & 0.4456 & 0.4797 & 0.6736 & 43.30 \\
+AlphaPre & \underline{0.4420} & \underline{0.4069} & \underline{0.2988} & \textit{0.5072} & 0.5909 & \underline{0.5803} & \textbf{0.7856} & \underline{26.23} \\
+exPreCast & 0.4107 & 0.3737 & 0.2646 & 0.4580 & 0.5142 & 0.5505 & 0.7424 & 29.56 \\
+DiffCast & 0.3438 & 0.3022 & 0.2101 & 0.4508 & \underline{0.6266} & 0.4743 & 0.7378 & 40.32 \\
+WADEPre$^{\dagger}$ & 0.4189 & 0.3835 & 0.2648 & 0.4459 & 0.5068 & 0.5535 & \textit{0.7515} & 30.30 \\
+\textbf{DAWN-Cast} & \textbf{0.4525} & \textbf{0.4186} & \textbf{0.3087} & \underline{0.5113} & 0.5842 & \textbf{0.5918} & 0.7301 & \textbf{25.33} \\
+\midrule
+\multicolumn{9}{c}{\textbf{CIKM}} \\
+\midrule
+Model & CSI-M$\uparrow$ & CSI-35$\uparrow$ & CSI-40$\uparrow$ & CSI-pool4$\uparrow$ & CSI-pool16$\uparrow$ & HSS$\uparrow$ & SSIM$\uparrow$ & MSE$\downarrow$ \\
+\midrule
+ConvLSTM & 0.2758 & 0.1737 & 0.1066 & 0.3279 & 0.4234 & 0.3570 & 0.5396 & 49.46 \\
+TrajGRU & 0.3182 & 0.2116 & 0.1436 & 0.3563 & 0.3988 & 0.4107 & \textit{0.6326} & \textit{37.01} \\
+PhyDNet & 0.3108 & 0.2155 & 0.1354 & 0.3435 & 0.4100 & 0.4032 & 0.6179 & 38.89 \\
+MAU & 0.3105 & 0.2095 & 0.1362 & 0.3350 & 0.3914 & 0.4027 & 0.5824 & 37.48 \\
+SimVP & \textit{0.3243} & \textit{0.2305} & \textit{0.1452} & 0.3546 & 0.4204 & \textit{0.4190} & 0.6264 & 40.31 \\
+EarthFormer & \underline{0.3260} & \underline{0.2311} & \textbf{0.1559} & \underline{0.3617} & 0.4231 & \underline{0.4217} & 0.6107 & 41.12 \\
+EarthFarseer & 0.2970 & 0.1984 & 0.1272 & 0.3180 & 0.3722 & 0.3870 & 0.5755 & 41.56 \\
+AlphaPre & 0.3096 & 0.2140 & 0.1408 & \textit{0.3597} & \textbf{0.4537} & 0.3992 & 0.6050 & 44.68 \\
+exPreCast & 0.3169 & 0.2208 & 0.1421 & 0.3341 & 0.3870 & 0.4106 & \underline{0.6436} & 37.36 \\
+DiffCast & 0.2874 & 0.1900 & 0.1300 & 0.3273 & \textit{0.4236} & 0.3749 & 0.6145 & 44.92 \\
+WADEPre$^{\dagger}$ & 0.2957 & 0.1908 & 0.1203 & 0.3120 & 0.3535 & 0.3825 & \textbf{0.6576} & \underline{36.19} \\
+\textbf{DAWN-Cast} & \textbf{0.3411} & \textbf{0.2424} & \underline{0.1549} & \textbf{0.3737} & \underline{0.4282} & \textbf{0.4385} & 0.6087 & \textbf{34.13} \\
+\bottomrule
+\end{tabular}}
+\end{table}

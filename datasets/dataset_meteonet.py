@@ -43,7 +43,7 @@ class Meteo(Dataset):
             self.transform = trans
         else:
             self.transform = transforms.Compose([
-                        transforms.Resize((img_size, img_size)),
+                        transforms.Resize((img_size, img_size))
                         # transforms.ToTensor(),
                         # trans.Lambda(lambda x: x/255.0),
                         # transforms.Normalize(mean=[0.5], std=[0.5]),

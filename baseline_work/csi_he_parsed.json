@@ -1,0 +1,479 @@
+[
+ {
+  "run": "Alphapre/Alphapre_Shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.4022851011782968,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3668199906265695,
+  "csi_e_threshold": 40,
+  "csi_e": 0.24236479812156167
+ },
+ {
+  "run": "Alphapre/Alphapre_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.29254453872493796,
+  "csi_h_threshold": 35,
+  "csi_h": 0.18561177501654894,
+  "csi_e_threshold": 40,
+  "csi_e": 0.11565378050534099
+ },
+ {
+  "run": "Alphapre/Alphapre_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.3786303733625508,
+  "csi_h_threshold": 24,
+  "csi_h": 0.36322824550930766,
+  "csi_e_threshold": 32,
+  "csi_e": 0.19904510506863027
+ },
+ {
+  "run": "Diffcast/Diffphydnet_cikm_Diffcast_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.30438060919826293,
+  "csi_h_threshold": 35,
+  "csi_h": 0.19531938426642156,
+  "csi_e_threshold": 40,
+  "csi_e": 0.12355313893335969
+ },
+ {
+  "run": "Diffcast/Diffphydnet_meteo_Diffcast_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.38121333094326,
+  "csi_h_threshold": 24,
+  "csi_h": 0.36500328929173087,
+  "csi_e_threshold": 32,
+  "csi_e": 0.20976364289741767
+ },
+ {
+  "run": "Diffcast/Diffphydnet_shanghai_Diffcast_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.3896222151450951,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3507438607370178,
+  "csi_e_threshold": 40,
+  "csi_e": 0.24920110199060969
+ },
+ {
+  "run": "Earthfarseer/earthfarseer_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.2811489549189268,
+  "csi_h_threshold": 35,
+  "csi_h": 0.1674415485981889,
+  "csi_e_threshold": 40,
+  "csi_e": 0.09313872195985463
+ },
+ {
+  "run": "Earthformer/earthformer_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.3097590639918388,
+  "csi_h_threshold": 35,
+  "csi_h": 0.20419442007272867,
+  "csi_e_threshold": 40,
+  "csi_e": 0.11522961311079534
+ },
+ {
+  "run": "Earthformer/earthformer_on_cikm_100epochs",
+  "dataset": "cikm",
+  "csi_m": 0.29872667322585567,
+  "csi_h_threshold": 35,
+  "csi_h": 0.20107871790136672,
+  "csi_e_threshold": 40,
+  "csi_e": 0.12013270926462342
+ },
+ {
+  "run": "Earthformer/earthformer_on_meteonet_2",
+  "dataset": "meteo",
+  "csi_m": 0.35931752280224727,
+  "csi_h_threshold": 24,
+  "csi_h": 0.34572533077965784,
+  "csi_e_threshold": 32,
+  "csi_e": 0.13902926210906286
+ },
+ {
+  "run": "Earthformer/earthformer_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.3533648160338649,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3178750052344998,
+  "csi_e_threshold": 40,
+  "csi_e": 0.1695128464628506
+ },
+ {
+  "run": "Exprecast/exprecast_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.3168794580265083,
+  "csi_h_threshold": 35,
+  "csi_h": 0.22082263231383825,
+  "csi_e_threshold": 40,
+  "csi_e": 0.14206001249901454
+ },
+ {
+  "run": "Exprecast/exprecast_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.39534394722647875,
+  "csi_h_threshold": 24,
+  "csi_h": 0.3793824528440435,
+  "csi_e_threshold": 32,
+  "csi_e": 0.20773154579095282
+ },
+ {
+  "run": "Exprecast/exprecast_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.3419936661327596,
+  "csi_h_threshold": 181,
+  "csi_h": 0.16942061126140848,
+  "csi_e_threshold": 219,
+  "csi_e": 0.08511741009305496
+ },
+ {
+  "run": "Exprecast/exprecast_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.41066535955454314,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3737067076457474,
+  "csi_e_threshold": 40,
+  "csi_e": 0.26458199851495645
+ },
+ {
+  "run": "Fourcastnet/fourcastnet_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.24925465981042116,
+  "csi_h_threshold": 24,
+  "csi_h": 0.18157257411928343,
+  "csi_e_threshold": 32,
+  "csi_e": 0.04647180914266825
+ },
+ {
+  "run": "Fourcastnet/fourcastnet_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.23305293105929528,
+  "csi_h_threshold": 35,
+  "csi_h": 0.14857592325638858,
+  "csi_e_threshold": 40,
+  "csi_e": 0.061530066918034684
+ },
+ {
+  "run": "MAU/mau_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.31578391033890996,
+  "csi_h_threshold": 35,
+  "csi_h": 0.21287430829139412,
+  "csi_e_threshold": 40,
+  "csi_e": 0.13308340513163938
+ },
+ {
+  "run": "MAU/mau_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.3923557215480653,
+  "csi_h_threshold": 24,
+  "csi_h": 0.37565905098567076,
+  "csi_e_threshold": 32,
+  "csi_e": 0.1951807765464373
+ },
+ {
+  "run": "MAU/mau_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.33433102718370455,
+  "csi_h_threshold": 181,
+  "csi_h": 0.14525867155798947,
+  "csi_e_threshold": 219,
+  "csi_e": 0.054062819998549595
+ },
+ {
+  "run": "MAU/mau_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.39075155596192823,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3550734357498297,
+  "csi_e_threshold": 40,
+  "csi_e": 0.23414748537139576
+ },
+ {
+  "run": "Phydnet/phydnet_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.31121439035401255,
+  "csi_h_threshold": 35,
+  "csi_h": 0.2071345463953241,
+  "csi_e_threshold": 40,
+  "csi_e": 0.12699492656836012
+ },
+ {
+  "run": "Phydnet/phydnet_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.3876196523439576,
+  "csi_h_threshold": 24,
+  "csi_h": 0.367529173596001,
+  "csi_e_threshold": 32,
+  "csi_e": 0.17936444171031832
+ },
+ {
+  "run": "Phydnet/phydnet_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.3118449470134805,
+  "csi_h_threshold": 181,
+  "csi_h": 0.11483441840012534,
+  "csi_e_threshold": 219,
+  "csi_e": 0.0265754131399105
+ },
+ {
+  "run": "Phydnet/phydnet_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.3607624880896426,
+  "csi_h_threshold": 35,
+  "csi_h": 0.32397534661693644,
+  "csi_e_threshold": 40,
+  "csi_e": 0.17890319352795347
+ },
+ {
+  "run": "Simvp/Simvp_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.3117515727392891,
+  "csi_h_threshold": 35,
+  "csi_h": 0.20521405705145215,
+  "csi_e_threshold": 40,
+  "csi_e": 0.11566953406603546
+ },
+ {
+  "run": "Simvp/Simvp_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.4000388966527403,
+  "csi_h_threshold": 24,
+  "csi_h": 0.3834807768057972,
+  "csi_e_threshold": 32,
+  "csi_e": 0.1968033215799107
+ },
+ {
+  "run": "Simvp/Simvp_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.3184569168651779,
+  "csi_h_threshold": 181,
+  "csi_h": 0.128220431906317,
+  "csi_e_threshold": 219,
+  "csi_e": 0.052297052931493414
+ },
+ {
+  "run": "Simvp/Simvp_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.3724995371303375,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3330657133646889,
+  "csi_e_threshold": 40,
+  "csi_e": 0.19156269343112256
+ },
+ {
+  "run": "simvp_falfcl_unscaled/simvp_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.3553574542341642,
+  "csi_h_threshold": 181,
+  "csi_h": 0.18608839294587756,
+  "csi_e_threshold": 219,
+  "csi_e": 0.11289385351890198
+ },
+ {
+  "run": "simvp_falfcl_unscaled/simvp_on_sevir_paper_default",
+  "dataset": "sevir",
+  "csi_m": 0.3385853683388189,
+  "csi_h_threshold": 181,
+  "csi_h": 0.16452437824574542,
+  "csi_e_threshold": 219,
+  "csi_e": 0.07102038745243942
+ },
+ {
+  "run": "Traj_gru/traj_gru_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.3147634580585437,
+  "csi_h_threshold": 35,
+  "csi_h": 0.20705246236694314,
+  "csi_e_threshold": 40,
+  "csi_e": 0.1257955557509654
+ },
+ {
+  "run": "Traj_gru/traj_gru_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.3968536670686762,
+  "csi_h_threshold": 24,
+  "csi_h": 0.38262505199695585,
+  "csi_e_threshold": 32,
+  "csi_e": 0.20891490268395874
+ },
+ {
+  "run": "Traj_gru/traj_gru_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.321623726962362,
+  "csi_h_threshold": 181,
+  "csi_h": 0.1276008270982745,
+  "csi_e_threshold": 219,
+  "csi_e": 0.052240313686214956
+ },
+ {
+  "run": "Traj_gru/trajgru_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.3842808513308375,
+  "csi_h_threshold": 35,
+  "csi_h": 0.35126811432375044,
+  "csi_e_threshold": 40,
+  "csi_e": 0.22175869814905053
+ },
+ {
+  "run": "Wadepre/wadepre_on_meteo",
+  "dataset": "meteo",
+  "csi_m": 0.41999143299591263,
+  "csi_h_threshold": 24,
+  "csi_h": 0.40539051092544254,
+  "csi_e_threshold": 32,
+  "csi_e": 0.23879844713126896
+ },
+ {
+  "run": "Wadepre/wadepre_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.35242132226907263,
+  "csi_h_threshold": 181,
+  "csi_h": 0.18673720250847975,
+  "csi_e_threshold": 219,
+  "csi_e": 0.1031707989010261
+ },
+ {
+  "run": "Wadepre/wadepre_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.411729649652827,
+  "csi_h_threshold": 35,
+  "csi_h": 0.37791537588194524,
+  "csi_e_threshold": 40,
+  "csi_e": 0.27013110293391007
+ },
+ {
+  "run": "cikm_falfcl/earthformer_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.32599945982264067,
+  "csi_h_threshold": 35,
+  "csi_h": 0.2311320075415056,
+  "csi_e_threshold": 40,
+  "csi_e": 0.1558676324207213
+ },
+ {
+  "run": "cikm_falfcl/mau_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.31048548058875713,
+  "csi_h_threshold": 35,
+  "csi_h": 0.20953180217091555,
+  "csi_e_threshold": 40,
+  "csi_e": 0.13616417883622736
+ },
+ {
+  "run": "cikm_falfcl/simvp_on_cikm",
+  "dataset": "cikm",
+  "csi_m": 0.3242997331495753,
+  "csi_h_threshold": 35,
+  "csi_h": 0.23045582101238563,
+  "csi_e_threshold": 40,
+  "csi_e": 0.14520237748884054
+ },
+ {
+  "run": "meteonet_falfcl/earthformer_on_meteonet",
+  "dataset": "meteo",
+  "csi_m": 0.3451241179797635,
+  "csi_h_threshold": 24,
+  "csi_h": 0.3251444690037831,
+  "csi_e_threshold": 32,
+  "csi_e": 0.1361324497705638
+ },
+ {
+  "run": "meteonet_falfcl/mau_on_meteo",
+  "dataset": "meteo",
+  "csi_m": 0.418137610385382,
+  "csi_h_threshold": 24,
+  "csi_h": 0.4029344209290423,
+  "csi_e_threshold": 32,
+  "csi_e": 0.23527044233047484
+ },
+ {
+  "run": "meteonet_falfcl/simvp_on_meteo",
+  "dataset": "meteo",
+  "csi_m": 0.41762334664646555,
+  "csi_h_threshold": 24,
+  "csi_h": 0.4077240530305672,
+  "csi_e_threshold": 32,
+  "csi_e": 0.2303381761411068
+ },
+ {
+  "run": "sevir_falfcl/Diffphydnet_sevir_Diffcast_on_sevir_facl",
+  "dataset": "sevir",
+  "csi_m": 0.31300796716646373,
+  "csi_h_threshold": 181,
+  "csi_h": 0.16726160054084444,
+  "csi_e_threshold": 219,
+  "csi_e": 0.09626692522396421
+ },
+ {
+  "run": "sevir_falfcl/mau_on_sevir_facl",
+  "dataset": "sevir",
+  "csi_m": 0.3340030607484348,
+  "csi_h_threshold": 181,
+  "csi_h": 0.16026589434684418,
+  "csi_e_threshold": 219,
+  "csi_e": 0.07700433604354373
+ },
+ {
+  "run": "sevir_falfcl/phydnet_facl_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.32113270749952955,
+  "csi_h_threshold": 181,
+  "csi_h": 0.14027694738858335,
+  "csi_e_threshold": 219,
+  "csi_e": 0.034721789643005936
+ },
+ {
+  "run": "sevir_falfcl/simvp_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.35433631737739174,
+  "csi_h_threshold": 181,
+  "csi_h": 0.1840467630741806,
+  "csi_e_threshold": 219,
+  "csi_e": 0.1097801433232867
+ },
+ {
+  "run": "sevir_falfcl/trajgru_on_sevir",
+  "dataset": "sevir",
+  "csi_m": 0.37043844730925085,
+  "csi_h_threshold": 181,
+  "csi_h": 0.20256268303697955,
+  "csi_e_threshold": 219,
+  "csi_e": 0.10735776898511226
+ },
+ {
+  "run": "sevir_falfcl/trajgru_on_sevir_unscaled_paper",
+  "dataset": "sevir",
+  "csi_m": 0.3541959006417492,
+  "csi_h_threshold": 181,
+  "csi_h": 0.18848748435715654,
+  "csi_e_threshold": 219,
+  "csi_e": 0.09510480586478637
+ },
+ {
+  "run": "shanghai_falfcl/earthformer_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.4000284571598727,
+  "csi_h_threshold": 35,
+  "csi_h": 0.36786655292292525,
+  "csi_e_threshold": 40,
+  "csi_e": 0.2552663015514198
+ },
+ {
+  "run": "shanghai_falfcl/mau_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.42166167604824634,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3859996822809578,
+  "csi_e_threshold": 40,
+  "csi_e": 0.2724260482067772
+ },
+ {
+  "run": "shanghai_falfcl/simvp_on_shanghai",
+  "dataset": "shanghai",
+  "csi_m": 0.4341465501300905,
+  "csi_h_threshold": 35,
+  "csi_h": 0.3973079426724025,
+  "csi_e_threshold": 40,
+  "csi_e": 0.2798525639938296
+ }
+]

@@ -1,0 +1,14 @@
+model,dataset,run,csi_m,csi_h_thr,csi_h,csi_e_thr,csi_e,csi_pool4x4,csi_pool16x16,hss,ssim,mse,batch_size,epochs_reached,params_M
+EarthFormer,cikm,earthformer_on_cikm,0.325999,35,0.231132,40,0.155868,nan,nan,0.421715,0.610664,41.1208,8,50,8.65
+EarthFormer,meteo,earthformer_on_meteonet,0.345124,24,0.325144,32,0.136132,,,,,,4,50,8.65
+EarthFormer,shanghai,earthformer_on_shanghai,0.400028,35,0.367867,40,0.255266,nan,nan,0.542706,0.690321,32.6819,4,50,8.65
+MAU,cikm,mau_on_cikm,0.310485,35,0.209532,40,0.136164,nan,nan,0.402667,0.582441,37.4804,4,50,7.63
+MAU,meteo,mau_on_meteo,0.418138,24,0.402934,32,0.23527,nan,nan,0.557531,0.816677,9.8872,4,50,7.63
+MAU,sevir,mau_on_sevir_facl,0.334003,181,0.160266,219,0.077004,nan,nan,0.431239,0.645712,401.8419,8,25,7.63
+MAU,shanghai,mau_on_shanghai,0.421662,35,0.386,40,0.272426,nan,nan,0.563806,0.668053,29.0274,4,50,7.63
+PhyDNet,sevir,phydnet_facl_on_sevir,0.321133,181,0.140277,219,0.034722,,,,,,16,25,3.09
+SimVP,cikm,simvp_on_cikm,0.3243,35,0.230456,40,0.145202,nan,nan,0.419029,0.626354,40.3114,8,50,11.06
+SimVP,meteo,simvp_on_meteo,0.417623,24,0.407724,32,0.230338,,,,,,4,50,11.06
+SimVP,sevir,simvp_on_sevir,0.354336,181,0.184047,219,0.10978,,,,,,4,20,11.06
+SimVP,shanghai,simvp_on_shanghai,0.434147,35,0.397308,40,0.279853,nan,nan,0.576212,0.725305,26.5297,4,50,11.06
+TrajGRU,sevir,trajgru_on_sevir,0.370438,181,0.202563,219,0.107358,,,,,,4,20,11.91

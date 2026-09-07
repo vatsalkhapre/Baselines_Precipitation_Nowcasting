@@ -25,7 +25,7 @@ class Shanghai(Dataset):
             self.transform = trans
         else:
             self.transform = transforms.Compose([
-                        transforms.Resize((img_size, img_size)),
+                        transforms.Resize((img_size, img_size))
                     ])
                     
     def __len__(self):
